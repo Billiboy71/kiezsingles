@@ -40,6 +40,10 @@ return [
     */
 
     'debug' => (bool) env('APP_DEBUG', false),
+    'debug_register_errors' => env('DEBUG_REGISTER_ERRORS', false),
+    'debug_register_payload' => env('DEBUG_REGISTER_PAYLOAD', false),
+
+
 
     /*
     |--------------------------------------------------------------------------

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -18,13 +19,18 @@ class AppServiceProvider extends ServiceProvider
      * Bootstrap any application services.
      */
     public function boot(): void
-{
-    Password::defaults(function () {
-        return Password::min(10)
-            ->mixedCase()
-            ->numbers()
-            ->symbols()
-            ->uncompromised();
-    });
-}
+    {
+        Password::defaults(function () {
+            $rule = Password::min(10)
+                ->mixedCase()
+                ->numbers()
+                ->symbols();
+
+            if (! app()->environment('testing')) {
+                $rule->uncompromised();
+            }
+
+            return $rule;
+        });
+    }
 }

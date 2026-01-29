@@ -13,16 +13,34 @@
         </div>
 
         <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+<div class="mt-4">
+    <x-input-label for="password" :value="__('Password')" />
 
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
+    <div class="mt-1 flex">
+        <x-text-input
+            id="password"
+            class="block w-full rounded-r-none"
+            type="password"
+            name="password"
+            required
+            autocomplete="current-password"
+        />
 
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
+        <button
+    type="button"
+    class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
+    onclick="togglePassword('password', this)"
+>
+    🔒
+</button>
+    </div>
+
+   
+
+
+    <x-input-error :messages="$errors->get('password')" class="mt-2" />
+</div>
+
 
         <!-- Remember Me -->
         <div class="block mt-4">
@@ -39,6 +57,19 @@
                 </a>
             @endif
 
+@if(config('captcha.enabled') && config('captcha.on_login'))
+    <div class="mt-4">
+        <div class="cf-turnstile"
+             data-sitekey="{{ config('captcha.turnstile_site_key') }}">
+        </div>
+
+        <x-input-error :messages="$errors->get('cf-turnstile-response')" class="mt-2" />
+    </div>
+
+    @once
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    @endonce
+@endif
             <x-primary-button class="ms-3">
                 {{ __('Log in') }}
             </x-primary-button>
