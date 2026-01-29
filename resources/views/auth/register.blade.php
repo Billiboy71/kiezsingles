@@ -79,36 +79,6 @@
             <x-input-error :messages="$errors->get('nickname')" class="mt-2" />
         </div>
 
-        <!-- Vorname -->
-        <div class="mt-4">
-            <x-input-label for="first_name" value="Vorname" />
-            <x-text-input
-                id="first_name"
-                class="block mt-1 w-full"
-                type="text"
-                name="first_name"
-                value="{{ old('first_name') }}"
-                required
-                autocomplete="given-name"
-            />
-            <x-input-error :messages="$errors->get('first_name')" class="mt-2" />
-        </div>
-
-        <!-- Nachname -->
-        <div class="mt-4">
-            <x-input-label for="last_name" value="Nachname" />
-            <x-text-input
-                id="last_name"
-                class="block mt-1 w-full"
-                type="text"
-                name="last_name"
-                value="{{ old('last_name') }}"
-                required
-                autocomplete="family-name"
-            />
-            <x-input-error :messages="$errors->get('last_name')" class="mt-2" />
-        </div>
-
         <!-- Geburtsdatum -->
         <div class="mt-4">
             <x-input-label for="birthdate" value="Geburtsdatum" />
@@ -251,22 +221,6 @@
                 </span>
             </label>
             <x-input-error :messages="$errors->get('privacy')" class="mt-2" />
-        </div>
-
-        <!-- Newsletter -->
-        <div class="mt-4">
-            <label class="inline-flex items-center">
-                <input
-                    type="checkbox"
-                    name="newsletter_opt_in"
-                    value="1"
-                    class="rounded border-gray-300"
-                    {{ old('newsletter_opt_in') ? 'checked' : '' }}
-                >
-                <span class="ms-2 text-sm text-gray-600">
-                    Newsletter: Ja, ich möchte Updates erhalten
-                </span>
-            </label>
         </div>
 
         {{-- Captcha Token --}}
@@ -461,8 +415,6 @@
                 const requiredIds = [
                     'match_type',
                     'nickname',
-                    'first_name',
-                    'last_name',
                     'birthdate',
                     'district',
                     'email',

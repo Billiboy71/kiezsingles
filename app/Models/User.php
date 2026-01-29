@@ -15,8 +15,6 @@ class User extends Authenticatable
     'gender',
     'looking_for',
 
-    'first_name',
-    'last_name',
     'nickname',
 
     'email',
@@ -28,7 +26,6 @@ class User extends Authenticatable
     'district',
     'postcode',
 
-    'newsletter_opt_in',
     'privacy_accepted_at',
 
     'email_verified_at',
@@ -44,7 +41,6 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'birthdate' => 'date',
-        'newsletter_opt_in' => 'boolean',
         'privacy_accepted_at' => 'datetime',
     ];
 }

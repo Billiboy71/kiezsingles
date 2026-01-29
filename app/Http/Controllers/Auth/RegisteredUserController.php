@@ -101,10 +101,6 @@ class RegisteredUserController extends Controller
                     // Postleitzahl
                     'postcode' => $postcodeRules,
 
-                    // Namen
-                    'first_name' => ['required', 'string', 'min:2', 'max:30', 'regex:/^[\pL\s\-]+$/u'],
-                    'last_name'  => ['required', 'string', 'min:2', 'max:30', 'regex:/^[\pL\s\-]+$/u'],
-
                     // Nickname
                     'nickname' => [
                         'required',
@@ -129,9 +125,6 @@ class RegisteredUserController extends Controller
                         'required',
                         Password::defaults()->uncompromised(),
                     ],
-
-                    // Optional
-                    'newsletter_opt_in' => ['sometimes', 'boolean'],
 
                     // Rechtliches
                     'privacy' => ['required', 'accepted'],
@@ -255,8 +248,6 @@ class RegisteredUserController extends Controller
             'gender'      => $gender,
             'looking_for' => $lookingFor,
 
-            'first_name' => $validated['first_name'],
-            'last_name'  => $validated['last_name'],
             'nickname'   => $validated['nickname'],
 
             'email'    => strtolower($validated['email']),
@@ -268,7 +259,6 @@ class RegisteredUserController extends Controller
             'district' => $validated['district'],
             'postcode' => $postcodeEnabled ? ($validated['postcode'] ?? null) : null,
 
-            'newsletter_opt_in'   => (bool) ($validated['newsletter_opt_in'] ?? false),
             'privacy_accepted_at' => now(),
         ]);
 
