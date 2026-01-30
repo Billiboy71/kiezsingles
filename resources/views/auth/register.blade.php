@@ -79,20 +79,39 @@
             <x-input-error :messages="$errors->get('nickname')" class="mt-2" />
         </div>
 
-        <!-- Geburtsdatum -->
-        <div class="mt-4">
-            <x-input-label for="birthdate" value="Geburtsdatum" />
-            <x-text-input
-                id="birthdate"
-                class="block mt-1 w-full"
-                type="date"
-                name="birthdate"
-                value="{{ old('birthdate') }}"
-                max="{{ now()->subYears(18)->format('Y-m-d') }}"
-                required
-            />
-            <x-input-error :messages="$errors->get('birthdate')" class="mt-2" />
-        </div>
+  
+
+<div class="mt-4" style="display:flex; gap:12px; align-items:flex-end;">
+    <!-- Geburtsdatum -->
+    <div style="flex:1 1 0;">
+        <x-input-label for="birthdate" value="Geburtsdatum" />
+        <x-text-input
+            id="birthdate"
+            class="block mt-1 w-full"
+            type="date"
+            name="birthdate"
+            value="{{ old('birthdate') }}"
+            max="{{ now()->subYears(18)->format('Y-m-d') }}"
+            required
+        />
+        <x-input-error :messages="$errors->get('birthdate')" class="mt-2" />
+    </div>
+
+    <!-- Alter (immer 50% Platz; zeigt serverseitig old()-Alter oder –) -->
+    <div style="flex:1 1 0; white-space:nowrap;">
+    <!-- Spacer statt "Alter"-Überschrift (damit die Zeile auf Input-Höhe sitzt) -->
+    <div style="height:20px;"></div>
+
+    <!-- Zeile mittig auf der Höhe des Date-Inputs -->
+    <div style="height:42px; display:flex; align-items:center; font-size:18px; color:#4b5563; padding-left:10px;">
+    <span id="ageLine"></span>
+</div>
+
+
+</div>
+
+</div>
+
 
         <!-- Wohnort -->
         <div class="mt-4">
@@ -530,5 +549,35 @@
                 email.addEventListener('blur', check);
             });
         </script>
+        {{-- JS: Alter-Hinweis --}}
+        <script>
+(() => {
+    const birthInput = document.getElementById('birthdate');
+    const ageLine = document.getElementById('ageLine');
+if (!birthInput || !ageLine) return;
+
+    const calcAge = (v) => {
+        if (!v) return null;
+        const d = new Date(v + 'T00:00:00');
+        if (isNaN(d)) return null;
+
+        const t = new Date();
+        let a = t.getFullYear() - d.getFullYear();
+        const m = t.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+        return a >= 0 ? a : null;
+    };
+
+    const update = () => {
+        const age = calcAge(birthInput.value);
+        ageLine.textContent = (age === null) ? '' : `Alter: ${age} (stimmt das?)`;
+    };
+
+    birthInput.addEventListener('input', update);
+    birthInput.addEventListener('change', update);
+    update();
+})();
+</script>
+
     </form>
 </x-guest-layout>
