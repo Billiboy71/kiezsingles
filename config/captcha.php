@@ -1,4 +1,8 @@
 <?php
+// ============================================================================
+// File: config/captcha.php
+// Purpose: Zentrale Konfiguration für Cloudflare Turnstile
+// ============================================================================
 
 return [
     'enabled'     => (bool) env('CAPTCHA_ENABLED', false),

@@ -1,4 +1,8 @@
 <?php
+// ============================================================================
+// File: app/Http/Controllers/Auth/AuthenticatedSessionController.php
+// Purpose: Login controller (blocks login until email is verified; NO auto resend)
+// ============================================================================
 
 namespace App\Http\Controllers\Auth;
 
@@ -26,6 +30,23 @@ class AuthenticatedSessionController extends Controller
     {
         // Kein Captcha beim Login (Throttle reicht)
         $request->authenticate();
+
+        // HARD GATE: ohne verifizierte E-Mail kein Login
+        $user = Auth::user();
+
+        if ($user && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()
+                ->withErrors([
+                    'email' => 'Bitte bestätige zuerst deine E-Mail-Adresse. Ohne Bestätigung ist kein Login möglich.',
+                ])
+                ->with('email_not_verified', true)
+                ->onlyInput('email');
+        }
 
         $request->session()->regenerate();
 

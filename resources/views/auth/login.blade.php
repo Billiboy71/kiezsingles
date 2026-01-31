@@ -1,6 +1,30 @@
+{{-- ========================================================================= --}}
+{{-- File: resources/views/auth/login.blade.php                                 --}}
+{{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
+{{-- ========================================================================= --}}
+
 <x-guest-layout>
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
+
+    @if (session('email_not_verified'))
+        <div class="mb-4 rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+            <div class="font-medium">E-Mail noch nicht bestätigt</div>
+            <div class="mt-1">
+                Bitte bestätige zuerst deine E-Mail-Adresse. Ohne Bestätigung ist kein Login möglich.
+            </div>
+
+            @if (Route::has('verification.send.guest'))
+                <form method="POST" action="{{ route('verification.send.guest') }}" class="mt-3">
+                    @csrf
+                    <input type="hidden" name="email" value="{{ old('email') }}">
+                    <button type="submit" class="underline text-sm text-yellow-900 hover:text-yellow-700">
+                        Bestätigungslink erneut senden
+                    </button>
+                </form>
+            @endif
+        </div>
+    @endif
 
     <form method="POST" action="{{ route('login') }}">
         @csrf
@@ -34,9 +58,6 @@
     🔒
 </button>
     </div>
-
-   
-
 
     <x-input-error :messages="$errors->get('password')" class="mt-2" />
 </div>

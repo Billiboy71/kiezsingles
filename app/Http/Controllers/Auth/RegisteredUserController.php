@@ -1,4 +1,8 @@
 <?php
+// ============================================================================
+// File: app/Http/Controllers/Auth/RegisteredUserController.php
+// Purpose: Register new users (sends verification email, does NOT auto-login)
+// ============================================================================
 
 namespace App\Http\Controllers\Auth;
 
@@ -263,8 +267,9 @@ class RegisteredUserController extends Controller
         ]);
 
         event(new Registered($user));
-        Auth::login($user);
 
-        return redirect('/profile');
+        return redirect()
+            ->route('login')
+            ->with('status', 'Registrierung erfolgreich. Bitte prüfe dein Postfach und bestätige deine E-Mail-Adresse, bevor du dich einloggen kannst.');
     }
 }

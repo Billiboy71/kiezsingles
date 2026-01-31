@@ -12,6 +12,11 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
+    Route::post('email/verification-notification-guest', \App\Http\Controllers\Auth\EmailVerificationGuestNotificationController::class)
+        ->middleware('throttle:3,1')
+        ->name('verification.send.guest');
+
+
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
