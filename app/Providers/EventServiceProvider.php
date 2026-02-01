@@ -14,23 +14,8 @@ use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvi
 
 class EventServiceProvider extends ServiceProvider
 {
-    public function boot(): void
-{
-    logger()->warning('ESP BOOT HIT', [
-        'pid' => getmypid(),
-        'ts'  => now()->toDateTimeString(),
-        'bt'  => collect(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 8))
-            ->pluck('file')
-            ->filter()
-            ->values()
-            ->all(),
-    ]);
-
-    parent::boot();
-}
     protected $listen = [
         Registered::class => [
-            \App\Listeners\DebugRegisteredEvent::class,
             \App\Listeners\LogRegistrationIp::class,
         ],
 
@@ -52,7 +37,7 @@ class EventServiceProvider extends ServiceProvider
      * IMPORTANT:
      * We register listeners explicitly via $listen.
      * Disable event discovery to prevent duplicate listener registration
-     * (e.g. DebugRegisteredEvent + DebugRegisteredEvent@handle).
+     * (e.g. ListenerClass + ListenerClass@handle).
      */
     public function shouldDiscoverEvents(): bool
     {
