@@ -10,7 +10,7 @@ if exist "%LARAGON_EXE%" (
     echo Starting Laragon...
     start "" "%LARAGON_EXE%"
     REM kurze Pause, damit MySQL sicher hochkommt
-    timeout /t 5 >nul
+    timeout /t 6 >nul
 ) else (
     echo Laragon not found at %LARAGON_EXE%
 )

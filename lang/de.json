@@ -25,7 +25,7 @@
     "errors": "Fehler",
     "Forbidden": "Verboten",
     "Forgot your password?": "Passwort vergessen?",
-    "Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.": "Haben Sie Ihr Passwort vergessen? Kein Problem. Teilen Sie uns einfach Ihre E-Mail-Adresse mit und wir senden Ihnen per E-Mail einen Link zum Zurücksetzen des Passworts, über den Sie ein Neues auswählen können.",
+    "Forgot your password? No problem.\nJust let us know your email address and we will email you a password reset link that will allow you\nto choose a new one.": "Passwort vergessen? Kein Problem. Gib deine E-Mail-Adresse ein und wir senden dir einen Link zum Zurücksetzen.",
     "Go to page :page": "Gehe zur Seite :page",
     "Hello!": "Hallo!",
     "If you did not create an account, no further action is required.": "Wenn Sie kein Konto erstellt haben, sind keine weiteren Handlungen nötig.",

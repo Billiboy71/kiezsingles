@@ -1,6 +1,6 @@
 <?php
 // ============================================================================
-// File: app/Http/Controllers/Auth/RegisteredUserController.php
+// File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\RegisteredUserController.php
 // Purpose: Register new users (sends verification email, does NOT auto-login)
 // ============================================================================
 
@@ -270,6 +270,8 @@ class RegisteredUserController extends Controller
 
         return redirect()
             ->route('login')
-            ->with('status', 'Registrierung erfolgreich. Bitte prüfe dein Postfach und bestätige deine E-Mail-Adresse, bevor du dich einloggen kannst.');
+            ->withInput(['email' => strtolower($validated['email'])])
+            ->with('email_not_verified', true)
+            ->with('status', 'Registrierung erfolgreich.\NBitte prüfe dein Postfach und bestätige deine E-Mail-Adresse, bevor du dich einloggen kannst.');
     }
 }

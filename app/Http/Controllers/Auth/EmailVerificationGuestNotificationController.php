@@ -1,6 +1,6 @@
 <?php
 // ============================================================================
-// File: app/Http/Controllers/Auth/EmailVerificationGuestNotificationController.php
+// File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\EmailVerificationGuestNotificationController.php
 // Purpose: Resend email verification link for guests (throttled, no enumeration)
 // ============================================================================
 
@@ -26,7 +26,10 @@ class EmailVerificationGuestNotificationController extends Controller
         $key = 'verification-resend-guest:' . sha1($email);
 
         if (RateLimiter::tooManyAttempts($key, 3)) {
-            return back()->with('status', 'Bitte warte kurz, bevor du es erneut versuchst.');
+            return back()
+                ->withInput(['email' => $email])
+                ->with('email_not_verified', true)
+                ->with('status', 'Bitte warte kurz, bevor du es erneut versuchst.');
         }
 
         RateLimiter::hit($key, 60);
@@ -40,6 +43,9 @@ class EmailVerificationGuestNotificationController extends Controller
             }
         }
 
-        return back()->with('status', 'Wenn die E-Mail-Adresse existiert und noch nicht bestätigt ist, wurde ein Bestätigungslink gesendet.');
+        return back()
+            ->withInput(['email' => $email])
+            ->with('email_not_verified', true)
+            ->with('status', 'Wenn die E-Mail-Adresse existiert und noch nicht bestätigt ist, wurde ein Bestätigungslink gesendet.');
     }
 }

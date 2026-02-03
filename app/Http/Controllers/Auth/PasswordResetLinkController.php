@@ -27,7 +27,7 @@ class PasswordResetLinkController extends Controller
     {
         // 1) Erst normal validieren
         $request->validate([
-            'email' => ['required', 'email'],
+            'email' => ['required', 'string', 'email', 'max:255'],
         ]);
 
         // 2) Dann Captcha prüfen (und als normales Validation-Error zurückgeben)

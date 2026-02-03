@@ -1,4 +1,8 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Requests\Auth\LoginRequest.php
+// Purpose: Login request validation (rate limited, no user enumeration)
+// ============================================================================
 
 namespace App\Http\Requests\Auth;
 
@@ -27,7 +31,7 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
+            'email' => ['required', 'string', 'email', 'max:255'], // ← FIX
             'password' => ['required', 'string'],
         ];
     }

@@ -1,4 +1,8 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\NewPasswordController.php
+// Purpose: Handle password reset (token based)
+// ============================================================================
 
 namespace App\Http\Controllers\Auth;
 
@@ -35,11 +39,11 @@ class NewPasswordController extends Controller
         // 1) Erst normal validieren
         $request->validate([
             'token' => ['required'],
-            'email' => ['required', 'email'],
+            'email' => ['required', 'string', 'email', 'max:255'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // 2) Dann Captcha prüfen (als Validation-Error zurückgeben)
+        // 2) Dann Captcha prÃ¼fen (als Validation-Error zurÃ¼ckgeben)
         if (config('captcha.enabled') && config('captcha.on_reset')) {
             try {
                 Turnstile::verify($request->string('cf-turnstile-response')->toString());
@@ -50,7 +54,7 @@ class NewPasswordController extends Controller
             }
         }
 
-        // 3) Passwort-Reset ausführen
+        // 3) Passwort-Reset ausfÃ¼hren
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request) {

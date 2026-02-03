@@ -1,7 +1,7 @@
 <?php
 // ============================================================================
-// File: app/Http/Controllers/Auth/AuthenticatedSessionController.php
-// Purpose: Login controller (blocks login until email is verified; NO auto resend)
+// File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
+// Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -35,6 +35,11 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         if ($user && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+            // Auto-Resend: nur nachdem Credentials korrekt waren (keine Enumeration)
+            if (method_exists($user, 'sendEmailVerificationNotification')) {
+                $user->sendEmailVerificationNotification();
+            }
+
             Auth::guard('web')->logout();
 
             $request->session()->invalidate();
@@ -44,6 +49,7 @@ class AuthenticatedSessionController extends Controller
                 ->withErrors([
                     'email' => 'Bitte bestätige zuerst deine E-Mail-Adresse. Ohne Bestätigung ist kein Login möglich.',
                 ])
+                ->with('status', 'Wir haben dir soeben erneut einen Bestätigungslink per E-Mail gesendet.')
                 ->with('email_not_verified', true)
                 ->onlyInput('email');
         }

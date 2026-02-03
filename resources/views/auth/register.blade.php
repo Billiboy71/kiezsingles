@@ -1,3 +1,7 @@
+{{-- ========================================================================= --}}
+{{-- File: C:\laragon\www\kiezsingles\resources\views\auth\register.blade.php       --}}
+{{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
+{{-- ========================================================================= --}}
 <x-guest-layout>
     {{-- DEBUG: Server Validation Errors --}}
     @if (config('app.debug_register_errors') && $errors->any())

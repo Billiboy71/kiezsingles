@@ -1,4 +1,8 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Controllers\ContactController.php
+// Purpose: Contact form controller (validation + optional Turnstile)
+// ============================================================================
 
 namespace App\Http\Controllers;
 
@@ -20,7 +24,7 @@ class ContactController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'min:2', 'max:80'],
-            'email' => ['required', 'email', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255'],
             'message' => ['required', 'string', 'min:10', 'max:5000'],
             'cf-turnstile-response' => ['nullable', 'string'],
         ]);
