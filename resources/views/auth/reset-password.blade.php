@@ -1,8 +1,16 @@
-{{-- resources/views/auth/reset-password.blade.php --}}
+{{-- ========================================================================= --}}
+{{-- File: C:\laragon\www\kiezsingles\resources\views\auth\reset-password.blade.php --}}
+{{-- Changed: 08-02-2026 21:51 --}}
+{{-- Purpose: Password reset form (email + new password + confirmation)          --}}
+{{-- ========================================================================= --}}
 
 <x-guest-layout>
     <form method="POST" action="{{ route('password.store') }}">
         @csrf
+
+        {{-- Autofill-Fänger (Browser füllt gern hier rein statt in echte Felder) --}}
+        <input type="text" name="fake_username" autocomplete="username" style="display:none">
+        <input type="password" name="fake_password" autocomplete="current-password" style="display:none">
 
         <!-- Password Reset Token -->
         <input type="hidden" name="token" value="{{ $request->route('token') }}">
@@ -15,10 +23,17 @@
                 class="block mt-1 w-full"
                 type="email"
                 name="email"
+                placeholder="...@..."
                 :value="old('email', $request->email)"
                 required
                 autofocus
-                autocomplete="username"
+                autocomplete="email"
+                inputmode="email"
+                autocapitalize="none"
+                spellcheck="false"
+                readonly
+                onfocus="this.removeAttribute('readonly');"
+                onmousedown="this.removeAttribute('readonly');"
             />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>

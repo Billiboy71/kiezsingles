@@ -1,6 +1,14 @@
-{{-- resources/views/contact.blade.php --}}
+{{-- ============================================================================
+File: C:\laragon\www\kiezsingles\resources\views\contact.blade.php
+Changed: 08-02-2026 01:41
+Purpose: Public contact form (guest layout) with optional Turnstile captcha
+============================================================================ --}}
 
 <x-guest-layout>
+    @php
+        $captchaEnabled = (bool) (config('captcha.enabled') && config('captcha.on_contact'));
+    @endphp
+
     <div class="max-w-xl mx-auto">
         <h1 class="text-xl font-semibold text-gray-900">Kontakt</h1>
 
@@ -37,7 +45,7 @@
                 <x-input-error :messages="$errors->get('message')" class="mt-2" />
             </div>
 
-            @if (config('captcha.enabled') && config('captcha.on_contact'))
+            @if ($captchaEnabled)
                 <div class="mt-4">
                     <div
                         class="cf-turnstile"
@@ -54,10 +62,8 @@
             <div class="flex justify-end">
                 <x-primary-button
                     id="contactBtn"
-                    @if (config('captcha.enabled') && config('captcha.on_contact'))
-                        class="opacity-50 cursor-not-allowed"
-                        disabled
-                    @endif
+                    :disabled="$captchaEnabled"
+                    :class="$captchaEnabled ? 'opacity-50 cursor-not-allowed' : ''"
                 >
                     Senden
                 </x-primary-button>
@@ -70,7 +76,7 @@
             const btn = document.getElementById('contactBtn');
             if (!btn) return;
 
-            const captchaEnabled = @json((bool) (config('captcha.enabled') && config('captcha.on_contact')));
+            const captchaEnabled = @json($captchaEnabled);
             let captchaOk = captchaEnabled ? false : true;
 
             const update = () => {

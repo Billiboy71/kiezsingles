@@ -43,7 +43,7 @@ class NewPasswordController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // 2) Dann Captcha prÃ¼fen (als Validation-Error zurÃ¼ckgeben)
+        // 2) Dann Captcha prüfen (als Validation-Error zurückgeben)
         if (config('captcha.enabled') && config('captcha.on_reset')) {
             try {
                 Turnstile::verify($request->string('cf-turnstile-response')->toString());
@@ -54,14 +54,19 @@ class NewPasswordController extends Controller
             }
         }
 
-        // 3) Passwort-Reset ausfÃ¼hren
+        // 3) Passwort-Reset ausführen
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request) {
+                $user->timestamps = false;
+
                 $user->forceFill([
                     'password' => Hash::make($request->password),
                     'remember_token' => Str::random(60),
+                    'password_changed_at' => now(),
                 ])->save();
+
+                $user->timestamps = true;
 
                 event(new PasswordReset($user));
             }

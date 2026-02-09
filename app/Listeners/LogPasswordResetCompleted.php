@@ -1,21 +1,34 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Listeners\LogPasswordResetCompleted.php
+// Purpose: Log completed password resets (DB SecurityEvent, request IP/UA, hardened)
+// ============================================================================
 
 namespace App\Listeners;
 
 use App\Models\SecurityEvent;
 use Illuminate\Auth\Events\PasswordReset;
-use App\Models\SecurityEvent as SecurityEventModel;
 
 class LogPasswordResetCompleted
 {
     public function handle(PasswordReset $event): void
     {
-        SecurityEventModel::create([
-            'user_id' => $event->user->id ?? null,
+        if (!app()->bound('request')) {
+            return;
+        }
+
+        $ip = request()->ip();
+
+        if (empty($ip)) {
+            return;
+        }
+
+        SecurityEvent::create([
+            'user_id'    => $event->user?->id,
             'event_type' => 'password_reset_completed',
-            'ip' => request()->ip(),
+            'ip'         => $ip,
             'user_agent' => request()->userAgent(),
-            'metadata' => [],
+            'metadata'   => [],
         ]);
     }
 }

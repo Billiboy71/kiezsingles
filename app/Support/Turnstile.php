@@ -1,4 +1,9 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Support\Turnstile.php
+// Changed: 08-02-2026 01:17
+// Purpose: Cloudflare Turnstile verification (server-side) with optional debug logging
+// ============================================================================
 
 namespace App\Support;
 
@@ -16,6 +21,10 @@ class Turnstile
             return;
         }
 
+        // Debug (DB -> config fallback), erlaubte Envs: local + staging
+        $debugEnabled = SystemSettingHelper::debugUiAllowed()
+            && SystemSettingHelper::debugBool('turnstile', (bool) config('captcha.debug'));
+
         // Token fehlt
         if (!is_string($token) || trim($token) === '') {
             throw ValidationException::withMessages([
@@ -27,7 +36,7 @@ class Turnstile
 
         // Hard-Fail bei fehlendem Secret (sonst debuggt man ewig)
         if ($secret === '') {
-            if ((bool) config('captcha.debug')) {
+            if ($debugEnabled) {
                 logger()->error('TURNSTILE MISCONFIG: secret_key missing', [
                     'config_key_used' => 'captcha.secret_key',
                     'request_host' => request()->getHost(),
@@ -50,7 +59,7 @@ class Turnstile
         $json = $resp->json();
 
         // Debug: Cloudflare Antwort loggen
-        if ((bool) config('captcha.debug')) {
+        if ($debugEnabled) {
             logger()->warning('TURNSTILE SITEVERIFY', [
                 'http_status' => $resp->status(),
                 'success'     => $json['success'] ?? null,
@@ -68,7 +77,7 @@ class Turnstile
 
             // Optional: Error-Codes nur im Debugtext anhängen
             $codes = $json['error-codes'] ?? [];
-            if ((bool) config('captcha.debug') && !empty($codes)) {
+            if ($debugEnabled && !empty($codes)) {
                 $msg .= ' (' . implode(',', (array) $codes) . ')';
             }
 

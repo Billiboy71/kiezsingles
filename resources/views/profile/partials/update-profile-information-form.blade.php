@@ -1,3 +1,8 @@
+{{-- ========================================================================= --}}
+{{-- File: C:\laragon\www\kiezsingles\resources\views\profile\partials\update-profile-information-form.blade.php --}}
+{{-- Purpose: Profile - Update profile information (name + email)               --}}
+{{-- ========================================================================= --}}
+
 <section>
     <header>
         <h2 class="text-lg font-medium text-gray-900">
@@ -13,9 +18,13 @@
         @csrf
     </form>
 
-    <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
+    <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6" autocomplete="off">
         @csrf
         @method('patch')
+
+        {{-- Autofill-Fänger (Browser/Password-Manager) --}}
+        <input type="text" name="fake_username" autocomplete="username" style="display:none">
+        <input type="password" name="fake_password" autocomplete="current-password" style="display:none">
 
         <div>
             <x-input-label for="name" :value="__('Name')" />
@@ -25,7 +34,19 @@
 
         <div>
             <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
+            <x-text-input
+                id="email"
+                name="email"
+                type="email"
+                class="mt-1 block w-full"
+                :value="old('email', $user->email)"
+                required
+                placeholder="...@..."
+                autocomplete="off"
+                inputmode="email"
+                autocapitalize="none"
+                spellcheck="false"
+            />
             <x-input-error class="mt-2" :messages="$errors->get('email')" />
 
             @if ($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! $user->hasVerifiedEmail())

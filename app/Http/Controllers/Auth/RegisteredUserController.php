@@ -2,19 +2,21 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\RegisteredUserController.php
 // Purpose: Register new users (sends verification email, does NOT auto-login)
+// Changed: 08-02-2026 03:03
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\SystemSettingHelper;
 use App\Support\Turnstile;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -38,18 +40,30 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         // ===============================
-        // CAPTCHA FLAGS (deaktivierbar)
+        // DEBUG GATE (SystemSettings -> config fallback)
+        // ===============================
+        $debugUiAllowed = SystemSettingHelper::debugUiAllowed();
+
+        $debugRegisterErrors = $debugUiAllowed
+            && SystemSettingHelper::debugBool('register_errors', (bool) config('app.debug_register_errors'));
+
+        $debugRegisterPayload = $debugUiAllowed
+            && SystemSettingHelper::debugBool('register_payload', (bool) config('app.debug_register_payload'));
+
+        // Turnstile Debug: DB (debug.turnstile) -> Fallback config('captcha.debug')
+        $debugTurnstile = $debugUiAllowed
+            && SystemSettingHelper::debugBool('turnstile', (bool) config('captcha.debug'));
+
+        // ===============================
+        // CAPTCHA FLAGS (Policy, bleibt config/env)
         // ===============================
         $captchaEnabled  = (bool) config('captcha.enabled');
         $captchaRegister = (bool) config('captcha.on_register');
 
-        // EIN Debug-Schalter (kommt aus config/captcha.php -> debug = CAPTCHA_DEBUG || DEBUG_TURNSTILE)
-        $captchaDebug = (bool) config('captcha.debug');
-
         $captchaActive = $captchaEnabled && $captchaRegister;
 
-        // Debug: Incoming Request (nur lokal + Debug an)
-        if ($captchaDebug && app()->environment('local')) {
+        // Debug: Incoming Request (nur wenn Debug-Gate aktiv)
+        if ($debugTurnstile) {
             logger()->info('TURNSTILE DEBUG: incoming', [
                 'captcha_active' => $captchaActive,
                 'has_token'      => $request->filled('cf-turnstile-response'),
@@ -105,14 +119,14 @@ class RegisteredUserController extends Controller
                     // Postleitzahl
                     'postcode' => $postcodeRules,
 
-                    // Nickname
-                    'nickname' => [
+                    // Username
+                    'username' => [
                         'required',
                         'string',
                         'min:4',
                         'max:20',
                         'regex:/^[a-zA-Z0-9._-]+$/',
-                        'unique:users,nickname',
+                        'unique:users,username',
                     ],
 
                     // Login
@@ -157,7 +171,7 @@ class RegisteredUserController extends Controller
                 ]
             );
         } catch (ValidationException $e) {
-            if (config('app.debug_register_errors')) {
+            if ($debugRegisterErrors) {
                 logger()->error('REGISTER VALIDATION FAILED', [
                     'errors' => $e->errors(),
                     'keys'   => array_keys($request->all()),
@@ -166,27 +180,22 @@ class RegisteredUserController extends Controller
             throw $e;
         }
 
-        // DEBUG: nur lokal
-        if (app()->environment('local')) {
+        // DEBUG
+        if ($debugRegisterErrors) {
+            logger()->info('REGISTER VALIDATION PASSED', [
+                'fields' => array_keys($validated),
+                'email'  => $validated['email'] ?? null,
+            ]);
+        }
 
-            // 1) Validation erfolgreich (Log)
-            if (config('app.debug_register_errors')) {
-                logger()->info('REGISTER VALIDATION PASSED', [
-                    'fields' => array_keys($validated),
-                    'email'  => $validated['email'] ?? null,
-                ]);
-            }
-
-            // 2) Payload-Debug (Browser)
-            if (config('app.debug_register_payload')) {
-                session()->flash('debug_register_payload', [
-                    'request_keys' => array_keys($request->all()),
-                    'validated' => collect($validated)->except([
-                        'password',
-                        'cf-turnstile-response',
-                    ])->toArray(),
-                ]);
-            }
+        if ($debugRegisterPayload) {
+            session()->flash('debug_register_payload', [
+                'request_keys' => array_keys($request->all()),
+                'validated' => collect($validated)->except([
+                    'password',
+                    'cf-turnstile-response',
+                ])->toArray(),
+            ]);
         }
 
         // ===============================
@@ -194,7 +203,7 @@ class RegisteredUserController extends Controller
         // ===============================
         if ($captchaActive) {
 
-            if ($captchaDebug && app()->environment('local')) {
+            if ($debugTurnstile) {
                 logger()->info('TURNSTILE CONFIG CHECK', [
                     'captcha_enabled'  => (bool) config('captcha.enabled'),
                     'captcha_register' => (bool) config('captcha.on_register'),
@@ -212,7 +221,7 @@ class RegisteredUserController extends Controller
                 Turnstile::verify($validated['cf-turnstile-response']);
             } catch (\Throwable $e) {
 
-                if ($captchaDebug) {
+                if ($debugTurnstile) {
                     logger()->error('TURNSTILE VERIFY FAILED', [
                         'message' => $e->getMessage(),
                         'class'   => get_class($e),
@@ -247,12 +256,19 @@ class RegisteredUserController extends Controller
         $gender     = str_starts_with($validated['match_type'], 'f') ? 'f' : 'm';
         $lookingFor = str_ends_with($validated['match_type'], 'm') ? 'm' : 'f';
 
+        // Public-ID: serverseitig, url-safe, nicht aus id ableitbar, unique
+        do {
+            $publicId = Str::lower(Str::random(12)); // a-z0-9, keine / + =
+        } while (User::where('public_id', $publicId)->exists());
+
         $user = User::create([
+            'public_id'  => $publicId,
+
             'match_type'  => $validated['match_type'],
             'gender'      => $gender,
             'looking_for' => $lookingFor,
 
-            'nickname'   => $validated['nickname'],
+            'username'   => $validated['username'],
 
             'email'    => strtolower($validated['email']),
             'password' => Hash::make($validated['password']),
@@ -272,6 +288,6 @@ class RegisteredUserController extends Controller
             ->route('login')
             ->withInput(['email' => strtolower($validated['email'])])
             ->with('email_not_verified', true)
-            ->with('status', 'Registrierung erfolgreich.\NBitte prüfe dein Postfach und bestätige deine E-Mail-Adresse, bevor du dich einloggen kannst.');
+            ->with('status', "Registrierung erfolgreich.\nBitte prüfe dein Postfach und bestätige deine E-Mail-Adresse, bevor du dich einloggen kannst.");
     }
 }

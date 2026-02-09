@@ -1,44 +1,13 @@
 {{-- ========================================================================= --}}
-{{-- File: C:\laragon\www\kiezsingles\resources\views\auth\register.blade.php       --}}
-{{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
+{{-- File: C:\laragon\www\kiezsingles\resources\views\auth\register.blade.php  --}}
+{{-- Changed: 08-02-2026 01:25                                                 --}}
+{{-- Purpose: Register view (user registration with Turnstile & feature flags) --}}
 {{-- ========================================================================= --}}
 <x-guest-layout>
-    {{-- DEBUG: Server Validation Errors --}}
-    @if (config('app.debug_register_errors') && $errors->any())
-        <div style="background:#fee;border:1px solid #c00;padding:10px;margin:10px 0">
-            <strong>DEBUG – Server Validation Errors:</strong>
-            <ul style="margin:8px 0 0 16px">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    {{-- DEBUG: Register Payload (sichtbar) --}}
-    @if (config('app.debug_register_payload') && session()->has('debug_register_payload'))
-        <pre class="mt-4 text-xs bg-gray-100 p-2 rounded overflow-auto">
-{{ json_encode(session('debug_register_payload'), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}
-        </pre>
-    @endif
-
     @php
         $captchaEnabled = (bool) (config('captcha.enabled') && config('captcha.on_register'));
         $turnstileSiteKey = (string) config('captcha.site_key');
     @endphp
-
-    {{-- Turnstile Script --}}
-    @if ($captchaEnabled && $turnstileSiteKey !== '')
-        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-
-        @if (config('captcha.debug'))
-            <div class="mt-2 text-xs text-gray-500">
-                DEBUG Turnstile: enabled |
-                site_key_len={{ strlen($turnstileSiteKey) }} |
-                host={{ request()->getHost() }}
-            </div>
-        @endif
-    @endif
 
     <form method="POST" action="{{ route('register') }}" autocomplete="off">
         @csrf
@@ -49,7 +18,7 @@
 
         <!-- Ich bin / Ich suche -->
         <div class="mt-4">
-            <x-input-label for="match_type" value="Ich bin / ich suche" />
+            <x-input-label for="match_type" value="Ich bin / Ich suche" />
 
             <select
                 id="match_type"
@@ -69,53 +38,47 @@
 
         <!-- Pseudonym -->
         <div class="mt-4">
-            <x-input-label for="nickname" value="Pseudonym (4–14 Zeichen)" />
+            <x-input-label for="username" value="Pseudonym (4–14 Zeichen)" />
             <x-text-input
-                id="nickname"
+                id="username"
                 class="block mt-1 w-full"
                 type="text"
-                name="nickname"
-                value="{{ old('nickname') }}"
+                name="username"
+                value="{{ old('username') }}"
                 required
                 minlength="4"
                 maxlength="14"
             />
-            <x-input-error :messages="$errors->get('nickname')" class="mt-2" />
+            <x-input-error :messages="$errors->get('username')" class="mt-2" />
         </div>
 
-  
+        <div class="mt-4" style="display:flex; gap:12px; align-items:flex-end;">
+            <!-- Geburtsdatum -->
+            <div style="flex:1 1 0;">
+                <x-input-label for="birthdate" value="Geburtsdatum" />
+                <x-text-input
+                    id="birthdate"
+                    class="block mt-1 w-full"
+                    type="date"
+                    name="birthdate"
+                    value="{{ old('birthdate') }}"
+                    max="{{ now()->subYears(18)->format('Y-m-d') }}"
+                    required
+                />
+                <x-input-error :messages="$errors->get('birthdate')" class="mt-2" />
+            </div>
 
-<div class="mt-4" style="display:flex; gap:12px; align-items:flex-end;">
-    <!-- Geburtsdatum -->
-    <div style="flex:1 1 0;">
-        <x-input-label for="birthdate" value="Geburtsdatum" />
-        <x-text-input
-            id="birthdate"
-            class="block mt-1 w-full"
-            type="date"
-            name="birthdate"
-            value="{{ old('birthdate') }}"
-            max="{{ now()->subYears(18)->format('Y-m-d') }}"
-            required
-        />
-        <x-input-error :messages="$errors->get('birthdate')" class="mt-2" />
-    </div>
+            <!-- Alter (immer 50% Platz; zeigt serverseitig old()-Alter oder –) -->
+            <div style="flex:1 1 0; white-space:nowrap;">
+                <!-- Spacer statt "Alter"-Überschrift (damit die Zeile auf Input-Höhe sitzt) -->
+                <div style="height:20px;"></div>
 
-    <!-- Alter (immer 50% Platz; zeigt serverseitig old()-Alter oder –) -->
-    <div style="flex:1 1 0; white-space:nowrap;">
-    <!-- Spacer statt "Alter"-Überschrift (damit die Zeile auf Input-Höhe sitzt) -->
-    <div style="height:20px;"></div>
-
-    <!-- Zeile mittig auf der Höhe des Date-Inputs -->
-    <div style="height:42px; display:flex; align-items:center; font-size:18px; color:#4b5563; padding-left:10px;">
-    <span id="ageLine"></span>
-</div>
-
-
-</div>
-
-</div>
-
+                <!-- Zeile mittig auf der Höhe des Date-Inputs -->
+                <div style="height:42px; display:flex; align-items:center; font-size:18px; color:#4b5563; padding-left:10px;">
+                    <span id="ageLine"></span>
+                </div>
+            </div>
+        </div>
 
         <!-- Wohnort -->
         <div class="mt-4">
@@ -178,6 +141,7 @@
                 type="email"
                 name="email"
                 value="{{ old('email') }}"
+                placeholder="...@..."
                 required
                 autocomplete="email"
                 inputmode="email"
@@ -220,11 +184,11 @@
             </p>
 
             <ul id="password-rules" class="mt-1 text-xs leading-tight space-y-1">
-                <li data-rule="length"  class="text-red-600">❌ Mindestens 10 Zeichen</li>
-                <li data-rule="upper"   class="text-red-600">❌ Mindestens ein Großbuchstabe</li>
-                <li data-rule="lower"   class="text-red-600">❌ Mindestens ein Kleinbuchstabe</li>
-                <li data-rule="number"  class="text-red-600">❌ Mindestens eine Zahl</li>
-                <li data-rule="special" class="text-red-600">❌ Mindestens ein Sonderzeichen</li>
+                <li data-rule="length"  class="text-red-600">⛔ Mindestens 10 Zeichen</li>
+                <li data-rule="upper"   class="text-red-600">⛔ Mindestens ein Großbuchstabe</li>
+                <li data-rule="lower"   class="text-red-600">⛔ Mindestens ein Kleinbuchstabe</li>
+                <li data-rule="number"  class="text-red-600">⛔ Mindestens eine Zahl</li>
+                <li data-rule="special" class="text-red-600">⛔ Mindestens ein Sonderzeichen</li>
             </ul>
         </div>
 
@@ -275,8 +239,7 @@
 
             <x-primary-button
                 id="registerBtn"
-                class="ms-4 opacity-50 cursor-not-allowed"
-                disabled
+                class="ms-4"
             >
                 {{ __('Register') }}
             </x-primary-button>
@@ -380,10 +343,6 @@
                 const isHidden = input.type === 'password';
                 input.type = isHidden ? 'text' : 'password';
                 btn.textContent = isHidden ? '👁️' : '🔒';
-
-                if (typeof window.__updateRegisterBtn === 'function') {
-                    window.__updateRegisterBtn();
-                }
             }
         </script>
 
@@ -412,112 +371,13 @@
                         li.classList.toggle('text-green-600', ok);
                         li.classList.toggle('text-red-600', !ok);
 
-                        const text = li.textContent.replace(/^✅\s|^❌\s/, '');
-                        li.textContent = (ok ? '✅ ' : '❌ ') + text;
+                        const text = li.textContent.replace(/^✅\s|^⛔\s/, '');
+                        li.textContent = (ok ? '✅ ' : '⛔ ') + text;
                     });
-
-                    if (typeof window.__updateRegisterBtn === 'function') {
-                        window.__updateRegisterBtn();
-                    }
                 };
 
                 pw.addEventListener('input', update);
                 update();
-            })();
-        </script>
-
-        {{-- JS: Register-Button erst aktiv wenn alles valid aussieht --}}
-        <script>
-            (() => {
-                const form = document.querySelector('form[action="{{ route('register') }}"]');
-                const btn  = document.getElementById('registerBtn');
-                if (!form || !btn) return;
-
-                const el = (id) => document.getElementById(id);
-
-                const requiredIds = [
-                    'match_type',
-                    'nickname',
-                    'birthdate',
-                    'district',
-                    'email',
-                    'password',
-                ];
-
-                const postcodeEnabled  = @json((bool) config('features.postcode.enabled'));
-                const postcodeRequired = @json((bool) config('features.postcode.required'));
-
-                const captchaEnabled = @json((bool) (config('captcha.enabled') && config('captcha.on_register')));
-                let captchaOk = captchaEnabled ? false : true;
-
-                const setCaptchaToken = (token) => {
-                    const hidden = document.getElementById('cf-turnstile-response');
-                    if (hidden) hidden.value = token || '';
-                };
-
-                window.onTurnstileSuccess = function (token) {
-                    captchaOk = true;
-                    setCaptchaToken(token);
-                    updateButton();
-                };
-                window.onTurnstileExpired = function () {
-                    captchaOk = false;
-                    setCaptchaToken('');
-                    updateButton();
-                };
-                window.onTurnstileError = function () {
-                    captchaOk = false;
-                    setCaptchaToken('');
-                    updateButton();
-                };
-
-                const passwordRulesOk = (v) => {
-                    return v.length >= 10
-                        && /[A-Z]/.test(v)
-                        && /[a-z]/.test(v)
-                        && /[0-9]/.test(v)
-                        && /[^A-Za-z0-9]/.test(v);
-                };
-
-                const isFilled = (node) => {
-                    if (!node) return false;
-                    if (node.tagName === 'SELECT') return !!node.value;
-                    return (node.value ?? '').trim().length > 0;
-                };
-
-                const setDisabled = (disabled) => {
-                    btn.disabled = disabled;
-                    btn.classList.toggle('opacity-50', disabled);
-                    btn.classList.toggle('cursor-not-allowed', disabled);
-                };
-
-                const updateButton = () => {
-                    for (const id of requiredIds) {
-                        if (!isFilled(el(id))) return setDisabled(true);
-                    }
-
-                    const privacy = form.querySelector('input[name="privacy"]');
-                    if (!privacy || !privacy.checked) return setDisabled(true);
-
-                    const pw = el('password')?.value ?? '';
-                    if (!passwordRulesOk(pw)) return setDisabled(true);
-
-                    if (postcodeEnabled && postcodeRequired) {
-                        const pc = el('postcode');
-                        if (!pc || pc.disabled || !pc.value) return setDisabled(true);
-                    }
-
-                    if (!captchaOk) return setDisabled(true);
-
-                    setDisabled(false);
-                };
-
-                window.__updateRegisterBtn = updateButton;
-
-                form.addEventListener('input', updateButton);
-                form.addEventListener('change', updateButton);
-
-                setTimeout(updateButton, 0);
             })();
         </script>
 
@@ -553,35 +413,35 @@
                 email.addEventListener('blur', check);
             });
         </script>
+
         {{-- JS: Alter-Hinweis --}}
         <script>
-(() => {
-    const birthInput = document.getElementById('birthdate');
-    const ageLine = document.getElementById('ageLine');
-if (!birthInput || !ageLine) return;
+            (() => {
+                const birthInput = document.getElementById('birthdate');
+                const ageLine = document.getElementById('ageLine');
+                if (!birthInput || !ageLine) return;
 
-    const calcAge = (v) => {
-        if (!v) return null;
-        const d = new Date(v + 'T00:00:00');
-        if (isNaN(d)) return null;
+                const calcAge = (v) => {
+                    if (!v) return null;
+                    const d = new Date(v + 'T00:00:00');
+                    if (isNaN(d)) return null;
 
-        const t = new Date();
-        let a = t.getFullYear() - d.getFullYear();
-        const m = t.getMonth() - d.getMonth();
-        if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
-        return a >= 0 ? a : null;
-    };
+                    const t = new Date();
+                    let a = t.getFullYear() - d.getFullYear();
+                    const m = t.getMonth() - d.getMonth();
+                    if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+                    return a >= 0 ? a : null;
+                };
 
-    const update = () => {
-        const age = calcAge(birthInput.value);
-        ageLine.textContent = (age === null) ? '' : `Alter: ${age} (stimmt das?)`;
-    };
+                const update = () => {
+                    const age = calcAge(birthInput.value);
+                    ageLine.textContent = (age === null) ? '' : `Alter: ${age} (stimmt das?)`;
+                };
 
-    birthInput.addEventListener('input', update);
-    birthInput.addEventListener('change', update);
-    update();
-})();
-</script>
-
+                birthInput.addEventListener('input', update);
+                birthInput.addEventListener('change', update);
+                update();
+            })();
+        </script>
     </form>
 </x-guest-layout>

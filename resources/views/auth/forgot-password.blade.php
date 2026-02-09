@@ -1,4 +1,7 @@
-{{-- resources/views/auth/forgot-password.blade.php --}}
+{{-- ========================================================================= --}}
+{{-- File: C:\laragon\www\kiezsingles\resources\views\auth\forgot-password.blade.php --}}
+{{-- Purpose: Password reset request (email input + optional captcha)            --}}
+{{-- ========================================================================= --}}
 
 <x-guest-layout>
     <div class="mb-4 text-sm text-gray-600">
@@ -19,6 +22,7 @@
                 class="block mt-1 w-full"
                 type="email"
                 name="email"
+                placeholder="...@..."
                 :value="old('email')"
                 required
                 autofocus

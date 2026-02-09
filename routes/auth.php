@@ -20,11 +20,11 @@ Route::middleware('guest')->group(function () {
         ->middleware('throttle:3,1')
         ->name('verification.send.guest');
 
-
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post('register', [RegisteredUserController::class, 'store'])
+        ->middleware('throttle:3,1');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

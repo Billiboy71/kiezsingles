@@ -2,15 +2,19 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
 // Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
+//          + supports login via email OR username (entered in the same "email" field)
+// Changed: 07-02-2026 21:34
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
@@ -28,8 +32,34 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        // Login kann per E-Mail ODER Username erfolgen (Eingabe kommt im Feld "email" an)
+        $originalLogin = (string) $request->input('email', '');
+        $mappedFromUsername = false;
+
+        // Wenn kein '@' drin ist, behandeln wir es als Username und mappen auf die echte E-Mail
+        if ($originalLogin !== '' && !str_contains($originalLogin, '@')) {
+            $u = User::query()
+                ->select(['email'])
+                ->where('username', $originalLogin)
+                ->first();
+
+            if ($u && is_string($u->email) && $u->email !== '') {
+                $request->merge(['email' => $u->email]);
+                $mappedFromUsername = true;
+            }
+        }
+
         // Kein Captcha beim Login (Throttle reicht)
-        $request->authenticate();
+        try {
+            $request->authenticate();
+        } catch (ValidationException $e) {
+            // Bei Login-Fail das ursprüngliche Eingabefeld wiederherstellen,
+            // damit im Formular Username/E-Mail so angezeigt wird, wie der User es eingegeben hat.
+            if ($mappedFromUsername) {
+                $request->merge(['email' => $originalLogin]);
+            }
+            throw $e;
+        }
 
         // HARD GATE: ohne verifizierte E-Mail kein Login
         $user = Auth::user();
@@ -47,11 +77,11 @@ class AuthenticatedSessionController extends Controller
 
             return back()
                 ->withErrors([
-                    'email' => 'Bitte bestätige zuerst deine E-Mail-Adresse. Ohne Bestätigung ist kein Login möglich.',
+                    'email' => __('auth.login.email_not_verified_error'),
                 ])
-                ->with('status', 'Wir haben dir soeben erneut einen Bestätigungslink per E-Mail gesendet.')
+                ->with('status', __('auth.login.email_not_verified_status'))
                 ->with('email_not_verified', true)
-                ->onlyInput('email');
+                ->withInput(['email' => $originalLogin]);
         }
 
         $request->session()->regenerate();

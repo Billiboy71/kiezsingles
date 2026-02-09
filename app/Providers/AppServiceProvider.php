@@ -1,7 +1,13 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Providers\AppServiceProvider.php
+// Purpose: App service provider (password defaults + user observer)
+// ============================================================================
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Observers\UserObserver;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -32,5 +38,7 @@ class AppServiceProvider extends ServiceProvider
 
             return $rule;
         });
+
+        User::observe(UserObserver::class);
     }
 }

@@ -1,7 +1,7 @@
 <?php
 // ============================================================================
-// File: app/Listeners/LogRegistrationIp.php
-// Purpose: Set registration_ip + registration_ip_at on user registration (config-driven)
+// File: C:\laragon\www\kiezsingles\app\Listeners\LogRegistrationIp.php
+// Purpose: Deprecated. Registration IP is handled by UserObserver@created.
 // ============================================================================
 
 namespace App\Listeners;
@@ -12,19 +12,8 @@ class LogRegistrationIp
 {
     public function handle(Registered $event): void
     {
-        if (!config('security.ip_logging.registration')) {
-            return;
-        }
-
-        $user = $event->user;
-
-        if (!empty($user->registration_ip)) {
-            return;
-        }
-
-        $user->forceFill([
-            'registration_ip'    => request()->ip(),
-            'registration_ip_at' => now(),
-        ])->save();
+        // Registration IP is handled server-side in App\Observers\UserObserver::created().
+        // This listener is intentionally a no-op to avoid duplicate mechanisms.
+        return;
     }
 }

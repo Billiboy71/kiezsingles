@@ -1,9 +1,8 @@
 <?php
 // ============================================================================
-// File: app/Models/User.php
+// File: C:\laragon\www\kiezsingles\app\Models\User.php
 // Purpose: User model (enables Laravel email verification)
 // ============================================================================
-
 namespace App\Models;
 
 use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
@@ -17,27 +16,19 @@ class User extends Authenticatable implements MustVerifyEmail
     use HasFactory, Notifiable, MustVerifyEmailTrait;
 
     protected $fillable = [
-    'match_type',
-    'gender',
-    'looking_for',
-
-    'nickname',
-
-    'email',
-    'password',
-
-    'birthdate',
-
-    'location',
-    'district',
-    'postcode',
-
-    'privacy_accepted_at',
-
-    'email_verified_at',
-    'remember_token',
-];
-
+        'public_id',          // ← Public User Identifier (extern)
+        'match_type',
+        'gender',
+        'looking_for',
+        'username',
+        'email',
+        'password',
+        'birthdate',
+        'location',
+        'district',
+        'postcode',
+        'privacy_accepted_at',
+    ];
 
     protected $hidden = [
         'password',
@@ -45,8 +36,16 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'birthdate' => 'date',
+        'email_verified_at'   => 'datetime',
+        'birthdate'           => 'date',
         'privacy_accepted_at' => 'datetime',
     ];
+
+    /**
+     * Use public_id for route-model binding instead of numeric id.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'public_id';
+    }
 }

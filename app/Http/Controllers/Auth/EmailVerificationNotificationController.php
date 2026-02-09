@@ -1,5 +1,11 @@
 <?php
 
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\EmailVerificationNotificationController.php
+// Purpose: Send a new email verification notification.
+// Changed: 07-02-2026 02:24
+// ============================================================================
+
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
@@ -40,6 +46,11 @@ class EmailVerificationNotificationController extends Controller
 
         $request->user()->sendEmailVerificationNotification();
 
-        return back()->with('status', 'verification-link-sent');
+        // Abgeleitet: 07-02-2026 02:24
+        // Translation-Key statt Status-Code, Ausgabe erfolgt via __() in auth-session-status.blade.php
+        return back()->with(
+            'status',
+            'A new verification link has been sent to the email address you provided during registration.'
+        );
     }
 }

@@ -1,3 +1,8 @@
+{{-- ========================================================================= --}}
+{{-- File: C:\laragon\www\kiezsingles\resources\views\layouts\guest.blade.php    --}}
+{{-- Changed: 08-02-2026 23:58                                                --}}
+{{-- Purpose: Guest layout (Breeze) + optional global helpers                  --}}
+{{-- ========================================================================= --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
@@ -29,7 +34,7 @@
         </div>
 
         <div class="w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-md overflow-hidden sm:rounded-lg">
-            {{ $slot }}
+            {!! $slot !!}
         </div>
     </div>
 
@@ -42,7 +47,8 @@
             const show = input.type === 'password';
             input.type = show ? 'text' : 'password';
 
-            btn.textContent = show ? '🔓' : '🔒';
+            // Unicode-escapes: vermeidet kaputte Emoji durch Console-Encoding
+            btn.textContent = show ? '\uD83D\uDD13' : '\uD83D\uDD12';
             btn.setAttribute('aria-label', show ? 'Passwort verbergen' : 'Passwort anzeigen');
         }
     </script>

@@ -9,16 +9,11 @@ namespace App\Providers;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\PasswordReset;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
 {
     protected $listen = [
-        Registered::class => [
-            \App\Listeners\LogRegistrationIp::class,
-        ],
-
         Login::class => [
             \App\Listeners\LogLoginSuccess::class,
             \App\Listeners\LogLoginIp::class,
@@ -33,12 +28,6 @@ class EventServiceProvider extends ServiceProvider
         ],
     ];
 
-    /**
-     * IMPORTANT:
-     * We register listeners explicitly via $listen.
-     * Disable event discovery to prevent duplicate listener registration
-     * (e.g. ListenerClass + ListenerClass@handle).
-     */
     public function shouldDiscoverEvents(): bool
     {
         return false;
