@@ -1,8 +1,9 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web.php
-// Changed: 09-02-2026 23:03
 // Purpose: Web routes (public + authenticated)
+// Changed: 10-02-2026 21:28
+// Version: 1.3
 // ============================================================================
 
 use App\Http\Controllers\ContactController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Models\SystemSetting;
 use App\Support\SystemSettingHelper;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
@@ -112,7 +114,7 @@ Route::get('/noteinstieg', function (\Illuminate\Http\Request $request) {
     $html .= '<div style="margin-top:12px;">';
     $html .= '<button type="submit" id="bg_submit" style="padding:12px 14px; border-radius:10px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; width:100%;">Freischalten</button>';
     $html .= '</div>';
-    
+
     $html .= '</form>';
 
     $html .= '<script>
@@ -244,9 +246,16 @@ Route::post('/noteinstieg', function (\Illuminate\Http\Request $request) {
     $recoveryCode = preg_replace('/\s+/', '', $recoveryCode);
 
     $ok = false;
+    $via = 'totp';
 
     // Wenn Recovery-Code gesetzt -> TOTP ignorieren
     if ($recoveryCode !== '') {
+        $via = 'recovery';
+
+        if (!Schema::hasTable('noteinstieg_recovery_codes')) {
+            return redirect()->route('noteinstieg.show')->with('break_glass_error', 'Noteinstieg ist nicht vollständig konfiguriert.');
+        }
+
         // Format: XXXX-XXXX oder XXXXXXXX
         $normalized = str_replace('-', '', $recoveryCode);
 
@@ -256,31 +265,26 @@ Route::post('/noteinstieg', function (\Illuminate\Http\Request $request) {
 
         $hash = hash_hmac('sha256', $normalized, (string) config('app.key'));
 
-        $raw = (string) SystemSettingHelper::get('debug.noteinstieg_recovery_hashes', '[]');
-        $arr = json_decode($raw, true);
-        if (!is_array($arr)) {
-            $arr = [];
-        }
+        $row = DB::table('noteinstieg_recovery_codes')
+            ->where('hash', $hash)
+            ->whereNull('used_at')
+            ->first();
 
-        $foundIdx = null;
-        foreach ($arr as $i => $h) {
-            if (is_string($h) && hash_equals($h, $hash)) {
-                $foundIdx = $i;
-                break;
-            }
-        }
-
-        if ($foundIdx === null) {
+        if (!$row) {
             return redirect()->route('noteinstieg.show')->with('break_glass_error', 'Notfallcode falsch oder bereits benutzt.');
         }
 
-        // verbrauchen
-        array_splice($arr, (int) $foundIdx, 1);
+        $ip = (string) $request->ip();
+        $ua = (string) $request->userAgent();
 
-        SystemSetting::updateOrCreate(
-            ['key' => 'debug.noteinstieg_recovery_hashes'],
-            ['value' => json_encode(array_values($arr)), 'group' => 'debug', 'cast' => 'string']
-        );
+        DB::table('noteinstieg_recovery_codes')
+            ->where('id', (int) $row->id)
+            ->update([
+                'used_at' => now(),
+                'used_ip' => $ip,
+                'used_user_agent' => $ua,
+                'updated_at' => now(),
+            ]);
 
         $ok = true;
     } else {
@@ -381,15 +385,27 @@ Route::post('/noteinstieg', function (\Illuminate\Http\Request $request) {
         'lax'
     );
 
+    $cookieVia = cookie(
+        'kiez_break_glass_via',
+        (string) $via,
+        $ttlMinutes,
+        '/',
+        null,
+        $request->isSecure(),
+        true,
+        false,
+        'lax'
+    );
+
     $next = (string) $request->input('next', '');
     $next = trim($next);
     if ($next !== '' && (!str_starts_with($next, '/') || str_starts_with($next, '//'))) {
         $next = '';
     }
 
-    $redirectTo = $next !== '' ? $next : '/login';
+    $redirectTo = $next !== '' ? $next : '/noteinstieg-einstieg';
 
-    return redirect($redirectTo)->withCookie($cookie);
+    return redirect($redirectTo)->withCookie($cookie)->withCookie($cookieVia);
 })->name('noteinstieg.submit');
 
 /*
@@ -431,6 +447,12 @@ Route::get('/noteinstieg-einstieg', function (\Illuminate\Http\Request $request)
         abort(404);
     }
 
+    $via = (string) $request->cookie('kiez_break_glass_via', 'totp');
+    $via = strtolower(trim($via));
+    if ($via !== 'totp' && $via !== 'recovery') {
+        $via = 'totp';
+    }
+
     $remainingSeconds = $expiresAt - now()->timestamp;
     if ($remainingSeconds < 0) {
         $remainingSeconds = 0;
@@ -443,10 +465,12 @@ Route::get('/noteinstieg-einstieg', function (\Illuminate\Http\Request $request)
     $html .= '<h1 style="margin:0 0 8px 0;">Noteinstieg</h1>';
     $html .= '<p style="margin:0 0 10px 0; color:#444;">Einstiegsseite (nur mit gültigem Noteinstieg-Cookie).</p>';
 
-    $html .= '<div style="margin:0 0 16px 0; padding:12px 14px; border-radius:10px; border:1px solid #cbd5e1; background:#fff;">';
-    $html .= '<div style="font-weight:700; margin:0 0 4px 0;">Countdown</div>';
-    $html .= '<div style="color:#111;">läuft ab in <span id="bg_countdown" style="font-weight:800;">--:--</span></div>';
-    $html .= '</div>';
+    if ($via === 'totp') {
+        $html .= '<div style="margin:0 0 16px 0; padding:12px 14px; border-radius:10px; border:1px solid #cbd5e1; background:#fff;">';
+        $html .= '<div style="font-weight:700; margin:0 0 4px 0;">Countdown</div>';
+        $html .= '<div style="color:#111;">läuft ab in <span id="bg_countdown" style="font-weight:800;">--:--</span></div>';
+        $html .= '</div>';
+    }
 
     $html .= '<div style="display:flex; flex-direction:column; gap:10px;">';
     $html .= '<a id="bg_login" href="' . e(url('/login')) . '" style="display:block; text-align:center; padding:12px 14px; border-radius:10px; border:1px solid #cbd5e1; background:#fff; text-decoration:none; color:#111;">Login</a>';
@@ -455,7 +479,8 @@ Route::get('/noteinstieg-einstieg', function (\Illuminate\Http\Request $request)
     $html .= '<a id="bg_reopen" href="' . e(url('/noteinstieg?next=/noteinstieg-einstieg')) . '" style="display:block; text-align:center; padding:12px 14px; border-radius:10px; border:1px solid #cbd5e1; background:#fff; text-decoration:none; color:#111;">Noteinstieg erneut öffnen</a>';
     $html .= '</div>';
 
-    $html .= '<script>
+    if ($via === 'totp') {
+        $html .= '<script>
         (() => {
             let remaining = ' . (int) $remainingSeconds . ';
             const el = document.getElementById("bg_countdown");
@@ -493,6 +518,7 @@ Route::get('/noteinstieg-einstieg', function (\Illuminate\Http\Request $request)
             }, 1000);
         })();
     </script>';
+    }
 
     $html .= '</body></html>';
 
@@ -550,6 +576,81 @@ Route::get('/maintenance-preview', function () {
 
     return view('home');
 })->name('maintenance.preview');
+
+/*
+|--------------------------------------------------------------------------
+| Wartungsmodus Notify (Public POST)
+|--------------------------------------------------------------------------
+*/
+Route::post('/maintenance-notify', function (\Illuminate\Http\Request $request) {
+    try {
+        if (!Schema::hasTable('app_settings')) {
+            return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
+        }
+
+        $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
+        if (!$settings || !(bool) $settings->maintenance_enabled) {
+            return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
+        }
+    } catch (\Throwable $e) {
+        return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
+    }
+
+    $notifyEnabled = false;
+
+    try {
+        if (Schema::hasTable('system_settings')) {
+            $row = DB::table('system_settings')
+                ->select(['value'])
+                ->where('key', 'maintenance.notify_enabled')
+                ->first();
+
+            $val = $row ? (string) ($row->value ?? '') : '';
+            $val = trim($val);
+
+            $notifyEnabled = ($val === '1' || strtolower($val) === 'true');
+        }
+    } catch (\Throwable $e) {
+        $notifyEnabled = false;
+    }
+
+    if (!$notifyEnabled) {
+        return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
+    }
+
+    if (!Schema::hasTable('maintenance_notifications')) {
+        return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
+    }
+
+    $email = (string) $request->input('email', '');
+    $email = trim($email);
+
+    if ($email === '' || strlen($email) > 255 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return redirect('/')->with('maintenance_notify_error', 'Ungültige E-Mail-Adresse.');
+    }
+
+    $email = strtolower($email);
+
+    $ip = (string) $request->ip();
+    $ua = (string) $request->userAgent();
+
+    try {
+        DB::table('maintenance_notifications')->updateOrInsert(
+            ['email' => $email],
+            [
+                'notified_at' => null,
+                'created_ip' => $ip !== '' ? substr($ip, 0, 45) : null,
+                'created_user_agent' => $ua !== '' ? substr($ua, 0, 2000) : null,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
+    } catch (\Throwable $e) {
+        return redirect('/')->with('maintenance_notify_error', 'Konnte nicht gespeichert werden.');
+    }
+
+    return redirect('/')->with('maintenance_notify_ok', true);
+})->name('maintenance.notify');
 
 /*
 |--------------------------------------------------------------------------
@@ -624,7 +725,7 @@ Route::middleware('auth')->group(function () {
 
         $maintenanceEnabled  = $settings ? (bool) $settings->maintenance_enabled : false;
         $maintenanceShowEta  = $settings ? (bool) $settings->maintenance_show_eta : false;
-        $maintenanceEtaAt    = $settings ? (string) ($settings->maintenance_eta_at ?? '') : '';
+        $maintenanceEtaAt    = (string) ($settings->maintenance_eta_at ?? '');
 
         $etaDateValue = '';
         $etaTimeValue = '';
@@ -651,6 +752,8 @@ Route::middleware('auth')->group(function () {
 
         $simulateProd = false;
 
+        $maintenanceNotifyEnabled = false;
+
         if ($hasSystemSettingsTable) {
             $debugUiEnabled = (bool) SystemSettingHelper::get('debug.ui_enabled', false);
             $debugRoutesEnabled = (bool) SystemSettingHelper::get('debug.routes_enabled', false);
@@ -660,6 +763,8 @@ Route::middleware('auth')->group(function () {
             $breakGlassTtlMinutes = (int) SystemSettingHelper::get('debug.break_glass_ttl_minutes', 15);
 
             $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
+
+            $maintenanceNotifyEnabled = (bool) SystemSettingHelper::get('maintenance.notify_enabled', false);
 
             if ($breakGlassTtlMinutes < 1) {
                 $breakGlassTtlMinutes = 1;
@@ -698,9 +803,9 @@ Route::middleware('auth')->group(function () {
             .ks-info { cursor:help; user-select:none; color:#111; opacity:.7; margin-left:6px; }
             .ks-toggle { position:relative; width:46px; height:26px; flex:0 0 auto; }
             .ks-toggle input { opacity:0; width:0; height:0; }
-            .ks-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#16a34a; border-radius:999px; transition: .15s; }
+            .ks-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#dc2626; border-radius:999px; transition: .15s; }
             .ks-slider:before { position:absolute; content:""; height:20px; width:20px; left:3px; top:3px; background:white; border-radius:50%; transition: .15s; box-shadow:0 1px 2px rgba(0,0,0,.18); }
-            .ks-toggle input:checked + .ks-slider { background:#dc2626; }
+            .ks-toggle input:checked + .ks-slider { background:#16a34a; }
             .ks-toggle input:checked + .ks-slider:before { transform: translateX(20px); }
             .ks-toggle input:disabled + .ks-slider { opacity:.45; cursor:not-allowed; }
             .ks-badge { display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:999px; font-weight:800; font-size:12px; letter-spacing:.4px; color:#fff; }
@@ -805,6 +910,10 @@ Route::middleware('auth')->group(function () {
                 text-align:center;
                 font-size:16px;
             }
+            .ks-code-item.is-used {
+                text-decoration: line-through;
+                opacity: .55;
+            }
             .ks-code-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
         </style>';
 
@@ -876,6 +985,20 @@ Route::middleware('auth')->group(function () {
         $html .= '</button>';
         $html .= '</div>';
 
+        $html .= '<div class="ks-row" style="margin:0 0 12px 0;">';
+        $html .= '<div class="ks-label">';
+        $html .= '<div>';
+        $html .= '<strong>E-Mail-Notify im Wartungsmodus</strong> <span style="color:#555;">(<code>maintenance.notify_enabled</code>)</span>';
+        $html .= '<span class="ks-info" title="Zeigt im Wartungsmodus ein E-Mail-Feld. Beim Ausschalten der Wartung werden die gespeicherten Adressen benachrichtigt und danach gelöscht.">ⓘ</span>';
+        $html .= '</div>';
+        $html .= '<div class="ks-sub">Nur relevant, solange Wartung aktiv ist.</div>';
+        $html .= '</div>';
+        $html .= '<label class="ks-toggle" style="margin-left:auto;">';
+        $html .= '<input type="checkbox" id="maintenance_notify_enabled" value="1"' . ($maintenanceNotifyEnabled ? ' checked' : '') . $systemSettingsDisabled . '>';
+        $html .= '<span class="ks-slider"></span>';
+        $html .= '</label>';
+        $html .= '</div>';
+
         $html .= '<hr style="border:0; border-top:1px solid #e5e7eb; margin:14px 0;">';
 
         $html .= '<div class="ks-row" style="margin:0 0 12px 0;">';
@@ -945,24 +1068,23 @@ Route::middleware('auth')->group(function () {
 
         $html .= '<label style="display:block; margin:12px 0 6px 0; font-weight:600;">Noteinstieg TTL (Minuten)</label>';
 
-        // TTL + QR-Button in einer Zeile
         $html .= '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:0;">';
         $html .= '<input type="number" id="debug_break_glass_ttl_minutes" min="1" max="120" value="' . e((string) $breakGlassTtlMinutes) . '" style="padding:10px 12px; border:1px solid #ccc; border-radius:10px; width:160px;"' . $systemSettingsDisabled . '>';
         $html .= '<button type="button" id="break_glass_qr_btn" class="ks-btn" style="display:none;"' . $systemSettingsDisabled . '>QR-Code anzeigen</button>';
-        $html .= '<button type="button" id="noteinstieg_recovery_btn" class="ks-btn" style="display:none;"' . $systemSettingsDisabled . '>5 Notfallcodes erzeugen</button>';
+        $html .= '<button type="button" id="noteinstieg_recovery_show_btn" class="ks-btn" style="display:none;"' . $systemSettingsDisabled . '>Notfallcodes anzeigen</button>';
         $html .= '</div>';
 
         $html .= '<div id="noteinstieg_codes" class="ks-codes">';
         $html .= '<h3>Notfallcodes (einmalig)</h3>';
         $html .= '<div id="noteinstieg_codes_list"></div>';
-        $html .= '<div class="ks-code-actions">';
+        $html .= '<div class="ks-code-actions" style="justify-content:center;">';
+        $html .= '<button type="button" id="noteinstieg_recovery_generate_btn" class="ks-btn">5 Notfallcodes erzeugen</button>';
         $html .= '<button type="button" id="noteinstieg_print_btn" class="ks-btn">Drucken</button>';
         $html .= '</div>';
         $html .= '</div>';
 
         $html .= '<input type="hidden" id="debug_break_glass_totp_secret" value="' . e($breakGlassTotpSecret) . '"' . $systemSettingsDisabled . '>';
 
-        // Modal (Overlay)
         $html .= '<div id="break_glass_qr_modal" class="ks-modal" aria-hidden="true">';
         $html .= '<div class="ks-modal-box" role="dialog" aria-modal="true" aria-label="Google Authenticator QR-Code">';
         $html .= '<div class="ks-modal-head">';
@@ -989,6 +1111,7 @@ Route::middleware('auth')->group(function () {
                 const etaDate = document.getElementById("maintenance_eta_date");
                 const etaTime = document.getElementById("maintenance_eta_time");
                 const etaClear = document.getElementById("maintenance_eta_clear");
+                const notify = document.getElementById("maintenance_notify_enabled");
 
                 const ui = document.getElementById("debug_ui_enabled");
                 const r = document.getElementById("debug_routes_enabled");
@@ -1007,15 +1130,34 @@ Route::middleware('auth')->group(function () {
                 const bgQrClose = document.getElementById("break_glass_qr_close");
                 const bgQrImg = document.getElementById("break_glass_qr_img");
 
-                const recBtn = document.getElementById("noteinstieg_recovery_btn");
+                const showBtn = document.getElementById("noteinstieg_recovery_show_btn");
+                const genBtn = document.getElementById("noteinstieg_recovery_generate_btn");
+
                 const codesWrap = document.getElementById("noteinstieg_codes");
                 const codesList = document.getElementById("noteinstieg_codes_list");
                 const printBtn = document.getElementById("noteinstieg_print_btn");
 
-                if (!sim || !m || !ui || !r || !bg || !bgSecret || !bgTtl || !etaShow || !etaDate || !etaTime || !etaClear || !bgLinkWrap || !bgLink || !bgQrBtn || !bgQrModal || !bgQrClose || !bgQrImg || !envBadge || !recBtn || !codesWrap || !codesList || !printBtn) return;
+                if (!sim || !m || !ui || !r || !bg || !bgSecret || !bgTtl || !etaShow || !etaDate || !etaTime || !etaClear || !bgLinkWrap || !bgLink || !bgQrBtn || !bgQrModal || !bgQrClose || !bgQrImg || !envBadge || !showBtn || !genBtn || !codesWrap || !codesList || !printBtn || !notify) return;
 
                 let saveTimer = null;
                 let saving = false;
+                let codesPollTimer = null;
+                const CODES_POLL_MS = 5000;
+
+                const stopCodesPolling = () => {
+                    if (codesPollTimer) {
+                        window.clearInterval(codesPollTimer);
+                        codesPollTimer = null;
+                    }
+                };
+
+                const startCodesPolling = () => {
+                    if (codesPollTimer) return;
+                    codesPollTimer = window.setInterval(() => {
+                        // ohne Clear, ohne Toast-Spam
+                        loadCodes({ clear: false, toast: false });
+                    }, CODES_POLL_MS);
+                };
 
                 const showToast = (msg, isError=false) => {
                     if (!toast) return;
@@ -1133,8 +1275,6 @@ Route::middleware('auth')->group(function () {
                     }
 
                     const uri = buildOtpAuthUri();
-
-                    // QR via qrserver.com (kein googleapis)
                     const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=320x320&ecc=H&data=" + encodeURIComponent(uri);
 
                     bgQrImg.setAttribute("src", qrUrl);
@@ -1143,6 +1283,7 @@ Route::middleware('auth')->group(function () {
                 };
 
                 const clearCodes = () => {
+                    stopCodesPolling();
                     codesList.innerHTML = "";
                     codesWrap.style.display = "none";
                     codesWrap.__codes = null;
@@ -1155,9 +1296,11 @@ Route::middleware('auth')->group(function () {
                     codesWrap.__codes = codes.slice();
 
                     for (const c of codes) {
+                        if (!c || typeof c.code !== "string") continue;
+
                         const div = document.createElement("div");
-                        div.className = "ks-code-item";
-                        div.textContent = c;
+                        div.className = "ks-code-item" + (c.used ? " is-used" : "");
+                        div.textContent = c.code;
                         codesList.appendChild(div);
                     }
 
@@ -1198,6 +1341,8 @@ Route::middleware('auth')->group(function () {
                             simulate_production: !!sim.checked,
 
                             maintenance_enabled: !!m.checked,
+                            maintenance_notify_enabled: !!notify.checked,
+
                             debug_ui_enabled: !!ui.checked,
                             debug_routes_enabled: !!r.checked,
 
@@ -1221,7 +1366,6 @@ Route::middleware('auth')->group(function () {
                 };
 
                 const apply = () => {
-                    // harte Table-Gates
                     if (!hasSettingsTable) {
                         m.disabled = true;
                     }
@@ -1235,21 +1379,25 @@ Route::middleware('auth')->group(function () {
                         bgQrBtn.disabled = true;
                         bgQrBtn.style.display = "none";
                         bgLinkWrap.style.display = "none";
-                        recBtn.disabled = true;
-                        recBtn.style.display = "none";
+                        showBtn.disabled = true;
+                        showBtn.style.display = "none";
+                        genBtn.disabled = true;
+                        clearCodes();
+
+                        notify.disabled = true;
                     }
 
                     const maintenanceOn = !!m.checked;
 
                     setBadge(maintenanceOn);
 
-                    // Wartungs-ETA darf nur bei Wartung aktiv bedienbar sein
                     etaShow.disabled = (!hasSettingsTable) || (!maintenanceOn);
                     etaDate.disabled = (!hasSettingsTable) || (!maintenanceOn);
                     etaTime.disabled = (!hasSettingsTable) || (!maintenanceOn);
                     etaClear.disabled = (!hasSettingsTable) || (!maintenanceOn);
 
-                    // Simulate Production: nur lokal, nur bei Wartung aktiv
+                    notify.disabled = (!hasSystemSettingsTable) || (!maintenanceOn);
+
                     if (hasSystemSettingsTable) {
                         const simShouldBeDisabled = isProd || !maintenanceOn;
                         sim.disabled = simShouldBeDisabled;
@@ -1262,7 +1410,6 @@ Route::middleware('auth')->group(function () {
 
                     setEnvBadge(maintenanceOn);
 
-                    // Wartung AUS -> UI reset
                     if (!maintenanceOn) {
                         etaShow.checked = false;
                         etaDate.value = "";
@@ -1281,12 +1428,12 @@ Route::middleware('auth')->group(function () {
                         bgQrImg.removeAttribute("src");
                         closeQrModal();
 
-                        recBtn.disabled = true;
-                        recBtn.style.display = "none";
+                        showBtn.disabled = true;
+                        showBtn.style.display = "none";
+                        genBtn.disabled = true;
                         clearCodes();
                     }
 
-                    // Debug: nur im Wartungsmodus bedienbar
                     if (hasSystemSettingsTable) {
                         ui.disabled = !maintenanceOn;
 
@@ -1301,10 +1448,8 @@ Route::middleware('auth')->group(function () {
                         r.checked = false;
                     }
 
-                    // Prod-Effekt: echte Production ODER lokal + Wartung + Sim aktiviert
                     const prodEffective = isProd || (maintenanceOn && !!sim.checked);
 
-                    // Noteinstieg UI: nur im Wartungsmodus + prodEffective
                     const breakGlassUiAllowed = maintenanceOn && prodEffective;
 
                     bg.disabled = !breakGlassUiAllowed;
@@ -1319,26 +1464,28 @@ Route::middleware('auth')->group(function () {
                         bgQrImg.removeAttribute("src");
                         closeQrModal();
 
-                        recBtn.disabled = true;
-                        recBtn.style.display = "none";
+                        showBtn.disabled = true;
+                        showBtn.style.display = "none";
+                        genBtn.disabled = true;
                         clearCodes();
                         return;
                     }
 
-                    // Link nur anzeigen, wenn Noteinstieg aktiv ist
                     bgLinkWrap.style.display = (!!bg.checked) ? "block" : "none";
 
-                    // Buttons nur anzeigen, wenn Noteinstieg aktiv ist
                     if (!!bg.checked) {
-                        recBtn.style.display = "inline-block";
-                        recBtn.disabled = false;
+                        showBtn.style.display = "inline-block";
+                        showBtn.disabled = false;
+
+                        genBtn.disabled = false;
                     } else {
-                        recBtn.style.display = "none";
-                        recBtn.disabled = true;
+                        showBtn.style.display = "none";
+                        showBtn.disabled = true;
+
+                        genBtn.disabled = true;
                         clearCodes();
                     }
 
-                    // ab hier: Noteinstieg UI erlaubt -> Secret/QR pflegen
                     const secretWasGeneratedOrNormalized = ensureSecret();
                     prepareQr();
 
@@ -1367,86 +1514,120 @@ Route::middleware('auth')->group(function () {
                     }
                 });
 
-                recBtn.addEventListener("click", async () => {
+                const loadCodes = async ({ clear = true, toast = true } = {}) => {
                     try {
-                        clearCodes();
-                        recBtn.disabled = true;
+                        if (clear) {
+                            clearCodes();
+                        }
 
-                        const out = await postJson("' . e(route('admin.noteinstieg.recovery.generate.ajax')) . '", {});
+                        showBtn.disabled = true;
 
-                        if (!out || out.ok !== true || !Array.isArray(out.codes) || out.codes.length !== 5) {
-                            showToast("Notfallcodes konnten nicht erzeugt werden.", true);
-                            recBtn.disabled = false;
+                        const out = await postJson("' . e(route('admin.noteinstieg.recovery.list.ajax')) . '", {});
+
+                        if (!out || out.ok !== true || !Array.isArray(out.codes)) {
+                            if (toast) showToast("Notfallcodes konnten nicht geladen werden.", true);
+                            showBtn.disabled = false;
                             return;
                         }
 
                         renderCodes(out.codes);
+
+                        if (toast) showToast("Notfallcodes geladen.");
+
+                        // Polling nur wenn Liste sichtbar ist (nach renderCodes ist sie sichtbar)
+                        startCodesPolling();
+
+                        showBtn.disabled = false;
+                    } catch (e) {
+                        if (toast) showToast("Fehler beim Laden der Notfallcodes.", true);
+                        showBtn.disabled = false;
+                    }
+                };
+
+                showBtn.addEventListener("click", async () => {
+                    await loadCodes();
+                });
+
+                genBtn.addEventListener("click", async () => {
+                    try {
+                        genBtn.disabled = true;
+
+                        const out = await postJson("' . e(route('admin.noteinstieg.recovery.generate.ajax')) . '", {});
+
+                        if (!out || out.ok !== true || !Array.isArray(out.codes) || out.codes.length !== 5) {
+                            const msg = (out && typeof out.message === "string" && out.message !== "") ? out.message : "Notfallcodes konnten nicht erzeugt werden.";
+                            showToast(msg, true);
+                            genBtn.disabled = false;
+                            return;
+                        }
+
+                        await loadCodes();
                         showToast("Notfallcodes erzeugt.");
 
-                        recBtn.disabled = false;
+                        genBtn.disabled = false;
                     } catch (e) {
                         showToast("Fehler beim Erzeugen der Notfallcodes.", true);
-                        recBtn.disabled = false;
+                        genBtn.disabled = false;
                     }
                 });
 
                 printBtn.addEventListener("click", () => {
-    const codes = codesWrap.__codes;
-    if (!Array.isArray(codes) || codes.length < 1) {
-        showToast("Keine Notfallcodes zum Drucken.", true);
-        return;
-    }
+                    const codes = codesWrap.__codes;
+                    if (!Array.isArray(codes) || codes.length < 1) {
+                        showToast("Keine Notfallcodes zum Drucken.", true);
+                        return;
+                    }
 
-    const esc = (s) => (s || "").toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+                    const esc = (s) => (s || "").toString()
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;");
 
-    const today = new Date();
-    const pad2 = (n) => String(n).padStart(2, "0");
-    const stamp = pad2(today.getDate()) + "." + pad2(today.getMonth() + 1) + "." + today.getFullYear();
+                    const today = new Date();
+                    const pad2 = (n) => String(n).padStart(2, "0");
+                    const stamp = pad2(today.getDate()) + "." + pad2(today.getMonth() + 1) + "." + today.getFullYear();
 
-    let html = "<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\">";
-    html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-    html += "<title>KiezSingles – Noteinstieg Notfallcodes</title>";
-    html += "<style>";
-    html += "@page { size: A4; margin: 18mm; }";
-    html += "body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }";
-    html += "h1 { margin:0 0 6px 0; font-size:18px; }";
-    html += ".meta { color:#444; font-size:12px; margin:0 0 14px 0; }";
-    html += ".grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }";
-    html += ".code { border:1px solid #ddd; border-radius:10px; padding:14px 10px; text-align:center; font-size:18px; font-weight:800; letter-spacing:1px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace; }";
-    html += ".hint { margin-top:14px; font-size:12px; color:#444; }";
-    html += "</style></head><body>";
-    html += "<h1>KiezSingles – Noteinstieg Notfallcodes</h1>";
-    html += "<p class=\"meta\">Erzeugt am " + esc(stamp) + " (einmalig, nach Nutzung ungültig)</p>";
-    html += "<div class=\"grid\">";
-    for (const c of codes) {
-        html += "<div class=\"code\">" + esc(c) + "</div>";
-    }
-    html += "</div>";
-    html += "<div class=\"hint\">Hinweis: Notfallcodes funktionieren nur im Wartungsmodus bei aktivem Noteinstieg.</div>";
-    html += "<script>window.onload=()=>{ window.print(); };</" + "script>";
-    html += "</body></html>";
+                    let html = "<!doctype html><html lang=\\"de\\"><head><meta charset=\\"utf-8\\">";
+                    html += "<meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\">";
+                    html += "<title>KiezSingles – Noteinstieg Notfallcodes</title>";
+                    html += "<style>";
+                    html += "@page { size: A4; margin: 18mm; }";
+                    html += "body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; }";
+                    html += "h1 { margin:0 0 6px 0; font-size:18px; }";
+                    html += ".meta { color:#444; font-size:12px; margin:0 0 14px 0; }";
+                    html += ".grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }";
+                    html += ".code { border:1px solid #ddd; border-radius:10px; padding:14px 10px; text-align:center; font-size:18px; font-weight:800; letter-spacing:1px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \\"Liberation Mono\\", \\"Courier New\\", monospace; }";
+                    html += ".code.used { text-decoration: line-through; opacity:.55; }";
+                    html += ".hint { margin-top:14px; font-size:12px; color:#444; }";
+                    html += "</style></head><body>";
+                    html += "<h1>KiezSingles – Noteinstieg Notfallcodes</h1>";
+                    html += "<p class=\\"meta\\">Stand " + esc(stamp) + " (durchgestrichen = bereits benutzt)</p>";
+                    html += "<div class=\\"grid\\">";
+                    for (const c of codes) {
+                        if (!c || typeof c.code !== "string") continue;
+                        html += "<div class=\\"code" + (c.used ? " used" : "") + "\\">" + esc(c.code) + "</div>";
+                    }
+                    html += "</div>";
+                    html += "<div class=\\"hint\\">Hinweis: Notfallcodes funktionieren nur im Wartungsmodus bei aktivem Noteinstieg.</div>";
+                    html += "<script>window.onload=()=>{ window.print(); };</" + "script>";
+                    html += "</body></html>";
 
-    // Popup: about:blank öffnen (wird i.d.R. nicht blockiert) und dann Inhalt schreiben
-const w = window.open("about:blank", "_blank");
-if (!w) {
-    showToast("Popup blockiert (Drucken nicht möglich).", true);
-    return;
-}
+                    const w = window.open("about:blank", "_blank");
+                    if (!w) {
+                        showToast("Popup blockiert (Drucken nicht möglich).", true);
+                        return;
+                    }
 
-try {
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-} catch (e) {
-    showToast("Druckansicht konnte nicht geöffnet werden.", true);
-}
-});
-
+                    try {
+                        w.document.open();
+                        w.document.write(html);
+                        w.document.close();
+                        w.focus();
+                    } catch (e) {
+                        showToast("Druckansicht konnte nicht geöffnet werden.", true);
+                    }
+                });
 
                 sim.addEventListener("change", () => { apply(); scheduleSave(); });
 
@@ -1462,6 +1643,8 @@ try {
                     etaTime.value = "";
                     scheduleSave();
                 });
+
+                notify.addEventListener("change", () => { scheduleSave(); });
 
                 ui.addEventListener("change", () => { apply(); scheduleSave(); });
                 r.addEventListener("change", () => { apply(); scheduleSave(); });
@@ -1499,6 +1682,13 @@ try {
         }
 
         $maintenanceRequested = (bool) $request->input('maintenance_enabled', false);
+
+        $maintenanceNotifyRequested = (bool) $request->input('maintenance_notify_enabled', false);
+
+        SystemSetting::updateOrCreate(
+            ['key' => 'maintenance.notify_enabled'],
+            ['value' => $maintenanceNotifyRequested ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
+        );
 
         // simulate_production ist NUR im Wartungsmodus zulässig
         $simulateRequested = $maintenanceRequested
@@ -1591,6 +1781,82 @@ try {
                 ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
             );
 
+            try {
+                $notifyEnabled = false;
+
+                if (Schema::hasTable('system_settings')) {
+                    $row = DB::table('system_settings')
+                        ->select(['value'])
+                        ->where('key', 'maintenance.notify_enabled')
+                        ->first();
+
+                    $val = $row ? (string) ($row->value ?? '') : '';
+                    $val = trim($val);
+
+                    $notifyEnabled = ($val === '1' || strtolower($val) === 'true');
+                }
+
+                if ($notifyEnabled && Schema::hasTable('maintenance_notifications')) {
+                    $batch = DB::table('maintenance_notifications')
+                        ->select(['id', 'email'])
+                        ->whereNull('notified_at')
+                        ->orderBy('id', 'asc')
+                        ->limit(2000)
+                        ->get();
+
+                    foreach ($batch as $row) {
+                        $id = isset($row->id) ? (int) $row->id : 0;
+                        if ($id < 1) {
+                            continue;
+                        }
+
+                        $email = isset($row->email) ? (string) $row->email : '';
+                        $email = trim($email);
+
+                        if ($email === '' || strlen($email) > 255 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                            continue;
+                        }
+
+                        // Claim: verhindert Doppel-Sends (auch bei parallelen Requests)
+                        $claimed = DB::table('maintenance_notifications')
+                            ->where('id', $id)
+                            ->whereNull('notified_at')
+                            ->update([
+                                'notified_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+
+                        if ((int) $claimed !== 1) {
+                            continue;
+                        }
+
+                        try {
+                            Mail::raw("KiezSingles ist wieder erreichbar.\n\nDu kannst dich jetzt wieder einloggen und die Plattform nutzen.", function ($m) use ($email) {
+                                $m->to($email);
+                                $m->subject('KiezSingles – Wartungsmodus beendet');
+                            });
+
+                            DB::table('maintenance_notifications')->where('id', $id)->delete();
+                        } catch (\Throwable $e) {
+                            // bewusst: claim zurücknehmen, damit später erneut versucht werden kann
+                            try {
+                                DB::table('maintenance_notifications')
+                                    ->where('id', $id)
+                                    ->update([
+                                        'notified_at' => null,
+                                        'updated_at' => now(),
+                                    ]);
+                            } catch (\Throwable $e2) {
+                                // bewusst ignorieren
+                            }
+                            continue;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // bewusst ignorieren
+            }
+
             return response()->json(['ok' => true]);
         }
 
@@ -1615,16 +1881,19 @@ try {
 
     /*
     |--------------------------------------------------------------------------
-    | Noteinstieg Notfallcodes – AJAX (Admin)
+    | Noteinstieg Notfallcodes – AJAX (Admin) LIST
     |--------------------------------------------------------------------------
-    | Erzeugt 5 Codes (XXXX-XXXX), speichert nur Hashes (einmalig),
-    | gibt Klartext nur einmal zurück (für Copy/Print).
+    | Listet alle Codes (auch verwendete), used=true => durchgestrichen.
     */
-    Route::post('/admin/noteinstieg/recovery-codes-generate-ajax', function (\Illuminate\Http\Request $request) {
+    Route::post('/admin/noteinstieg/recovery-codes-list-ajax', function () {
         abort_unless(auth()->check() && (string) auth()->user()->role === 'admin', 403);
 
         if (!Schema::hasTable('system_settings')) {
             return response()->json(['ok' => false, 'message' => 'system_settings fehlt'], 422);
+        }
+
+        if (!Schema::hasTable('noteinstieg_recovery_codes')) {
+            return response()->json(['ok' => false, 'message' => 'noteinstieg_recovery_codes fehlt'], 422);
         }
 
         // Optional: nur sinnvoll bei Wartung an
@@ -1639,33 +1908,232 @@ try {
             return response()->json(['ok' => false, 'message' => 'noteinstieg aus'], 422);
         }
 
-        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        $make = function () use ($alphabet): string {
-            $out = '';
-            $max = strlen($alphabet) - 1;
-            for ($i = 0; $i < 8; $i++) {
-                $out .= $alphabet[random_int(0, $max)];
+        $rows = DB::table('noteinstieg_recovery_codes')
+            ->select(['code_encrypted', 'used_at', 'created_at', 'id'])
+            ->orderByRaw('CASE WHEN used_at IS NULL THEN 0 ELSE 1 END ASC')
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->limit(200)
+            ->get();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $plain = '';
+            if (isset($row->code_encrypted) && $row->code_encrypted !== null && (string) $row->code_encrypted !== '') {
+                try {
+                    $plain = (string) decrypt((string) $row->code_encrypted);
+                } catch (\Throwable $e) {
+                    $plain = '';
+                }
             }
-            return substr($out, 0, 4) . '-' . substr($out, 4, 4);
-        };
 
-        $codes = [];
-        $hashes = [];
+            if ($plain === '') {
+                continue;
+            }
 
-        for ($i = 0; $i < 5; $i++) {
-            $c = $make();
-            $codes[] = $c;
-
-            $normalized = str_replace('-', '', $c);
-            $hashes[] = hash_hmac('sha256', $normalized, (string) config('app.key'));
+            $out[] = [
+                'code' => $plain,
+                'used' => $row->used_at !== null,
+            ];
         }
 
-        SystemSetting::updateOrCreate(
-            ['key' => 'debug.noteinstieg_recovery_hashes'],
-            ['value' => json_encode($hashes), 'group' => 'debug', 'cast' => 'string']
-        );
+        return response()->json(['ok' => true, 'codes' => $out]);
+    })->name('admin.noteinstieg.recovery.list.ajax');
 
-        return response()->json(['ok' => true, 'codes' => $codes]);
+    /*
+    |--------------------------------------------------------------------------
+    | Noteinstieg Notfallcodes – AJAX (Admin) GENERATE
+    |--------------------------------------------------------------------------
+    | Erzeugt 5 Codes (XXXX-XXXX), speichert Hash + code_encrypted (einmalig),
+    | gibt Klartext nur als Bestätigung zurück (UI lädt danach Liste).
+    |
+    | Regel:
+    | - Wenn noch unbenutzte Codes existieren: NICHT neu generieren.
+    | - Wenn nur benutzte Codes existieren: Tabelle leeren und 5 neue erzeugen.
+    */
+    Route::post('/admin/noteinstieg/recovery-codes-generate-ajax', function (\Illuminate\Http\Request $request) {
+        abort_unless(auth()->check() && (string) auth()->user()->role === 'admin', 403);
+
+        if (!Schema::hasTable('system_settings')) {
+            return response()->json(['ok' => false, 'message' => 'system_settings fehlt'], 422);
+        }
+
+        if (!Schema::hasTable('noteinstieg_recovery_codes')) {
+            return response()->json(['ok' => false, 'message' => 'noteinstieg_recovery_codes fehlt'], 422);
+        }
+
+        // Optional: nur sinnvoll bei Wartung an
+        if (Schema::hasTable('app_settings')) {
+            $s = DB::table('app_settings')->select(['maintenance_enabled'])->first();
+            if (!$s || !(bool) $s->maintenance_enabled) {
+                return response()->json(['ok' => false, 'message' => 'wartung aus'], 422);
+            }
+        }
+
+        if (!(bool) SystemSettingHelper::get('debug.break_glass', false)) {
+            return response()->json(['ok' => false, 'message' => 'noteinstieg aus'], 422);
+        }
+
+        $hasUnused = (int) DB::table('noteinstieg_recovery_codes')->whereNull('used_at')->count();
+        if ($hasUnused > 0) {
+            return response()->json(['ok' => false, 'message' => 'Es sind bereits unbenutzte Notfallcodes vorhanden.'], 422);
+        }
+
+        $total = (int) DB::table('noteinstieg_recovery_codes')->count();
+        if ($total > 0) {
+            // alle sind benutzt -> hart auf 5 begrenzen: alte Codes entfernen
+            DB::table('noteinstieg_recovery_codes')->delete();
+        }
+
+        $targetUnused = 5;
+        $maxTotal = 10;
+
+        DB::beginTransaction();
+        try {
+            $unusedCount = (int) DB::table('noteinstieg_recovery_codes')
+                ->whereNull('used_at')
+                ->count();
+
+            $missing = $targetUnused - $unusedCount;
+            if ($missing < 0) {
+                $missing = 0;
+            }
+
+            $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            $make = function () use ($alphabet): string {
+                $out = '';
+                $max = strlen($alphabet) - 1;
+                for ($i = 0; $i < 8; $i++) {
+                    $out .= $alphabet[random_int(0, $max)];
+                }
+                return substr($out, 0, 4) . '-' . substr($out, 4, 4);
+            };
+
+            $now = now();
+            $rows = [];
+
+            for ($i = 0; $i < $missing; $i++) {
+                $c = $make();
+
+                $normalized = str_replace('-', '', $c);
+                $hash = hash_hmac('sha256', $normalized, (string) config('app.key'));
+
+                // Bei extrem unwahrscheinlichem Hash-Collision: neu versuchen
+                $exists = DB::table('noteinstieg_recovery_codes')->where('hash', $hash)->exists();
+                if ($exists) {
+                    $i--;
+                    continue;
+                }
+
+                $rows[] = [
+                    'hash' => $hash,
+                    'code_encrypted' => encrypt($c),
+                    'used_at' => null,
+                    'used_ip' => null,
+                    'used_user_agent' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if (!empty($rows)) {
+                DB::table('noteinstieg_recovery_codes')->insert($rows);
+            }
+
+            // Hard cap: max 10 Datensätze (zuerst alte benutzte löschen)
+            $total = (int) DB::table('noteinstieg_recovery_codes')->count();
+            if ($total > $maxTotal) {
+                $toDelete = $total - $maxTotal;
+
+                $ids = DB::table('noteinstieg_recovery_codes')
+                    ->whereNotNull('used_at')
+                    ->orderBy('used_at', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->limit($toDelete)
+                    ->pluck('id')
+                    ->all();
+
+                if (!empty($ids)) {
+                    DB::table('noteinstieg_recovery_codes')->whereIn('id', $ids)->delete();
+                }
+
+                // Falls immer noch > maxTotal (z.B. zu viele unbenutzte): älteste unbenutzte löschen
+                $total = (int) DB::table('noteinstieg_recovery_codes')->count();
+                if ($total > $maxTotal) {
+                    $toDelete = $total - $maxTotal;
+
+                    $ids2 = DB::table('noteinstieg_recovery_codes')
+                        ->whereNull('used_at')
+                        ->orderBy('created_at', 'asc')
+                        ->orderBy('id', 'asc')
+                        ->limit($toDelete)
+                        ->pluck('id')
+                        ->all();
+
+                    if (!empty($ids2)) {
+                        DB::table('noteinstieg_recovery_codes')->whereIn('id', $ids2)->delete();
+                    }
+                }
+            }
+
+            // Immer 5 Codes zurückgeben (für dein bestehendes JS)
+            $rowsOut = DB::table('noteinstieg_recovery_codes')
+                ->select(['code_encrypted', 'used_at', 'created_at', 'id'])
+                ->orderByRaw('CASE WHEN used_at IS NULL THEN 0 ELSE 1 END ASC')
+                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc')
+                ->limit(2000)
+                ->get();
+
+            $out = [];
+            foreach ($rowsOut as $row) {
+                $plain = '';
+                if (isset($row->code_encrypted) && $row->code_encrypted !== null && (string) $row->code_encrypted !== '') {
+                    try {
+                        $plain = (string) decrypt((string) $row->code_encrypted);
+                    } catch (\Throwable $e) {
+                        $plain = '';
+                    }
+                }
+                if ($plain === '') {
+                    continue;
+                }
+                $out[] = $plain;
+                if (count($out) >= 5) {
+                    break;
+                }
+            }
+
+            // Safety: wenn durch alte Daten <5 da sind -> fehlende nachziehen
+            while (count($out) < 5) {
+                $c = $make();
+                $normalized = str_replace('-', '', $c);
+                $hash = hash_hmac('sha256', $normalized, (string) config('app.key'));
+                $exists = DB::table('noteinstieg_recovery_codes')->where('hash', $hash)->exists();
+                if ($exists) {
+                    continue;
+                }
+
+                DB::table('noteinstieg_recovery_codes')->insert([
+                    'hash' => $hash,
+                    'code_encrypted' => encrypt($c),
+                    'used_at' => null,
+                    'used_ip' => null,
+                    'used_user_agent' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                $out[] = $c;
+            }
+
+            DB::commit();
+
+            return response()->json(['ok' => true, 'codes' => $out]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['ok' => false, 'message' => 'generate failed'], 500);
+        }
     })->name('admin.noteinstieg.recovery.generate.ajax');
 
     /*

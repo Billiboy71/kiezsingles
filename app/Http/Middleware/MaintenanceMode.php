@@ -4,7 +4,8 @@
 // Purpose: App maintenance gate (DB-driven). Admins may login and access all.
 //          Non-admin users are blocked during maintenance (no forced logout).
 //          Registration and verification flows are blocked.
-// Changed: 09-02-2026 02:02
+// Changed: 10-02-2026 20:31
+// Version: 1.2
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -58,11 +59,17 @@ class MaintenanceMode
         }
 
         // Break-glass bypass (level 3): allow everything for valid bypass cookie while maintenance is active.
+        // Gilt nur in Production ODER wenn simulate_production aktiv ist.
         if ((bool) SystemSettingHelper::get('debug.break_glass', false)) {
-            $expiresAt = (int) $request->cookie('kiez_break_glass', 0);
+            $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
+            $isProdEffective = app()->environment('production') || $simulateProd;
 
-            if ($expiresAt > 0 && $expiresAt >= now()->timestamp) {
-                return $next($request);
+            if ($isProdEffective) {
+                $expiresAt = (int) $request->cookie('kiez_break_glass', 0);
+
+                if ($expiresAt > 0 && $expiresAt >= now()->timestamp) {
+                    return $next($request);
+                }
             }
         }
 
@@ -82,6 +89,15 @@ class MaintenanceMode
             return redirect()->route('home');
         }
 
+        $isNoteinstieg = (
+            $request->is('noteinstieg') ||
+            $request->is('noteinstieg/*') ||
+            $request->is('noteinstieg-einstieg') ||
+            $request->is('noteinstieg-wartung')
+        );
+
+        $isLogout = $request->is('logout');
+
         // Public allowlist during maintenance (public essentials + login/logout + health + break-glass)
         if (
             $request->is('/') ||
@@ -90,13 +106,17 @@ class MaintenanceMode
             $request->is('datenschutz') ||
             $request->is('nutzungsbedingungen') ||
             $request->is('login') ||
-            $request->is('logout') ||
+            $isLogout ||
             $request->is('up') ||
             $request->is('break-glass') ||
-            $request->is('break-glass/*')
+            $request->is('break-glass/*') ||
+            $request->is('maintenance-notify') ||
+            $isNoteinstieg
         ) {
             // If a non-admin is authenticated at ANY time during maintenance, block access but keep session.
-            if (auth()->check()) {
+            // Ausnahme: Noteinstieg muss auch dann erreichbar sein (Browser mit bestehender Session).
+            // Ausnahme: Logout muss erreichbar sein.
+            if (auth()->check() && !$isNoteinstieg && !$isLogout) {
                 return redirect()->route('home');
             }
 

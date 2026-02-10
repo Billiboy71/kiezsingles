@@ -1,8 +1,10 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\home.blade.php
-// Changed: 08-02-2026 01:33
 // Purpose: Public landing page with maintenance mode indicator + legal links
+// Changed: 08-02-2026 01:33
+// Changed: 10-02-2026 02:40
+// Version: 1.0
 // ============================================================================
 ?>
 <!doctype html>
@@ -30,6 +32,27 @@
     $showEta = $maintenanceEnabled
         && (bool) ($maintenance->maintenance_show_eta ?? false)
         && !empty($maintenance->maintenance_eta_at);
+
+    $notifyEnabled = false;
+
+    try {
+        if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+            $row = \Illuminate\Support\Facades\DB::table('system_settings')
+                ->select(['value'])
+                ->where('key', 'maintenance.notify_enabled')
+                ->first();
+
+            $val = $row ? (string) ($row->value ?? '') : '';
+            $val = trim($val);
+
+            $notifyEnabled = ($val === '1' || strtolower($val) === 'true');
+        }
+    } catch (\Throwable $e) {
+        $notifyEnabled = false;
+    }
+
+    $notifyOk = (bool) session('maintenance_notify_ok', false);
+    $notifyErr = (string) session('maintenance_notify_error', '');
 ?>
 
 <h1>KiezSingles</h1>
@@ -48,6 +71,39 @@
                     ->timezone('Europe/Berlin')
                     ->format('d.m.Y H:i') ?>
             </small>
+        <?php endif; ?>
+
+        <?php if ($notifyEnabled): ?>
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,.15);">
+                <strong>Benachrichtige mich</strong><br>
+                <small>Wenn der Wartungsmodus beendet ist, bekommst du eine E-Mail. Danach wird deine Adresse gelöscht.</small>
+
+                <?php if ($notifyOk): ?>
+                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #16a34a; background: #f0fff4;">
+                        <strong>Danke.</strong> Du wirst benachrichtigt.
+                    </div>
+                <?php elseif ($notifyErr !== ''): ?>
+                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #c00; background: #fff3f3;">
+                        <?= e($notifyErr) ?>
+                    </div>
+                <?php endif; ?>
+
+                <form method="POST" action="/maintenance-notify" style="margin-top: 10px;">
+                    <input type="hidden" name="_token" value="<?= e(csrf_token()) ?>">
+                    <input
+                        type="email"
+                        name="email"
+                        required
+                        autocomplete="email"
+                        inputmode="email"
+                        placeholder="E-Mail-Adresse"
+                        style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 10px; width: 280px; max-width: 100%;"
+                    >
+                    <button type="submit" style="padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; margin-left: 8px;">
+                        Benachrichtigen
+                    </button>
+                </form>
+            </div>
         <?php endif; ?>
     </div>
 <?php endif; ?>
