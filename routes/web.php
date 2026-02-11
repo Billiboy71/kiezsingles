@@ -2,13 +2,14 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web.php
 // Purpose: Web routes (public + authenticated)
-// Changed: 10-02-2026 21:28
-// Version: 1.3
+// Changed: 10-02-2026 22:56
+// Version: 1.5
 // ============================================================================
 
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DistrictPostcodeController;
 use App\Http\Controllers\ProfileController;
+use App\Mail\MaintenanceEndedMail;
 use App\Models\SystemSetting;
 use App\Support\SystemSettingHelper;
 use Illuminate\Support\Facades\DB;
@@ -928,7 +929,7 @@ Route::middleware('auth')->group(function () {
 
         $html .= '<div id="ks_toast" class="ks-toast"></div>';
 
-        $html .= '<div style="padding:16px; border:1px solid ' . $statusBorder . '; background:' . $statusBg . '; border-radius:10px; margin:0 0 16px 0;">';
+        $html .= '<div id="ks_status_box" style="padding:16px; border:1px solid ' . $statusBorder . '; background:' . $statusBg . '; border-radius:10px; margin:0 0 16px 0;">';
         $html .= '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px 0;">';
         $html .= '<h2 style="margin:0; font-size:18px;">Wartung & Debug</h2>';
         $html .= '<div style="display:flex; align-items:center; gap:10px;">';
@@ -1170,6 +1171,19 @@ Route::middleware('auth')->group(function () {
                     }, 2000);
                 };
 
+                const setStatusBox = (maintenanceOn) => {
+                    const box = document.getElementById("ks_status_box");
+                    if (!box) return;
+
+                    if (maintenanceOn) {
+                        box.style.background = "#fff5f5";
+                        box.style.borderColor = "#fecaca";
+                    } else {
+                        box.style.background = "#f0fff4";
+                        box.style.borderColor = "#bbf7d0";
+                    }
+                };
+
                 const setBadge = (maintenanceOn) => {
                     if (!badge) return;
                     if (maintenanceOn) {
@@ -1389,6 +1403,7 @@ Route::middleware('auth')->group(function () {
 
                     const maintenanceOn = !!m.checked;
 
+                    setStatusBox(maintenanceOn);
                     setBadge(maintenanceOn);
 
                     etaShow.disabled = (!hasSettingsTable) || (!maintenanceOn);
@@ -1414,6 +1429,7 @@ Route::middleware('auth')->group(function () {
                         etaShow.checked = false;
                         etaDate.value = "";
                         etaTime.value = "";
+                        notify.checked = false;
 
                         ui.checked = false;
                         r.checked = false;
@@ -1756,6 +1772,11 @@ Route::middleware('auth')->group(function () {
             ]);
 
             SystemSetting::updateOrCreate(
+                 ['key' => 'maintenance.notify_enabled'],
+                 ['value' => '0', 'group' => 'maintenance', 'cast' => 'bool']
+          );
+
+            SystemSetting::updateOrCreate(
                 ['key' => 'debug.ui_enabled'],
                 ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
             );
@@ -1831,10 +1852,7 @@ Route::middleware('auth')->group(function () {
                         }
 
                         try {
-                            Mail::raw("KiezSingles ist wieder erreichbar.\n\nDu kannst dich jetzt wieder einloggen und die Plattform nutzen.", function ($m) use ($email) {
-                                $m->to($email);
-                                $m->subject('KiezSingles – Wartungsmodus beendet');
-                            });
+                            Mail::to($email)->send(new MaintenanceEndedMail());
 
                             DB::table('maintenance_notifications')->where('id', $id)->delete();
                         } catch (\Throwable $e) {

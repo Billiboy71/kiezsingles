@@ -4,8 +4,8 @@
 // Purpose: App maintenance gate (DB-driven). Admins may login and access all.
 //          Non-admin users are blocked during maintenance (no forced logout).
 //          Registration and verification flows are blocked.
-// Changed: 10-02-2026 20:31
-// Version: 1.2
+// Changed: 11-02-2026 00:37
+// Version: 1.4
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -16,6 +16,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -23,16 +24,54 @@ class MaintenanceMode
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // If settings table doesn't exist yet (e.g. before migrate), do nothing.
-        if (!Schema::hasTable('app_settings')) {
-            return $next($request);
-        }
+        try {
+            // If settings table doesn't exist yet (e.g. before migrate), do nothing.
+            if (!Schema::hasTable('app_settings')) {
+                return $next($request);
+            }
 
-        $settings = DB::table('app_settings')->select([
-            'maintenance_enabled',
-            'maintenance_show_eta',
-            'maintenance_eta_at',
-        ])->first();
+            $settings = DB::table('app_settings')->select([
+                'maintenance_enabled',
+                'maintenance_show_eta',
+                'maintenance_eta_at',
+            ])->first();
+        } catch (\Throwable $e) {
+            Log::error('MaintenanceMode: DB access failed (forcing 503 maintenance fallback).', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'url' => $request->fullUrl(),
+                'method' => $request->method(),
+                'path' => $request->path(),
+            ]);
+
+            $now = now()->format('Y-m-d H:i:s');
+
+            // Prefer editable static HTML in /public (DB-independent). Fallback to inline minimal HTML.
+            $staticPath = public_path('maintenance-db-down.html');
+            $html = null;
+
+            if (is_string($staticPath) && $staticPath !== '' && is_file($staticPath) && is_readable($staticPath)) {
+                $content = @file_get_contents($staticPath);
+
+                if (is_string($content) && $content !== '') {
+                    // Optional placeholder support: replace {{timestamp}} with current server time.
+                    $html = str_replace('{{timestamp}}', $now, $content);
+                }
+            }
+
+            if (!is_string($html) || $html === '') {
+                $html = '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+                    . '<title>Wartung</title></head><body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 24px; line-height: 1.4;">'
+                    . '<h1 style="margin: 0 0 12px 0;">Service nicht verf&uuml;gbar</h1>'
+                    . '<p style="margin: 0 0 12px 0;">Die Anwendung ist momentan nicht erreichbar (Datenbankverbindung fehlgeschlagen).</p>'
+                    . '<p style="margin: 0; color: #666;">Zeitpunkt: ' . e($now) . '</p>'
+                    . '</body></html>';
+            }
+
+            return response($html, 503)
+                ->header('Content-Type', 'text/html; charset=UTF-8')
+                ->header('Retry-After', '60');
+        }
 
         // If no settings row exists yet, do nothing.
         if (!$settings) {

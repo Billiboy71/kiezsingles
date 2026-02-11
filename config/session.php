@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\config\session.php
+// Purpose: Session configuration
+// Changed: 11-02-2026 00:00
+// Version: 0.1
+// ============================================================================
 
 use Illuminate\Support\Str;
 
@@ -18,7 +24,9 @@ return [
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'database'),
+    'driver' => (env('APP_ENV', 'production') === 'production')
+        ? 'file'
+        : env('SESSION_DRIVER', 'database'),
 
     /*
     |--------------------------------------------------------------------------

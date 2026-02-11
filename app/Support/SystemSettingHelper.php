@@ -1,14 +1,16 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\SystemSettingHelper.php
-// Changed: 09-02-2026 00:40
 // Purpose: Central accessor for DB-backed system settings
+// Changed: 10-02-2026 23:53
+// Version: 0.1
 // ============================================================================
 
 namespace App\Support;
 
 use App\Models\SystemSetting;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class SystemSettingHelper
@@ -18,7 +20,17 @@ class SystemSettingHelper
      */
     public static function get(string $key, $default = null): mixed
     {
-        $setting = SystemSetting::where('key', $key)->first();
+        try {
+            $setting = SystemSetting::where('key', $key)->first();
+        } catch (\Throwable $e) {
+            Log::error('SystemSettingHelper::get: DB access failed (returning default).', [
+                'key' => $key,
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+
+            return $default;
+        }
 
         if (!$setting) {
             return $default;
@@ -73,11 +85,20 @@ class SystemSettingHelper
             return false;
         }
 
-        if (!Schema::hasTable('app_settings')) {
+        try {
+            if (!Schema::hasTable('app_settings')) {
+                return false;
+            }
+
+            $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
+        } catch (\Throwable $e) {
+            Log::error('SystemSettingHelper::debugUiAllowed: DB access failed (disabling debug UI).', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+
             return false;
         }
-
-        $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
 
         if (!$settings) {
             return false;

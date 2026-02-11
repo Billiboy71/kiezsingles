@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Service nicht verfügbar – KiezSingles</title>
+
+    <style>
+        :root {
+            --bg: #0f172a;          /* dunkles Blau */
+            --card: #111827;        /* Card-Hintergrund */
+            --text: #e5e7eb;        /* Haupttext */
+            --muted: #9ca3af;       /* Sekundärtext */
+            --accent: #f97316;     /* Akzent (Orange) */
+            --border: #1f2937;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(1200px 600px at 20% 0%, #1f2937 0%, var(--bg) 60%);
+            color: var(--text);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 640px;
+            background: linear-gradient(180deg, #0b1220, var(--card));
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px 28px 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,.45);
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(249, 115, 22, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(249, 115, 22, 0.35);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            letter-spacing: .02em;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            margin: 0 0 12px 0;
+            font-size: 26px;
+            line-height: 1.25;
+            font-weight: 600;
+        }
+
+        p {
+            margin: 0 0 12px 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .status {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border);
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .timestamp {
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        footer {
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 13px;
+        }
+
+        footer a {
+            color: var(--muted);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            color: var(--text);
+            text-decoration: underline;
+        }
+
+        .brand {
+            margin-left: auto;
+            color: var(--muted);
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <span class="badge">Wartung</span>
+
+        <h1>Service nicht verfügbar</h1>
+
+        <p>
+            Die Anwendung ist momentan nicht erreichbar, da die
+            <strong>Datenbankverbindung fehlgeschlagen</strong> ist.
+        </p>
+
+        <p>
+            Wir arbeiten daran, den Service so schnell wie möglich
+            wiederherzustellen. Bitte versuche es in wenigen Minuten erneut.
+        </p>
+
+        <div class="status">
+            Zeitpunkt:
+            <span class="timestamp">{{timestamp}}</span>
+        </div>
+<div style="margin: 24px 0;">
+    <a
+        href="mailto:support@kiezsingles.de
+?subject=KiezSingles%20–%20Fehlermeldung%20(Datenbank%20nicht%20erreichbar)
+&body=Hallo%20KiezSingles-Team,%0D%0A%0D%0Aich%20sehe%20gerade%20die%20Wartungsseite.%0D%0AZeitpunkt:%20{{JETZT}}%0D%0AURL:%20{{URL}}%0D%0A%0D%0AViele%20Grüße"
+        style="
+            display:inline-block;
+            padding:12px 18px;
+            border-radius:6px;
+            background:#d66a1f;
+            color:#fff;
+            text-decoration:none;
+            font-weight:600;
+        "
+    >
+        Fehlermeldung senden
+    </a>
+</div>
+        <footer>
+            <!-- Diese Links sind bewusst statisch, damit sie auch ohne DB sichtbar sind -->
+            <a href="/impressum">Impressum</a>
+            <a href="/datenschutz">Datenschutz</a>
+            <a href="/nutzungsbedingungen">Nutzungsbedingungen</a>
+
+            <span class="brand">KiezSingles</span>
+        </footer>
+    </main>
+</body>
+</html>

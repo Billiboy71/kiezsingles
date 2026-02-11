@@ -2,7 +2,6 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\home.blade.php
 // Purpose: Public landing page with maintenance mode indicator + legal links
-// Changed: 08-02-2026 01:33
 // Changed: 10-02-2026 02:40
 // Version: 1.0
 // ============================================================================
