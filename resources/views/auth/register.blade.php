@@ -1,6 +1,7 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\register.blade.php  --}}
-{{-- Changed: 08-02-2026 01:25                                                 --}}
+{{-- Changed: 23-02-2026 23:28 (Europe/Berlin)                                 --}}
+{{-- Version: 0.4                                                              --}}
 {{-- Purpose: Register view (user registration with Turnstile & feature flags) --}}
 {{-- ========================================================================= --}}
 <x-guest-layout>
@@ -13,8 +14,8 @@
         @csrf
 
         {{-- Autofill-Fänger --}}
-        <input type="text" name="username" autocomplete="username" style="display:none">
-        <input type="password" name="password_fake" autocomplete="current-password" style="display:none">
+        <input type="text" name="username" autocomplete="username" class="hidden">
+        <input type="password" name="password_fake" autocomplete="current-password" class="hidden">
 
         <!-- Ich bin / Ich suche -->
         <div class="mt-4">
@@ -52,9 +53,9 @@
             <x-input-error :messages="$errors->get('username')" class="mt-2" />
         </div>
 
-        <div class="mt-4" style="display:flex; gap:12px; align-items:flex-end;">
+        <div class="mt-4 flex gap-3 items-end">
             <!-- Geburtsdatum -->
-            <div style="flex:1 1 0;">
+            <div class="flex-1 basis-0">
                 <x-input-label for="birthdate" value="Geburtsdatum" />
                 <x-text-input
                     id="birthdate"
@@ -69,12 +70,12 @@
             </div>
 
             <!-- Alter (immer 50% Platz; zeigt serverseitig old()-Alter oder –) -->
-            <div style="flex:1 1 0; white-space:nowrap;">
+            <div class="flex-1 basis-0 whitespace-nowrap">
                 <!-- Spacer statt "Alter"-Überschrift (damit die Zeile auf Input-Höhe sitzt) -->
-                <div style="height:20px;"></div>
+                <div class="h-5"></div>
 
                 <!-- Zeile mittig auf der Höhe des Date-Inputs -->
-                <div style="height:42px; display:flex; align-items:center; font-size:18px; color:#4b5563; padding-left:10px;">
+                <div class="h-[42px] flex items-center text-[18px] text-gray-600 pl-2.5">
                     <span id="ageLine"></span>
                 </div>
             </div>
@@ -120,6 +121,10 @@
                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                     @if(config('features.postcode.required')) required @endif
                     disabled
+                    data-postcode-required="{{ (bool) config('features.postcode.required') ? '1' : '0' }}"
+                    data-old-district="{{ (string) old('district') }}"
+                    data-old-postcode="{{ (string) old('postcode') }}"
+                    data-postcodes-url-template="{{ route('district.postcodes', ['district' => '___D___']) }}"
                 >
                     <option value="" selected>Bitte zuerst Stadtbezirk wählen…</option>
                 </select>
@@ -171,7 +176,9 @@
                     type="button"
                     class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
                     aria-label="Passwort anzeigen oder verbergen"
-                    onclick="togglePassword('password', this)"
+                    data-ks-toggle-password="1"
+                    data-ks-target="password"
+                    aria-controls="password"
                 >
                     🔒
                 </button>
@@ -244,204 +251,5 @@
                 {{ __('Register') }}
             </x-primary-button>
         </div>
-
-        {{-- JS: Postcodes nach District nachladen --}}
-        @if (config('features.postcode.enabled'))
-            <script>
-                (() => {
-                    const districtEl = document.getElementById('district');
-                    const postcodeEl = document.getElementById('postcode');
-                    if (!districtEl || !postcodeEl) return;
-
-                    const postcodeRequired = @json((bool) config('features.postcode.required'));
-                    const oldDistrict = @json(old('district'));
-                    const oldPostcode = @json(old('postcode'));
-
-                    const pingBtnUpdate = () => {
-                        if (typeof window.__updateRegisterBtn === 'function') {
-                            window.__updateRegisterBtn();
-                        }
-                    };
-
-                    const reset = (text) => {
-                        postcodeEl.innerHTML = '';
-                        const opt = document.createElement('option');
-                        opt.value = '';
-                        opt.textContent = text;
-                        postcodeEl.appendChild(opt);
-                        postcodeEl.disabled = true;
-                        pingBtnUpdate();
-                    };
-
-                    const setOptions = (postcodes, selected = null) => {
-                        postcodeEl.innerHTML = '';
-
-                        const first = document.createElement('option');
-                        first.value = '';
-                        first.textContent = 'Bitte wählen…';
-                        postcodeEl.appendChild(first);
-
-                        postcodes.forEach(pc => {
-                            const opt = document.createElement('option');
-                            opt.value = pc;
-                            opt.textContent = pc;
-                            if (selected && selected === pc) opt.selected = true;
-                            postcodeEl.appendChild(opt);
-                        });
-
-                        postcodeEl.disabled = postcodes.length === 0;
-                        if (postcodeRequired && !postcodeEl.disabled) postcodeEl.required = true;
-
-                        pingBtnUpdate();
-                    };
-
-                    const loadPostcodes = async (district, selected = null) => {
-                        if (!district) {
-                            reset('Bitte zuerst Stadtbezirk wählen…');
-                            return;
-                        }
-
-                        reset('Lade…');
-
-                        const url = `{{ route('district.postcodes', ['district' => '___D___']) }}`
-                            .replace('___D___', encodeURIComponent(district));
-
-                        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-
-                        if (!res.ok) {
-                            reset('Fehler beim Laden…');
-                            return;
-                        }
-
-                        const data = await res.json();
-                        setOptions(data.postcodes ?? [], selected);
-                    };
-
-                    districtEl.addEventListener('change', () => {
-                        loadPostcodes(districtEl.value, null);
-                    });
-
-                    const initialDistrict = oldDistrict || districtEl.value || null;
-                    const initialPostcode = oldPostcode || postcodeEl.value || null;
-
-                    if (initialDistrict) {
-                        districtEl.value = initialDistrict;
-                        loadPostcodes(initialDistrict, initialPostcode);
-                    } else {
-                        reset('Bitte zuerst Stadtbezirk wählen…');
-                    }
-                })();
-            </script>
-        @endif
-
-        {{-- JS: Passwort anzeigen/verbergen --}}
-        <script>
-            function togglePassword(inputId, btn) {
-                const input = document.getElementById(inputId);
-                if (!input) return;
-
-                const isHidden = input.type === 'password';
-                input.type = isHidden ? 'text' : 'password';
-                btn.textContent = isHidden ? '👁️' : '🔒';
-            }
-        </script>
-
-        {{-- JS: Passwort-Regeln rot/grün --}}
-        <script>
-            (() => {
-                const pw = document.getElementById('password');
-                const rulesList = document.getElementById('password-rules');
-                if (!pw || !rulesList) return;
-
-                const rules = {
-                    length:  v => v.length >= 10,
-                    upper:   v => /[A-Z]/.test(v),
-                    lower:   v => /[a-z]/.test(v),
-                    number:  v => /[0-9]/.test(v),
-                    special: v => /[^A-Za-z0-9]/.test(v),
-                };
-
-                const update = () => {
-                    const v = pw.value ?? '';
-
-                    rulesList.querySelectorAll('li[data-rule]').forEach(li => {
-                        const rule = li.getAttribute('data-rule');
-                        const ok = rules[rule] ? rules[rule](v) : false;
-
-                        li.classList.toggle('text-green-600', ok);
-                        li.classList.toggle('text-red-600', !ok);
-
-                        const text = li.textContent.replace(/^✅\s|^⛔\s/, '');
-                        li.textContent = (ok ? '✅ ' : '⛔ ') + text;
-                    });
-                };
-
-                pw.addEventListener('input', update);
-                update();
-            })();
-        </script>
-
-        {{-- JS: Email-Hinweis --}}
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                const email = document.querySelector('input[name="email"]');
-                const hint  = document.getElementById('emailHint');
-
-                if (!email || !hint) return;
-
-                const isObviouslyWrong = (v) => {
-                    if (!v) return false;
-                    if (!v.includes('@')) return true;
-
-                    const parts = v.split('@');
-                    if (parts.length !== 2) return true;
-
-                    const domain = parts[1] || '';
-                    if (!domain) return true;
-
-                    if (domain.includes(',')) return true;
-                    if (!domain.includes('.')) return true;
-
-                    return false;
-                };
-
-                const check = () => {
-                    hint.classList.toggle('hidden', !isObviouslyWrong(email.value.trim()));
-                };
-
-                email.addEventListener('input', check);
-                email.addEventListener('blur', check);
-            });
-        </script>
-
-        {{-- JS: Alter-Hinweis --}}
-        <script>
-            (() => {
-                const birthInput = document.getElementById('birthdate');
-                const ageLine = document.getElementById('ageLine');
-                if (!birthInput || !ageLine) return;
-
-                const calcAge = (v) => {
-                    if (!v) return null;
-                    const d = new Date(v + 'T00:00:00');
-                    if (isNaN(d)) return null;
-
-                    const t = new Date();
-                    let a = t.getFullYear() - d.getFullYear();
-                    const m = t.getMonth() - d.getMonth();
-                    if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
-                    return a >= 0 ? a : null;
-                };
-
-                const update = () => {
-                    const age = calcAge(birthInput.value);
-                    ageLine.textContent = (age === null) ? '' : `Alter: ${age} (stimmt das?)`;
-                };
-
-                birthInput.addEventListener('input', update);
-                birthInput.addEventListener('change', update);
-                update();
-            })();
-        </script>
     </form>
 </x-guest-layout>

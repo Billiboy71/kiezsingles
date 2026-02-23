@@ -1,3 +1,10 @@
+{{-- ============================================================================
+File: C:\laragon\www\kiezsingles\resources\views\profile\partials\update-password-form.blade.php
+Purpose: Profile – Update password form (Breeze) + no inline scripts
+Changed: 23-02-2026 23:45 (Europe/Berlin)
+Version: 0.4
+============================================================================ --}}
+
 <section>
     <header>
         <h2 class="text-lg font-medium text-gray-900">
@@ -9,13 +16,19 @@
         </p>
     </header>
 
-    <form method="post" action="{{ route('password.update') }}" class="mt-6 space-y-6" autocomplete="off">
+    <form
+        method="post"
+        action="{{ route('password.update') }}"
+        class="mt-6 space-y-6"
+        autocomplete="off"
+        data-ks-profile-update-password="1"
+    >
         @csrf
         @method('put')
 
         {{-- Autofill-Fänger (wie im Register) --}}
-        <input type="text" name="username" autocomplete="username" style="display:none">
-        <input type="password" name="password_fake" autocomplete="current-password" style="display:none">
+        <input type="text" name="username" autocomplete="username" class="hidden">
+        <input type="password" name="password_fake" autocomplete="current-password" class="hidden">
 
         <!-- Derzeitiges Passwort -->
         <div class="mt-4">
@@ -35,7 +48,10 @@
                     type="button"
                     class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
                     aria-label="Passwort anzeigen oder verbergen"
-                    onclick="togglePassword('update_password_current_password', this)"
+                    data-ks-toggle-password="1"
+                    data-ks-target="update_password_current_password"
+                    aria-controls="update_password_current_password"
+                    data-ks-lock-unlock="1"
                 >
                     🔒
                 </button>
@@ -62,7 +78,10 @@
                     type="button"
                     class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
                     aria-label="Passwort anzeigen oder verbergen"
-                    onclick="togglePassword('update_password_password', this)"
+                    data-ks-toggle-password="1"
+                    data-ks-target="update_password_password"
+                    aria-controls="update_password_password"
+                    data-ks-lock-unlock="1"
                 >
                     🔒
                 </button>
@@ -89,7 +108,10 @@
                     type="button"
                     class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
                     aria-label="Passwort anzeigen oder verbergen"
-                    onclick="togglePassword('update_password_password_confirmation', this)"
+                    data-ks-toggle-password="1"
+                    data-ks-target="update_password_password_confirmation"
+                    aria-controls="update_password_password_confirmation"
+                    data-ks-lock-unlock="1"
                 >
                     🔒
                 </button>
@@ -114,28 +136,4 @@
             @endif
         </div>
     </form>
-
-    <script>
-        // 🔒 ↔ 🔓 (kein Auge)
-        function togglePassword(inputId, button) {
-            const input = document.getElementById(inputId);
-            if (!input) return;
-
-            const isHidden = input.type === 'password';
-            input.type = isHidden ? 'text' : 'password';
-            button.textContent = isHidden ? '🔓' : '🔒';
-        }
-
-        // Vorbefüllen hart entfernen (Safari/Password-Manager)
-        document.addEventListener('DOMContentLoaded', () => {
-            [
-                'update_password_current_password',
-                'update_password_password',
-                'update_password_password_confirmation'
-            ].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = '';
-            });
-        });
-    </script>
 </section>

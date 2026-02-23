@@ -164,38 +164,4 @@
         </div>
     </nav>
 
-<?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-
-<script>
-    (function () {
-        // Force same-tab navigation for admin nav links (guards against accidental target/_blank or JS that opens new tabs).
-        // Does not interfere with ctrl/cmd/middle-click (new tab behavior remains user-controlled).
-        function isModifiedClick(e) {
-            return !!(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1);
-        }
-
-        document.addEventListener('click', function (e) {
-            if (!e || isModifiedClick(e)) return;
-
-            const a = e.target && e.target.closest ? e.target.closest('[data-ks-admin-nav] a[href]') : null;
-            if (!a) return;
-
-            const href = a.getAttribute('href') || '';
-            if (!href || href === '#') return;
-
-            // Only same-origin navigations; ignore javascript: and other schemes.
-            const lower = href.trim().toLowerCase();
-            if (lower.startsWith('javascript:') || lower.startsWith('mailto:') || lower.startsWith('tel:')) return;
-
-            try {
-                const url = new URL(a.href, window.location.href);
-                if (url.origin !== window.location.origin) return;
-            } catch (err) {
-                return;
-            }
-
-            e.preventDefault();
-            window.location.assign(a.href);
-        }, true);
-    })();
-</script><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/navigation.blade.php ENDPATH**/ ?>
+<?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/navigation.blade.php ENDPATH**/ ?>

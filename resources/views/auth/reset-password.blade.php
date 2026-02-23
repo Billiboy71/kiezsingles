@@ -1,16 +1,17 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\reset-password.blade.php --}}
-{{-- Changed: 08-02-2026 21:51 --}}
-{{-- Purpose: Password reset form (email + new password + confirmation)          --}}
+{{-- Changed: 23-02-2026 23:39 (Europe/Berlin)                                     --}}
+{{-- Version: 0.4                                                                   --}}
+{{-- Purpose: Password reset form (email + new password + confirmation)             --}}
 {{-- ========================================================================= --}}
 
 <x-guest-layout>
-    <form method="POST" action="{{ route('password.store') }}">
+    <form method="POST" action="{{ route('password.store') }}" data-ks-reset="1" data-captcha-enabled="{{ (bool) (config('captcha.enabled') && config('captcha.on_reset')) ? '1' : '0' }}">
         @csrf
 
         {{-- Autofill-Fänger (Browser füllt gern hier rein statt in echte Felder) --}}
-        <input type="text" name="fake_username" autocomplete="username" style="display:none">
-        <input type="password" name="fake_password" autocomplete="current-password" style="display:none">
+        <input type="text" name="fake_username" autocomplete="username" class="hidden">
+        <input type="password" name="fake_password" autocomplete="current-password" class="hidden">
 
         <!-- Password Reset Token -->
         <input type="hidden" name="token" value="{{ $request->route('token') }}">
@@ -32,8 +33,7 @@
                 autocapitalize="none"
                 spellcheck="false"
                 readonly
-                onfocus="this.removeAttribute('readonly');"
-                onmousedown="this.removeAttribute('readonly');"
+                data-ks-remove-readonly-on-interaction="1"
             />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
@@ -56,7 +56,9 @@
                     type="button"
                     class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
                     aria-label="Passwort anzeigen oder verbergen"
-                    onclick="togglePassword('password', this)"
+                    data-ks-toggle-password="1"
+                    data-ks-target="password"
+                    aria-controls="password"
                 >
                     🔒
                 </button>
@@ -94,7 +96,9 @@
                     type="button"
                     class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
                     aria-label="Passwort anzeigen oder verbergen"
-                    onclick="togglePassword('password_confirmation', this)"
+                    data-ks-toggle-password="1"
+                    data-ks-target="password_confirmation"
+                    aria-controls="password_confirmation"
                 >
                     🔒
                 </button>
@@ -131,96 +135,5 @@
                 {{ __('Reset Password') }}
             </x-primary-button>
         </div>
-
-        <script>
-            function togglePassword(inputId, btn) {
-                const input = document.getElementById(inputId);
-                if (!input) return;
-
-                const isHidden = input.type === 'password';
-                input.type = isHidden ? 'text' : 'password';
-
-                btn.textContent = isHidden ? '👁️' : '🔒';
-
-                if (typeof window.__updateResetBtn === 'function') {
-                    window.__updateResetBtn();
-                }
-            }
-
-            (() => {
-                const pw = document.getElementById('password');
-                const pw2 = document.getElementById('password_confirmation');
-                const rulesList = document.getElementById('password-rules');
-                const matchEl = document.getElementById('pw-match');
-                const btn = document.getElementById('resetBtn');
-
-                if (!pw || !pw2 || !rulesList || !matchEl || !btn) return;
-
-                const captchaEnabled = @json((bool) (config('captcha.enabled') && config('captcha.on_reset')));
-                let captchaOk = captchaEnabled ? false : true;
-
-                // Turnstile callbacks (nur wenn enabled)
-                window.onTurnstileSuccess = function () { captchaOk = true;  update(); };
-                window.onTurnstileExpired = function () { captchaOk = false; update(); };
-                window.onTurnstileError   = function () { captchaOk = false; update(); };
-
-                const rules = {
-                    length:  v => v.length >= 10,
-                    upper:   v => /[A-Z]/.test(v),
-                    lower:   v => /[a-z]/.test(v),
-                    number:  v => /[0-9]/.test(v),
-                    special: v => /[^A-Za-z0-9]/.test(v),
-                };
-
-                const passwordRulesOk = (v) => {
-                    return rules.length(v)
-                        && rules.upper(v)
-                        && rules.lower(v)
-                        && rules.number(v)
-                        && rules.special(v);
-                };
-
-                const setDisabled = (disabled) => {
-                    btn.disabled = disabled;
-                    btn.classList.toggle('opacity-50', disabled);
-                    btn.classList.toggle('cursor-not-allowed', disabled);
-                };
-
-                const update = () => {
-                    const v = pw.value ?? '';
-                    const v2 = pw2.value ?? '';
-
-                    // Regeln rot/grün
-                    rulesList.querySelectorAll('li[data-rule]').forEach(li => {
-                        const rule = li.getAttribute('data-rule');
-                        const ok = rules[rule] ? rules[rule](v) : false;
-
-                        li.classList.toggle('text-green-600', ok);
-                        li.classList.toggle('text-red-600', !ok);
-
-                        const text = li.textContent.replace(/^✅\s|^❌\s/, '');
-                        li.textContent = (ok ? '✅ ' : '❌ ') + text;
-                    });
-
-                    // Match-Check
-                    const match = v.length > 0 && v === v2;
-                    matchEl.classList.toggle('text-green-600', match);
-                    matchEl.classList.toggle('text-red-600', !match);
-                    matchEl.textContent = match
-                        ? '✅ Passwörter stimmen überein'
-                        : '❌ Passwörter stimmen nicht überein';
-
-                    const okAll = passwordRulesOk(v) && match && captchaOk;
-                    setDisabled(!okAll);
-                };
-
-                window.__updateResetBtn = update;
-
-                pw.addEventListener('input', update);
-                pw2.addEventListener('input', update);
-
-                setTimeout(update, 0);
-            })();
-        </script>
     </form>
 </x-guest-layout>

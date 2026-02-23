@@ -2,6 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\layouts\public.blade.php
 // Purpose: Unified public layout (single frame) with growing copyright year
+// Changed: 23-02-2026 23:33 (Europe/Berlin)
+// Version: 0.1
 // ============================================================================
 ?>
 <!doctype html>
@@ -10,29 +12,30 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ?? 'KiezSingles' }}</title>
+    @vite(['resources/css/app.css'])
 </head>
-<body style="font-family: system-ui; margin: 0; background: #f5f5f5;">
+<body class="font-sans m-0 bg-gray-100">
 
     <!-- FIXED PUBLIC FRAME -->
-    <div style="max-width: 900px; margin: 0 auto; padding: 40px; background: #ffffff; min-height: 100vh;">
+    <div class="max-w-[900px] mx-auto p-10 bg-white min-h-screen">
 
         <!-- HEADER / BRAND -->
-        <header style="margin-bottom: 30px;">
-            <div style="display: flex; align-items: center; gap: 14px;">
+        <header class="mb-8">
+            <div class="flex items-center gap-3.5">
                 <img
                     src="/images/logo.png"
                     alt="KiezSingles Logo"
-                    style="width: 44px; height: 44px; object-fit: contain; display: block;"
+                    class="w-11 h-11 object-contain block"
                 >
                 <div>
-                    <h1 style="margin: 0;">KiezSingles</h1>
-                    <p style="margin: 4px 0 0 0; color: #666;">Deine lokale Plattform (Beta)</p>
+                    <h1 class="m-0">KiezSingles</h1>
+                    <p class="mt-1 mb-0 text-slate-500">Deine lokale Plattform (Beta)</p>
                 </div>
             </div>
         </header>
 
         <!-- PUBLIC NAV -->
-        <nav style="margin-bottom: 30px; font-size: 0.95em;">
+        <nav class="mb-8 text-[0.95em]">
             <a href="/">Home</a> |
             <a href="/contact">Kontakt</a> |
             <a href="/impressum">Impressum</a> |
@@ -46,7 +49,7 @@
         </main>
 
         <!-- FOOTER -->
-        <footer style="margin-top: 40px; font-size: 0.85em; color: #888;">
+        <footer class="mt-10 text-[0.85em] text-slate-500">
             © 2026–{{ date('Y') }} KiezSingles
         </footer>
 

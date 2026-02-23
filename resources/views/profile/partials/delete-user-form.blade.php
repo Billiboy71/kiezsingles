@@ -1,3 +1,10 @@
+{{-- ============================================================================
+File: C:\laragon\www\kiezsingles\resources\views\profile\partials\delete-user-form.blade.php
+Purpose: Profile – Delete user modal (Breeze) + no inline scripts
+Changed: 23-02-2026 23:44 (Europe/Berlin)
+Version: 0.4
+============================================================================ --}}
+
 <section class="space-y-6">
     <header>
         <h2 class="text-lg font-medium text-gray-900">
@@ -15,13 +22,20 @@
     >{{ __('Delete Account') }}</x-danger-button>
 
     <x-modal name="confirm-user-deletion" :show="$errors->userDeletion->isNotEmpty()" focusable>
-        <form method="post" action="{{ route('profile.destroy') }}" class="p-6" autocomplete="off">
+        <form
+            method="post"
+            action="{{ route('profile.destroy') }}"
+            class="p-6"
+            autocomplete="off"
+            data-ks-profile-delete-user="1"
+            data-ks-modal-name="confirm-user-deletion"
+        >
             @csrf
             @method('delete')
 
             {{-- Autofill-Fänger (verhindert Safari/Password-Manager im Modal) --}}
-            <input type="text" name="username" autocomplete="username" style="display:none">
-            <input type="password" name="password_fake" autocomplete="current-password" style="display:none">
+            <input type="text" name="username" autocomplete="username" class="hidden">
+            <input type="password" name="password_fake" autocomplete="current-password" class="hidden">
 
             <h2 class="text-lg font-medium text-gray-900">
                 {{ __('Are you sure you want to delete your account?') }}
@@ -49,7 +63,10 @@
                         type="button"
                         class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
                         aria-label="Passwort anzeigen oder verbergen"
-                        onclick="togglePassword('delete_user_password', this)"
+                        data-ks-toggle-password="1"
+                        data-ks-target="delete_user_password"
+                        aria-controls="delete_user_password"
+                        data-ks-lock-unlock="1"
                     >
                         🔒
                     </button>
@@ -69,34 +86,4 @@
             </div>
         </form>
     </x-modal>
-
-    <script>
-        // togglePassword (falls noch nicht global vorhanden): 🔒 ↔ 🔓
-        if (typeof window.togglePassword !== 'function') {
-            window.togglePassword = function (inputId, button) {
-                const input = document.getElementById(inputId);
-                if (!input) return;
-
-                const isHidden = input.type === 'password';
-                input.type = isHidden ? 'text' : 'password';
-                if (button) button.textContent = isHidden ? '🔓' : '🔒';
-            };
-        }
-
-        // Modal-Reset: Safari füllt manchmal NACH dem Öffnen -> deshalb hier hart leeren
-        document.addEventListener('open-modal', (e) => {
-            if (e.detail !== 'confirm-user-deletion') return;
-
-            const input = document.getElementById('delete_user_password');
-            if (!input) return;
-
-            // zurück auf "versteckt" + leer
-            input.type = 'password';
-            input.value = '';
-
-            // Button wieder auf Schloss zu setzen
-            const btn = input.parentElement?.querySelector('button[onclick*="delete_user_password"]');
-            if (btn) btn.textContent = '🔒';
-        });
-    </script>
 </section>

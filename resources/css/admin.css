@@ -1,8 +1,8 @@
 /* ============================================================================
 File: C:\laragon\www\kiezsingles\resources\css\admin.css
 Purpose: Admin-only Tailwind entry + shared admin component styles (ks-*)
-Changed: 19-02-2026 00:14 (Europe/Berlin)
-Version: 0.3
+Changed: 23-02-2026 20:52 (Europe/Berlin)
+Version: 0.4
 ============================================================================ */
 
 @tailwind base;
@@ -96,4 +96,70 @@ Version: 0.3
 
     .ks-status-card--maintenance { border-color:#fecaca; background:#fff5f5; }
     .ks-status-card--live { border-color:#bbf7d0; background:#f0fff4; }
+
+    /* =========================================================================
+       Admin Tickets Index – extracted from admin/tickets/index.blade.php
+       Scoped to avoid changing other pages.
+       ========================================================================= */
+
+    .ks-admin-tickets-index,
+    .ks-admin-tickets-index *,
+    .ks-admin-tickets-index *::before,
+    .ks-admin-tickets-index *::after { box-sizing:border-box; }
+
+    /*
+     * Layout comes from admin.layouts.admin (container + padding + card).
+     * Tickets Index must not enforce its own max-width/padding.
+     */
+    .ks-admin-tickets-index.ks-wrap { padding:0; max-width:100%; margin:0; }
+
+    .ks-admin-tickets-index .ks-top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 14px 0; }
+    .ks-admin-tickets-index .ks-h1 { margin:0; }
+
+    .ks-admin-tickets-index .ks-badge { display:inline-flex; align-items:center; justify-content:center; padding:4px 9px; border-radius:999px; font-weight:900; font-size:12px; letter-spacing:.2px; color:#111; background:#e5e7eb; border:1px solid #e5e7eb; }
+
+    /* Override shared ks-btn only within this page to match the former inline look */
+    .ks-admin-tickets-index .ks-btn { padding:8px 10px; font-weight:700; font-size:13px; }
+
+    .ks-admin-tickets-index .ks-input { padding:8px 10px; border-radius:10px; border:1px solid #cbd5e1; background:#fff; font-size:13px; }
+
+    /* Override shared ks-row only within this page to match former inline layout */
+    .ks-admin-tickets-index .ks-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:flex-start; }
+
+    .ks-admin-tickets-index table { width:100%; border-collapse:separate; border-spacing:0; background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; }
+    .ks-admin-tickets-index th,
+    .ks-admin-tickets-index td { text-align:left; padding:10px 12px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
+    .ks-admin-tickets-index th { font-size:12px; color:#555; letter-spacing:.3px; text-transform:uppercase; background:#f8fafc; }
+    .ks-admin-tickets-index tr:last-child td { border-bottom:none; }
+
+    .ks-admin-tickets-index a { color:#0ea5e9; text-decoration:none; }
+    .ks-admin-tickets-index a:hover { text-decoration:underline; }
+
+    .ks-admin-tickets-index .ks-muted { color:#666; font-size:13px; }
+
+    .ks-admin-tickets-index tr[data-href] { cursor:pointer; }
+    .ks-admin-tickets-index tr[data-href]:hover { background:#f8fafc; }
+    .ks-admin-tickets-index tr[data-href]:active { background:#f1f5f9; }
+
+    .ks-admin-tickets-index .st-open { background:#fef9c3; border-color:#fde68a; }
+    .ks-admin-tickets-index .st-inprogress { background:#e0f2fe; border-color:#bae6fd; }
+    .ks-admin-tickets-index .st-closed { background:#dcfce7; border-color:#bbf7d0; }
+    .ks-admin-tickets-index .st-rejected { background:#f1f5f9; border-color:#e2e8f0; }
+    .ks-admin-tickets-index .st-escalated { background:#fee2e2; border-color:#fecaca; }
+    .ks-admin-tickets-index .st-other { background:#e5e7eb; border-color:#e5e7eb; }
+
+    .ks-admin-tickets-index .cat-none { background:#f1f5f9; border-color:#e2e8f0; }
+    .ks-admin-tickets-index .cat-support { background:#e0f2fe; border-color:#bae6fd; }
+    .ks-admin-tickets-index .cat-abuse { background:#fee2e2; border-color:#fecaca; }
+    .ks-admin-tickets-index .cat-spam { background:#ffedd5; border-color:#fed7aa; }
+    .ks-admin-tickets-index .cat-billing { background:#ede9fe; border-color:#ddd6fe; }
+    .ks-admin-tickets-index .cat-bug { background:#ccfbf1; border-color:#99f6e4; }
+    .ks-admin-tickets-index .cat-other { background:#e5e7eb; border-color:#e5e7eb; }
+
+    .ks-admin-tickets-index .prio-none { background:#dcfce7; border-color:#bbf7d0; }
+    .ks-admin-tickets-index .prio-low { background:#ecfccb; border-color:#d9f99d; }
+    .ks-admin-tickets-index .prio-normal { background:#fef9c3; border-color:#fde68a; }
+    .ks-admin-tickets-index .prio-high { background:#ffedd5; border-color:#fed7aa; }
+    .ks-admin-tickets-index .prio-critical { background:#fee2e2; border-color:#fecaca; }
+    .ks-admin-tickets-index .prio-other { background:#e5e7eb; border-color:#e5e7eb; }
 }

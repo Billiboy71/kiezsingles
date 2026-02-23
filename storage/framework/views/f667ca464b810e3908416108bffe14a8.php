@@ -8,5 +8,4 @@
             <div>Admin-Bereich</div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
     </div>
-</footer>
-<?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/footer.blade.php ENDPATH**/ ?>
+</footer><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/footer.blade.php ENDPATH**/ ?>

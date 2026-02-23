@@ -190,7 +190,7 @@
 
     <base target="_self">
 
-    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/admin.css', 'resources/js/app.js']); ?>
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/admin.css', 'resources/js/admin.js', 'resources/js/admin-header.js', 'resources/js/app.js']); ?>
 </head>
 <body class="font-sans antialiased bg-gray-100 min-h-screen flex flex-col">
 
@@ -207,7 +207,7 @@
         <div class="<?php echo e($adminMaxWidthClass); ?> mx-auto px-4 sm:px-6 lg:px-8 mt-3">
             <div class="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-xs text-gray-800">
                 <div class="font-semibold">LOCAL DEBUG</div>
-                <div class="mt-1 leading-5" style="word-break:break-word;">
+                <div class="mt-1 leading-5 break-words">
                     role=<b><?php echo e($ksLocalDebug['role']); ?></b>
                     · adminTab=<b><?php echo e($ksLocalDebug['adminTab']); ?></b>
                     · route=<b><?php echo e($ksLocalDebug['routeName'] !== '' ? $ksLocalDebug['routeName'] : '(none)'); ?></b>
@@ -221,7 +221,7 @@
                     · breakGlass=<b><?php echo e($ksLocalDebug['breakGlassActiveFlag']); ?></b>
                     · prodSim=<b><?php echo e($ksLocalDebug['productionSimulationFlag']); ?></b>
                 </div>
-                <div class="mt-1 text-gray-600" style="word-break:break-word;">
+                <div class="mt-1 text-gray-600 break-words">
                     <?php echo e($ksLocalDebug['fullUrl']); ?>
 
                 </div>

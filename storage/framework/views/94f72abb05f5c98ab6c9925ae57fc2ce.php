@@ -29,15 +29,15 @@
     if ($productionSimulationFlag) {
         $envMode = 'prod-sim';
         $envLabel = 'PROD-SIM';
-        $envColor = '#8b5cf6';
+        $envBadgeClass = 'bg-violet-500';
     } elseif ($isLocalEnv) {
         $envMode = 'local';
         $envLabel = 'LOCAL';
-        $envColor = '#0ea5e9';
+        $envBadgeClass = 'bg-sky-500';
     } else {
         $envMode = 'prod';
         $envLabel = 'PROD';
-        $envColor = '#64748b';
+        $envBadgeClass = 'bg-slate-500';
     }
 ?>
 
@@ -55,8 +55,7 @@
                 
                 <span
                     id="ks_admin_badge_maintenance"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white"
-                    style="<?php echo e($maintenanceEnabledFlag ? '' : 'display:none; '); ?>background:#ef4444;"
+                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 <?php echo e($maintenanceEnabledFlag ? '' : 'hidden'); ?>"
                 >
                     WARTUNG
                 </span>
@@ -64,8 +63,7 @@
                 
                 <span
                     id="ks_admin_badge_debug"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white"
-                    style="<?php echo e($debugActiveFlag ? '' : 'display:none; '); ?>background: <?php echo e($debugActiveFlag ? '#ef4444' : '#16a34a'); ?>;"
+                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white <?php echo e($debugActiveFlag ? 'bg-red-500' : 'bg-green-600'); ?> <?php echo e($debugActiveFlag ? '' : 'hidden'); ?>"
                     data-active="<?php echo e($debugActiveFlag ? '1' : '0'); ?>"
                 >
                     DEBUG
@@ -74,8 +72,7 @@
                 
                 <span
                     id="ks_admin_badge_break_glass"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white"
-                    style="<?php echo e($breakGlassActiveFlag ? '' : 'display:none; '); ?>background:#f59e0b;"
+                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-amber-500 <?php echo e($breakGlassActiveFlag ? '' : 'hidden'); ?>"
                     data-active="<?php echo e($breakGlassActiveFlag ? '1' : '0'); ?>"
                 >
                     BREAK-GLASS
@@ -84,8 +81,7 @@
                 
                 <span
                     id="ks_admin_badge_env"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white"
-                    style="background: <?php echo e($envColor); ?>;"
+                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white <?php echo e($envBadgeClass); ?>"
                     data-env="<?php echo e($envMode); ?>"
                 >
                     <?php echo e($envLabel); ?>
@@ -113,151 +109,11 @@
             </div>
         </div>
 
-        <div class="mt-3" id="ks_admin_nav">
+        <div class="mt-3" id="ks_admin_nav" data-ks-admin-status-url="<?php echo e($adminStatusUrl); ?>">
             <?php echo $__env->make('admin.layouts.navigation', [
                 'adminNavInline' => false,
                 'adminNavShowProfileLink' => false,
             ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
         </div>
     </div>
-
-    <script>
-        (function () {
-            const statusUrl = <?php echo json_encode($adminStatusUrl, 15, 512) ?>;
-
-            function qs(id) { return document.getElementById(id); }
-
-            function sanitizeAdminNavLinks() {
-                const nav = qs('ks_admin_nav');
-                if (!nav) return;
-
-                const links = nav.querySelectorAll('a');
-                if (!links || links.length < 1) return;
-
-                links.forEach((a) => {
-                    try {
-                        // Ensure admin navigation never opens a new tab/window.
-                        if (a.hasAttribute('target')) {
-                            a.removeAttribute('target');
-                        }
-                        // Defensive: remove rel that might be tied to target="_blank"
-                        if (a.hasAttribute('rel')) {
-                            const rel = (a.getAttribute('rel') || '').toLowerCase();
-                            if (rel.includes('noopener') || rel.includes('noreferrer')) {
-                                a.removeAttribute('rel');
-                            }
-                        }
-                    } catch (e) {
-                        // ignore
-                    }
-                });
-            }
-
-            function setMaintenanceBadgeVisible(isVisible) {
-                const el = qs('ks_admin_badge_maintenance');
-                if (!el) return;
-                el.style.display = isVisible ? '' : 'none';
-            }
-
-            function setDebugBadgeActive(isActive) {
-                const el = qs('ks_admin_badge_debug');
-                if (!el) return;
-                el.dataset.active = isActive ? '1' : '0';
-                el.style.background = isActive ? '#ef4444' : '#16a34a';
-                el.style.display = '';
-            }
-
-            function setBreakGlassBadgeVisible(isVisible) {
-                const el = qs('ks_admin_badge_break_glass');
-                if (!el) return;
-                el.dataset.active = isVisible ? '1' : '0';
-                el.style.display = isVisible ? '' : 'none';
-            }
-
-            function setEnvBadge(mode) {
-                const el = qs('ks_admin_badge_env');
-                if (!el) return;
-
-                const m = (mode || '').toLowerCase();
-                el.dataset.env = m;
-
-                if (m === 'prod-sim') {
-                    el.textContent = 'PROD-SIM';
-                    el.style.background = '#8b5cf6';
-                    return;
-                }
-                if (m === 'local') {
-                    el.textContent = 'LOCAL';
-                    el.style.background = '#0ea5e9';
-                    return;
-                }
-
-                el.textContent = 'PROD';
-                el.style.background = '#64748b';
-            }
-
-            window.KSAdminUI = window.KSAdminUI || {};
-            window.KSAdminUI.setStatus = function (status) {
-                const s = Object.assign({}, status || {});
-                if (!s || typeof s !== 'object') return;
-
-                if (typeof s.maintenance === 'boolean') {
-                    setMaintenanceBadgeVisible(s.maintenance);
-                }
-
-                // Debug-Badge: bevorzugt "debug_enabled" (tatsächlicher Setting-Schalter),
-                // fallback auf "debug" falls legacy.
-                if (typeof s.debug_enabled === 'boolean') {
-                    setDebugBadgeActive(s.debug_enabled);
-                } else if (typeof s.debug === 'boolean') {
-                    setDebugBadgeActive(s.debug);
-                }
-
-                if (typeof s.break_glass === 'boolean') {
-                    setBreakGlassBadgeVisible(s.break_glass);
-                }
-
-                if (typeof s.env === 'string') {
-                    setEnvBadge(s.env);
-                }
-            };
-
-            let inFlight = false;
-
-            async function pollStatusOnce() {
-                if (!statusUrl || inFlight) return;
-                inFlight = true;
-
-                try {
-                    const res = await fetch(statusUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                        cache: 'no-store',
-                        credentials: 'same-origin',
-                    });
-
-                    if (!res.ok) {
-                        inFlight = false;
-                        return;
-                    }
-
-                    const data = await res.json();
-                    window.KSAdminUI.setStatus(data);
-                } catch (e) {
-                    // ignore
-                } finally {
-                    inFlight = false;
-                }
-            }
-
-            // Ensure nav links are same-tab (fixes accidental target="_blank"/new-window behavior).
-            sanitizeAdminNavLinks();
-
-            // Polling: every 3s (badges only; navigation is server-rendered and not toggled client-side)
-            pollStatusOnce();
-            setInterval(pollStatusOnce, 3000);
-        })();
-    </script>
 </header><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/header.blade.php ENDPATH**/ ?>

@@ -1,10 +1,57 @@
 /* ============================================================================
 File: C:\laragon\www\kiezsingles\resources\css\app.css
 Purpose: Frontend Tailwind entry (public/site) – keep admin-only styles out
-Changed: 18-02-2026 19:29 (Europe/Berlin)
-Version: 0.2
+Changed: 23-02-2026 21:08 (Europe/Berlin)
+Version: 0.3
 ============================================================================ */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+    /* =========================================================================
+       Frontend – Support / simple form pages (non-admin)
+       Scoped via ks-fe-* to avoid collision with admin (ks-*)
+       ========================================================================= */
+
+    .ks-fe-support-body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        padding: 24px;
+        max-width: 720px;
+        margin: 0 auto;
+        background: #fff;
+    }
+
+    .ks-fe-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: #fff;
+        padding: 16px;
+    }
+
+    .ks-fe-btn {
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        cursor: pointer;
+    }
+    .ks-fe-btn:hover { background: #f8fafc; }
+
+    .ks-fe-input {
+        width: 100%;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        margin-bottom: 12px;
+    }
+
+    .ks-fe-notice {
+        padding: 10px;
+        background: #eef7ee;
+        border: 1px solid #b6e0b6;
+        border-radius: 10px;
+        margin-bottom: 12px;
+    }
+}

@@ -1,6 +1,7 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\login.blade.php       --}}
-{{-- Changed: 08-02-2026 01:17                                                --}}
+{{-- Changed: 23-02-2026 23:26 (Europe/Berlin)                                 --}}
+{{-- Version: 0.2                                                              --}}
 {{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
 {{-- ========================================================================= --}}
 
@@ -40,8 +41,8 @@
             @csrf
 
             {{-- Autofill-Fänger (Browser füllt gern hier rein statt in echte Felder) --}}
-            <input type="text" name="fake_username" autocomplete="username" style="display:none">
-            <input type="password" name="fake_password" autocomplete="current-password" style="display:none">
+            <input type="text" name="fake_username" autocomplete="username" class="hidden">
+            <input type="password" name="fake_password" autocomplete="current-password" class="hidden">
 
             <!-- Benutzername / E-Mail -->
             <div>
@@ -80,7 +81,10 @@
                     <button
                         type="button"
                         class="inline-flex items-center px-3 border border-l-0 rounded-l-none text-gray-600"
-                        onclick="togglePassword('password', this)"
+                        data-ks-toggle-password="1"
+                        data-ks-target="password"
+                        aria-controls="password"
+                        aria-label="Toggle password visibility"
                     >
                         🔒
                     </button>

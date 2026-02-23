@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\debug.blade.php
 Purpose: Admin Debug UI (toggles + log tail) – rendered via view() from routes/web/admin/debug.php
-Changed: 19-02-2026 00:17 (Europe/Berlin)
-Version: 0.2
+Changed: 23-02-2026 17:56 (Europe/Berlin)
+Version: 0.3
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -21,15 +21,15 @@ Version: 0.2
                 <div class="ks-sub"><code>debug.local_banner_enabled</code></div>
             </div>
 
-            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0">
+            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0" data-ks-toggle-form="1">
                 @csrf
                 <input type="hidden" name="key" value="debug.local_banner_enabled">
                 <input type="hidden" name="value" value="{{ $debugLocalBannerEnabled ? '1' : '0' }}">
                 <label class="ks-toggle">
                     <input
                         type="checkbox"
+                        data-ks-toggle="1"
                         @checked($debugLocalBannerEnabled)
-                        onchange="this.form.value.value = this.checked ? '1' : '0'; this.form.submit();"
                     >
                     <span class="ks-slider"></span>
                 </label>
@@ -47,15 +47,15 @@ Version: 0.2
                 <div class="ks-sub"><code>debug.ui_enabled</code></div>
             </div>
 
-            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0">
+            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0" data-ks-toggle-form="1">
                 @csrf
                 <input type="hidden" name="key" value="debug.ui_enabled">
                 <input type="hidden" name="value" value="{{ $debugUiEnabled ? '1' : '0' }}">
                 <label class="ks-toggle">
                     <input
                         type="checkbox"
+                        data-ks-toggle="1"
                         @checked($debugUiEnabled)
-                        onchange="this.form.value.value = this.checked ? '1' : '0'; this.form.submit();"
                     >
                     <span class="ks-slider"></span>
                 </label>
@@ -73,15 +73,15 @@ Version: 0.2
                 <div class="ks-sub"><code>debug.routes_enabled</code></div>
             </div>
 
-            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0">
+            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0" data-ks-toggle-form="1">
                 @csrf
                 <input type="hidden" name="key" value="debug.routes_enabled">
                 <input type="hidden" name="value" value="{{ $getBool('debug.routes_enabled', false) ? '1' : '0' }}">
                 <label class="ks-toggle">
                     <input
                         type="checkbox"
+                        data-ks-toggle="1"
                         @checked((bool) $getBool('debug.routes_enabled', false))
-                        onchange="this.form.value.value = this.checked ? '1' : '0'; this.form.submit();"
                     >
                     <span class="ks-slider"></span>
                 </label>
@@ -99,15 +99,15 @@ Version: 0.2
                 <div class="ks-sub"><code>debug.turnstile_enabled</code></div>
             </div>
 
-            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0">
+            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0" data-ks-toggle-form="1">
                 @csrf
                 <input type="hidden" name="key" value="debug.turnstile_enabled">
                 <input type="hidden" name="value" value="{{ $debugTurnstile ? '1' : '0' }}">
                 <label class="ks-toggle">
                     <input
                         type="checkbox"
+                        data-ks-toggle="1"
                         @checked($debugTurnstile)
-                        onchange="this.form.value.value = this.checked ? '1' : '0'; this.form.submit();"
                     >
                     <span class="ks-slider"></span>
                 </label>
@@ -125,15 +125,15 @@ Version: 0.2
                 <div class="ks-sub"><code>debug.register_errors</code></div>
             </div>
 
-            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0">
+            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0" data-ks-toggle-form="1">
                 @csrf
                 <input type="hidden" name="key" value="debug.register_errors">
                 <input type="hidden" name="value" value="{{ $debugRegisterErrors ? '1' : '0' }}">
                 <label class="ks-toggle">
                     <input
                         type="checkbox"
+                        data-ks-toggle="1"
                         @checked($debugRegisterErrors)
-                        onchange="this.form.value.value = this.checked ? '1' : '0'; this.form.submit();"
                     >
                     <span class="ks-slider"></span>
                 </label>
@@ -151,15 +151,15 @@ Version: 0.2
                 <div class="ks-sub"><code>debug.register_payload</code></div>
             </div>
 
-            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0">
+            <form method="POST" action="{{ url('/admin/debug/toggle') }}" class="m-0 flex-shrink-0" data-ks-toggle-form="1">
                 @csrf
                 <input type="hidden" name="key" value="debug.register_payload">
                 <input type="hidden" name="value" value="{{ $debugRegisterPayload ? '1' : '0' }}">
                 <label class="ks-toggle">
                     <input
                         type="checkbox"
+                        data-ks-toggle="1"
                         @checked($debugRegisterPayload)
-                        onchange="this.form.value.value = this.checked ? '1' : '0'; this.form.submit();"
                     >
                     <span class="ks-slider"></span>
                 </label>

@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\footer.blade.php
 Purpose: Admin footer (default footer + optional per-view adminFooter section)
-Changed: 16-02-2026 17:50 (Europe/Berlin)
-Version: 0.1
+Changed: 23-02-2026 18:10 (Europe/Berlin)
+Version: 0.2
 ============================================================================ --}}
 
 <footer class="bg-white border-t border-gray-200">

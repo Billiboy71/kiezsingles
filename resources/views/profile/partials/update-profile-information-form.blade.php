@@ -1,6 +1,8 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\profile\partials\update-profile-information-form.blade.php --}}
 {{-- Purpose: Profile - Update profile information (name + email)               --}}
+{{-- Changed: 23-02-2026 23:46 (Europe/Berlin)                                   --}}
+{{-- Version: 0.2                                                                --}}
 {{-- ========================================================================= --}}
 
 <section>
@@ -23,8 +25,8 @@
         @method('patch')
 
         {{-- Autofill-Fänger (Browser/Password-Manager) --}}
-        <input type="text" name="fake_username" autocomplete="username" style="display:none">
-        <input type="password" name="fake_password" autocomplete="current-password" style="display:none">
+        <input type="text" name="fake_username" autocomplete="username" class="hidden">
+        <input type="password" name="fake_password" autocomplete="current-password" class="hidden">
 
         <div>
             <x-input-label for="name" :value="__('Name')" />

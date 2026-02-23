@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\noteinstieg\show.blade.php
 Purpose: Noteinstieg (Ebene 3) – TOTP/Recovery input UI (public, maintenance-only)
-Changed: 19-02-2026 00:29 (Europe/Berlin)
-Version: 0.1
+Changed: 23-02-2026 23:43 (Europe/Berlin)
+Version: 0.3
 ============================================================================ --}}
 
 <!doctype html>
@@ -11,155 +11,85 @@ Version: 0.1
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Noteinstieg</title>
+
+    {{-- Frontend assets (no admin.css here) --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; padding:24px; max-width:520px; margin:0 auto;">
+<body class="font-sans px-6 py-6 max-w-[520px] mx-auto">
 
-    <h1 style="margin:0 0 8px 0;">Noteinstieg</h1>
-    <p style="margin:0 0 16px 0; color:#444;">Notfallzugang im Wartungsmodus (Ebene 3).</p>
+    @php
+        $nextValue = (string) ($next ?? '');
+        $errorValue = !empty($error) ? (string) $error : '';
+    @endphp
 
-    @if(!empty($error))
-        <div style="padding:12px 14px; border-radius:10px; border:1px solid #fecaca; background:#fff5f5; margin:0 0 16px 0;">
-            {{ (string) $error }}
-        </div>
-    @endif
+    <div id="ks_noteinstieg_show" data-ks-noteinstieg-show="1">
+        <h1 class="m-0 mb-2">Noteinstieg</h1>
+        <p class="m-0 mb-4 text-slate-700">Notfallzugang im Wartungsmodus (Ebene 3).</p>
 
-    <form id="bg_form" method="POST" action="{{ url('/noteinstieg') }}" autocomplete="off">
-        @csrf
+        @if($errorValue !== '')
+            <div class="p-3.5 rounded-xl border border-red-200 bg-red-50 mb-4">
+                {{ $errorValue }}
+            </div>
+        @endif
 
-        <input type="hidden" name="next" value="{{ (string) ($next ?? '') }}">
-        <input type="hidden" id="totp" name="totp" value="">
+        <form
+            id="bg_form"
+            method="POST"
+            action="{{ url('/noteinstieg') }}"
+            autocomplete="off"
+            data-ks-noteinstieg-form="1"
+        >
+            @csrf
 
-        <label style="display:block; margin:0 0 6px 0; font-weight:700;">TOTP-Code</label>
+            <input type="hidden" name="next" value="{{ $nextValue }}">
+            <input type="hidden" id="totp" name="totp" value="">
 
-        <div id="bg_otp" style="display:flex; gap:10px;">
-            @for($i = 0; $i < 6; $i++)
+            <label class="block mb-1.5 font-bold">TOTP-Code</label>
+
+            <div id="bg_otp" class="flex gap-2.5">
+                @for($i = 0; $i < 6; $i++)
+                    <input
+                        type="text"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        maxlength="1"
+                        autocomplete="one-time-code"
+                        aria-label="Ziffer {{ $i + 1 }}"
+                        class="w-[54px] h-[54px] text-center text-[22px] border border-slate-300 rounded-xl"
+                        data-idx="{{ $i }}"
+                    >
+                @endfor
+            </div>
+
+            <div class="mt-2.5 text-[13px] text-slate-700 leading-[1.35]">
+                <div class="font-bold mb-1">Alternativ</div>
+                <div>Du kannst auch einen Notfallcode verwenden (einmalig). Format: <code>XXXX-XXXX</code></div>
+
+                <label class="block mt-2 mb-1.5 font-bold">Notfallcode</label>
+
                 <input
                     type="text"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    maxlength="1"
-                    autocomplete="one-time-code"
-                    aria-label="Ziffer {{ $i + 1 }}"
-                    style="width:54px; height:54px; text-align:center; font-size:22px; border:1px solid #ccc; border-radius:10px;"
-                    data-idx="{{ $i }}"
+                    name="recovery_code"
+                    inputmode="text"
+                    autocomplete="off"
+                    placeholder="ABCD-EFGH"
+                    class="w-full px-3 py-3 rounded-xl border border-slate-300 text-[16px]"
                 >
-            @endfor
-        </div>
 
-        <div style="margin-top:10px; font-size:13px; color:#444; line-height:1.35;">
-            <div style="font-weight:700; margin:0 0 4px 0;">Alternativ</div>
-            <div>Du kannst auch einen Notfallcode verwenden (einmalig). Format: <code>XXXX-XXXX</code></div>
+                <div class="mt-1.5 text-slate-500">Wenn Notfallcode ausgefüllt ist, wird TOTP ignoriert.</div>
+            </div>
 
-            <label style="display:block; margin:8px 0 6px 0; font-weight:700;">Notfallcode</label>
-
-            <input
-                type="text"
-                name="recovery_code"
-                inputmode="text"
-                autocomplete="off"
-                placeholder="ABCD-EFGH"
-                style="width:100%; padding:12px 12px; border-radius:10px; border:1px solid #ccc; font-size:16px;"
-            >
-
-            <div style="margin-top:6px; color:#666;">Wenn Notfallcode ausgefüllt ist, wird TOTP ignoriert.</div>
-        </div>
-
-        <div style="margin-top:12px;">
-            <button type="submit" id="bg_submit" style="padding:12px 14px; border-radius:10px; border:1px solid #cbd5e1; background:#fff; cursor:pointer; width:100%;">
-                Freischalten
-            </button>
-        </div>
-    </form>
-
-    <script>
-        (() => {
-            const form = document.getElementById("bg_form");
-            const wrap = document.getElementById("bg_otp");
-            const hidden = document.getElementById("totp");
-            const btn = document.getElementById("bg_submit");
-            if (!form || !wrap || !hidden || !btn) return;
-
-            const inputs = Array.from(wrap.querySelectorAll("input[data-idx]"));
-            if (inputs.length !== 6) return;
-
-            const onlyDigit = (v) => (v || "").toString().replace(/\D+/g, "");
-
-            const setFromString = (s) => {
-                const digits = onlyDigit(s).slice(0, 6).split("");
-                for (let i = 0; i < 6; i++) {
-                    inputs[i].value = digits[i] || "";
-                }
-                updateHiddenAndMaybeSubmit();
-            };
-
-            const updateHiddenAndMaybeSubmit = () => {
-                const code = inputs.map(i => onlyDigit(i.value).slice(0,1)).join("");
-                hidden.value = code;
-
-                if (code.length === 6) {
-                    // Auto-Submit sobald vollständig
-                    form.requestSubmit();
-                }
-            };
-
-            inputs.forEach((inp, idx) => {
-                inp.addEventListener("input", () => {
-                    const d = onlyDigit(inp.value);
-                    if (d.length > 1) {
-                        // z.B. Paste in ein Feld
-                        setFromString(d);
-                        return;
-                    }
-
-                    inp.value = d.slice(0, 1);
-
-                    if (inp.value !== "" && idx < 5) {
-                        inputs[idx + 1].focus();
-                        inputs[idx + 1].select();
-                    }
-
-                    updateHiddenAndMaybeSubmit();
-                });
-
-                inp.addEventListener("keydown", (e) => {
-                    if (e.key === "Backspace") {
-                        if (inp.value === "" && idx > 0) {
-                            inputs[idx - 1].focus();
-                            inputs[idx - 1].select();
-                        }
-                        return;
-                    }
-
-                    if (e.key === "ArrowLeft" && idx > 0) {
-                        e.preventDefault();
-                        inputs[idx - 1].focus();
-                        inputs[idx - 1].select();
-                        return;
-                    }
-
-                    if (e.key === "ArrowRight" && idx < 5) {
-                        e.preventDefault();
-                        inputs[idx + 1].focus();
-                        inputs[idx + 1].select();
-                        return;
-                    }
-                });
-
-                inp.addEventListener("paste", (e) => {
-                    e.preventDefault();
-                    const t = (e.clipboardData || window.clipboardData).getData("text");
-                    setFromString(t);
-                });
-
-                inp.addEventListener("focus", () => {
-                    inp.select();
-                });
-            });
-
-            // Initial focus
-            inputs[0].focus();
-        })();
-    </script>
+            <div class="mt-3">
+                <button
+                    type="submit"
+                    id="bg_submit"
+                    class="w-full px-3.5 py-3 rounded-xl border border-slate-300 bg-white cursor-pointer"
+                >
+                    Freischalten
+                </button>
+            </div>
+        </form>
+    </div>
 
 </body>
 </html>

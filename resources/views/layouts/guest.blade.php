@@ -1,6 +1,7 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\layouts\guest.blade.php    --}}
-{{-- Changed: 08-02-2026 23:58                                                --}}
+{{-- Changed: 23-02-2026 21:35 (Europe/Berlin)                                 --}}
+{{-- Version: 0.2                                                              --}}
 {{-- Purpose: Guest layout (Breeze) + optional global helpers                  --}}
 {{-- ========================================================================= --}}
 <!DOCTYPE html>
@@ -37,20 +38,5 @@
             {!! $slot !!}
         </div>
     </div>
-
-    {{-- optional: global password toggle --}}
-    <script>
-        function togglePassword(id, btn) {
-            const input = document.getElementById(id);
-            if (!input) return;
-
-            const show = input.type === 'password';
-            input.type = show ? 'text' : 'password';
-
-            // Unicode-escapes: vermeidet kaputte Emoji durch Console-Encoding
-            btn.textContent = show ? '\uD83D\uDD13' : '\uD83D\uDD12';
-            btn.setAttribute('aria-label', show ? 'Passwort verbergen' : 'Passwort anzeigen');
-        }
-    </script>
 </body>
 </html>

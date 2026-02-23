@@ -1,6 +1,7 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\contact.blade.php
-Changed: 08-02-2026 01:41
+Changed: 23-02-2026 22:06 (Europe/Berlin)
+Version: 0.1
 Purpose: Public contact form (guest layout) with optional Turnstile captcha
 ============================================================================ --}}
 
@@ -18,7 +19,13 @@ Purpose: Public contact form (guest layout) with optional Turnstile captcha
             </div>
         @endif
 
-        <form method="POST" action="{{ route('contact.store') }}" class="mt-6 space-y-4">
+        <form
+            method="POST"
+            action="{{ route('contact.store') }}"
+            class="mt-6 space-y-4"
+            data-ks-contact="1"
+            data-captcha-enabled="{{ $captchaEnabled ? '1' : '0' }}"
+        >
             @csrf
 
             <div>
@@ -70,28 +77,4 @@ Purpose: Public contact form (guest layout) with optional Turnstile captcha
             </div>
         </form>
     </div>
-
-    <script>
-        (() => {
-            const btn = document.getElementById('contactBtn');
-            if (!btn) return;
-
-            const captchaEnabled = @json($captchaEnabled);
-            let captchaOk = captchaEnabled ? false : true;
-
-            const update = () => {
-                if (!captchaEnabled) return; // wenn aus, Button bleibt aktiv
-                const disabled = !captchaOk;
-                btn.disabled = disabled;
-                btn.classList.toggle('opacity-50', disabled);
-                btn.classList.toggle('cursor-not-allowed', disabled);
-            };
-
-            window.onTurnstileSuccess = function () { captchaOk = true;  update(); };
-            window.onTurnstileExpired = function () { captchaOk = false; update(); };
-            window.onTurnstileError   = function () { captchaOk = false; update(); };
-
-            document.addEventListener('DOMContentLoaded', update);
-        })();
-    </script>
 </x-guest-layout>

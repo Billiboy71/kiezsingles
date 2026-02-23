@@ -1,3 +1,10 @@
+{{-- ============================================================================
+File: C:\laragon\www\kiezsingles\resources\views\auth\verify-email.blade.php
+Purpose: Verify email view (Breeze) + optional Turnstile gating for resend button
+Changed: 23-02-2026 21:52 (Europe/Berlin)
+Version: 0.2
+============================================================================ --}}
+
 <x-guest-layout>
     <div class="mb-4 text-sm text-gray-600">
         {{ __('Thanks for signing up! Before getting started, could you verify your email address by clicking on the link we just emailed to you? If you didn\'t receive the email, we will gladly send you another.') }}
@@ -10,7 +17,12 @@
     @endif
 
     <div class="mt-4 flex items-center justify-between">
-        <form method="POST" action="{{ route('verification.send') }}">
+        <form
+            method="POST"
+            action="{{ route('verification.send') }}"
+            data-ks-verify="1"
+            data-captcha-enabled="{{ (bool) (config('captcha.enabled') && config('captcha.on_verify')) ? '1' : '0' }}"
+        >
             @csrf
 
             {{-- Captcha --}}
@@ -51,34 +63,4 @@
             </button>
         </form>
     </div>
-
-    <script>
-        (() => {
-            const btn = document.getElementById('verifyResendBtn');
-            if (!btn) return;
-
-            const captchaEnabled = @json((bool) (config('captcha.enabled') && config('captcha.on_verify')));
-            let captchaOk = captchaEnabled ? false : true;
-
-            const update = () => {
-                // Wenn Captcha aus → Button immer aktiv
-                if (!captchaEnabled) {
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    return;
-                }
-
-                const disabled = !captchaOk;
-                btn.disabled = disabled;
-                btn.classList.toggle('opacity-50', disabled);
-                btn.classList.toggle('cursor-not-allowed', disabled);
-            };
-
-            window.onTurnstileSuccess = function () { captchaOk = true;  update(); };
-            window.onTurnstileExpired = function () { captchaOk = false; update(); };
-            window.onTurnstileError   = function () { captchaOk = false; update(); };
-
-            document.addEventListener('DOMContentLoaded', update);
-        })();
-    </script>
 </x-guest-layout>
