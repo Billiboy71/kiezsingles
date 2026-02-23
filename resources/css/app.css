@@ -1,3 +1,10 @@
+/* ============================================================================
+File: C:\laragon\www\kiezsingles\resources\css\app.css
+Purpose: Frontend Tailwind entry (public/site) – keep admin-only styles out
+Changed: 18-02-2026 19:29 (Europe/Berlin)
+Version: 0.2
+============================================================================ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

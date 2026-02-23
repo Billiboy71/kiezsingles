@@ -1,8 +1,9 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\Turnstile.php
-// Changed: 08-02-2026 01:17
 // Purpose: Cloudflare Turnstile verification (server-side) with optional debug logging
+// Changed: 11-02-2026 03:44 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Support;
@@ -22,8 +23,12 @@ class Turnstile
         }
 
         // Debug (DB -> config fallback), erlaubte Envs: local + staging
+        // Backward-compat: debug.turnstile_enabled (neu) ODER debug.turnstile (alt)
         $debugEnabled = SystemSettingHelper::debugUiAllowed()
-            && SystemSettingHelper::debugBool('turnstile', (bool) config('captcha.debug'));
+            && (
+                SystemSettingHelper::debugBool('turnstile_enabled', (bool) config('captcha.debug'))
+                || SystemSettingHelper::debugBool('turnstile', (bool) config('captcha.debug'))
+            );
 
         // Token fehlt
         if (!is_string($token) || trim($token) === '') {

@@ -1,0 +1,99 @@
+/* ============================================================================
+File: C:\laragon\www\kiezsingles\resources\css\admin.css
+Purpose: Admin-only Tailwind entry + shared admin component styles (ks-*)
+Changed: 19-02-2026 00:14 (Europe/Berlin)
+Version: 0.3
+============================================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    /* =========================================================================
+       Admin UI (shared) – extracted from maintenance UI for reuse across modules
+       ========================================================================= */
+
+    .ks-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .ks-label { display:flex; flex-direction:column; gap:2px; min-width:0; }
+    .ks-label strong { font-weight:700; }
+    .ks-sub { color:#555; font-size:12px; line-height:1.2; }
+
+    .ks-info {
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        width:18px;
+        height:18px;
+        border-radius:999px;
+        border:1px solid #cbd5e1;
+        background:#fff;
+        color:#111;
+        font-size:12px;
+        font-weight:800;
+        line-height:1;
+        cursor:help;
+        user-select:none;
+        margin-left:6px;
+        opacity:.85;
+        transform: translateY(-1px);
+    }
+    .ks-info:hover { opacity:1; }
+
+    .ks-toggle { position:relative; width:46px; height:26px; flex:0 0 auto; }
+    .ks-toggle input { opacity:0; width:0; height:0; }
+    .ks-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#dc2626; border-radius:999px; transition:.15s; }
+    .ks-slider:before { position:absolute; content:""; height:20px; width:20px; left:3px; top:3px; background:white; border-radius:50%; transition:.15s; box-shadow:0 1px 2px rgba(0,0,0,.18); }
+    .ks-toggle input:checked + .ks-slider { background:#16a34a; }
+    .ks-toggle input:checked + .ks-slider:before { transform: translateX(20px); }
+    .ks-toggle input:disabled + .ks-slider { opacity:.45; cursor:not-allowed; }
+
+    /* KS rows with <form> on the right (e.g. Debug toggles):
+       Prevent the form from stretching and keep the toggle right-aligned. */
+    .ks-row > form {
+        flex: 0 0 auto;
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+    }
+
+    /* =========================================================================
+       Admin UI (home) – extracted from admin/home.blade.php
+       ========================================================================= */
+
+    .ks-btn {
+        padding:10px 12px;
+        border-radius:10px;
+        border:1px solid #cbd5e1;
+        background:#fff;
+        cursor:pointer;
+        user-select:none;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:8px;
+    }
+    .ks-btn:hover { background:#f8fafc; }
+    .ks-btn:active { background:#f1f5f9; }
+    .ks-btn:disabled { opacity:.45; cursor:not-allowed; }
+
+    .ks-card {
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        background:#fff;
+        padding:14px 14px;
+    }
+    .ks-card h3 { margin:0 0 6px 0; font-size:16px; font-weight:700; }
+    .ks-card p { margin:0; color:#555; font-size:13px; }
+    .ks-card a { display:inline-flex; margin-top:10px; color:#0ea5e9; text-decoration:underline; }
+    .ks-card .ks-locked { display:inline-flex; margin-top:10px; color:#666; }
+
+    .ks-card--locked { opacity:.65; }
+
+    .ks-notice { background:#eef7ee; border-color:#b6e0b6; }
+
+    .ks-muted { color:#555; }
+
+    .ks-status-card--maintenance { border-color:#fecaca; background:#fff5f5; }
+    .ks-status-card--live { border-color:#bbf7d0; background:#f0fff4; }
+}

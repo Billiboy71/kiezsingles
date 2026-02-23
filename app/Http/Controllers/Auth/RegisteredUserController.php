@@ -2,7 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\RegisteredUserController.php
 // Purpose: Register new users (sends verification email, does NOT auto-login)
-// Changed: 08-02-2026 03:03
+// Changed: 11-02-2026 03:49 (Europe/Berlin)
+// Version: 0.1
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -40,19 +41,22 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         // ===============================
-        // DEBUG GATE (SystemSettings -> config fallback)
+        // DEBUG GATE (SystemSettings)
         // ===============================
         $debugUiAllowed = SystemSettingHelper::debugUiAllowed();
 
         $debugRegisterErrors = $debugUiAllowed
-            && SystemSettingHelper::debugBool('register_errors', (bool) config('app.debug_register_errors'));
+            && SystemSettingHelper::debugBool('register_errors', false);
 
         $debugRegisterPayload = $debugUiAllowed
-            && SystemSettingHelper::debugBool('register_payload', (bool) config('app.debug_register_payload'));
+            && SystemSettingHelper::debugBool('register_payload', false);
 
-        // Turnstile Debug: DB (debug.turnstile) -> Fallback config('captcha.debug')
+        // Turnstile Debug: DB (debug.turnstile_enabled neu) ODER (debug.turnstile alt)
         $debugTurnstile = $debugUiAllowed
-            && SystemSettingHelper::debugBool('turnstile', (bool) config('captcha.debug'));
+            && (
+                SystemSettingHelper::debugBool('turnstile_enabled', false)
+                || SystemSettingHelper::debugBool('turnstile', false)
+            );
 
         // ===============================
         // CAPTCHA FLAGS (Policy, bleibt config/env)

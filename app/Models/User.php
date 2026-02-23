@@ -2,6 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Models\User.php
 // Purpose: User model (enables Laravel email verification)
+// Changed: 14-02-2026 15:07 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 namespace App\Models;
 
@@ -28,6 +30,17 @@ class User extends Authenticatable implements MustVerifyEmail
         'district',
         'postcode',
         'privacy_accepted_at',
+
+        // Role
+        'role',
+
+        // B4 – Moderation
+        'moderation_warned_at',
+        'moderation_warn_count',
+        'moderation_blocked_at',
+        'moderation_blocked_until',
+        'moderation_blocked_permanent',
+        'moderation_blocked_reason',
     ];
 
     protected $hidden = [
@@ -36,9 +49,16 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     protected $casts = [
-        'email_verified_at'   => 'datetime',
-        'birthdate'           => 'date',
-        'privacy_accepted_at' => 'datetime',
+        'email_verified_at'            => 'datetime',
+        'birthdate'                    => 'date',
+        'privacy_accepted_at'          => 'datetime',
+
+        // B4 – Moderation
+        'moderation_warned_at'         => 'datetime',
+        'moderation_warn_count'        => 'integer',
+        'moderation_blocked_at'        => 'datetime',
+        'moderation_blocked_until'     => 'datetime',
+        'moderation_blocked_permanent' => 'boolean',
     ];
 
     /**

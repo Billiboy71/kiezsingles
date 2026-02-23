@@ -1,11 +1,14 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\MaintenanceMode.php
-// Purpose: App maintenance gate (DB-driven). Admins may login and access all.
-//          Non-admin users are blocked during maintenance (no forced logout).
+// Purpose: App maintenance gate (DB-driven).
+//          Superadmin is ALWAYS allowed (no toggle).
+//          Admin allowed only if maintenance.allow_admins = true.
+//          Moderator allowed only if maintenance.allow_moderators = true.
+//          Non-allowed users are blocked during maintenance (no forced logout).
 //          Registration and verification flows are blocked.
-// Changed: 11-02-2026 00:37
-// Version: 1.4
+// Changed: 20-02-2026 16:33 (Europe/Berlin)
+// Version: 2.1
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -14,7 +17,6 @@ use App\Models\User;
 use App\Support\SystemSettingHelper;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -84,6 +86,10 @@ class MaintenanceMode
             return $next($request);
         }
 
+        // IMPORTANT: Avoid route-name redirects during maintenance to prevent redirect loops.
+        // Redirect target is a hard URL that is explicitly allowlisted below.
+        $maintenanceRedirectUrl = url('/');
+
         // Ensure session is started so auth/session state is reliable.
         if ($request->hasSession()) {
             $request->session()->start();
@@ -92,27 +98,63 @@ class MaintenanceMode
             $request->session()->forget('status');
         }
 
-        // Admin bypass: allow everything for logged-in admins.
-        if (auth()->check() && (string) auth()->user()->role === 'admin') {
+        $allowAdmins = false;
+        $allowModerators = false;
+
+        try {
+            if (Schema::hasTable('system_settings')) {
+                $allowAdmins = (bool) SystemSettingHelper::get('maintenance.allow_admins', false);
+                $allowModerators = (bool) SystemSettingHelper::get('maintenance.allow_moderators', false);
+            }
+        } catch (\Throwable $e) {
+            // fail-closed
+            $allowAdmins = false;
+            $allowModerators = false;
+        }
+
+        $isAllowedDuringMaintenance = function (?string $role) use ($allowAdmins, $allowModerators): bool {
+            $role = mb_strtolower(trim((string) ($role ?? '')));
+
+            if ($role === 'superadmin') {
+                return true;
+            }
+
+            if ($role === 'admin') {
+                return $allowAdmins;
+            }
+
+            if ($role === 'moderator') {
+                return $allowModerators;
+            }
+
+            return false;
+        };
+
+        // Role whitelist during maintenance (server-side, fail-closed).
+        if (auth()->check() && $isAllowedDuringMaintenance((string) auth()->user()->role)) {
             return $next($request);
         }
 
         // Break-glass bypass (level 3): allow everything for valid bypass cookie while maintenance is active.
         // Gilt nur in Production ODER wenn simulate_production aktiv ist.
-        if ((bool) SystemSettingHelper::get('debug.break_glass', false)) {
-            $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
-            $isProdEffective = app()->environment('production') || $simulateProd;
+        try {
+            if (Schema::hasTable('system_settings') && (bool) SystemSettingHelper::get('debug.break_glass', false)) {
+                $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
+                $isProdEffective = app()->environment('production') || $simulateProd;
 
-            if ($isProdEffective) {
-                $expiresAt = (int) $request->cookie('kiez_break_glass', 0);
+                if ($isProdEffective) {
+                    $expiresAt = (int) $request->cookie('kiez_break_glass', 0);
 
-                if ($expiresAt > 0 && $expiresAt >= now()->timestamp) {
-                    return $next($request);
+                    if ($expiresAt > 0 && $expiresAt >= now()->timestamp) {
+                        return $next($request);
+                    }
                 }
             }
+        } catch (\Throwable $e) {
+            // fail-closed (no break-glass)
         }
 
-        // Block ALL verification-related endpoints during maintenance for non-admins.
+        // Block ALL verification-related endpoints during maintenance for non-whitelisted users.
         // Your screenshot shows POST to "verification-notification-guest".
         if (
             $request->is('verify-email') ||
@@ -120,12 +162,12 @@ class MaintenanceMode
             $request->is('verification-notification-guest') ||
             $request->is('verification-notification*')
         ) {
-            return redirect()->route('home');
+            return redirect($maintenanceRedirectUrl);
         }
 
         // Always block registration (GET + POST), even if someone knows the URL.
         if ($request->is('register') || $request->is('register/*')) {
-            return redirect()->route('home');
+            return redirect($maintenanceRedirectUrl);
         }
 
         $isNoteinstieg = (
@@ -152,15 +194,15 @@ class MaintenanceMode
             $request->is('maintenance-notify') ||
             $isNoteinstieg
         ) {
-            // If a non-admin is authenticated at ANY time during maintenance, block access but keep session.
+            // If a non-whitelisted user is authenticated at ANY time during maintenance, block access but keep session.
             // Ausnahme: Noteinstieg muss auch dann erreichbar sein (Browser mit bestehender Session).
             // Ausnahme: Logout muss erreichbar sein.
-            if (auth()->check() && !$isNoteinstieg && !$isLogout) {
-                return redirect()->route('home');
+            if (auth()->check() && !$isAllowedDuringMaintenance((string) auth()->user()->role) && !$isNoteinstieg && !$isLogout) {
+                return redirect($maintenanceRedirectUrl);
             }
 
-            // Special case: POST /login is allowed, but only admins may attempt to log in.
-            // Non-admins get redirected to the maintenance home BEFORE the auth flow can produce "auth.failed".
+            // Special case: POST /login is allowed, but only whitelisted roles may attempt to log in.
+            // Others get redirected to the maintenance home BEFORE the auth flow can produce "auth.failed".
             if ($request->is('login') && $request->isMethod('post')) {
                 $login = (string) $request->input('email', '');
                 $login = trim($login);
@@ -182,8 +224,8 @@ class MaintenanceMode
                         ->first()
                     : null;
 
-                if (!$user || (string) $user->role !== 'admin') {
-                    return redirect()->route('home');
+                if (!$user || !$isAllowedDuringMaintenance((string) $user->role)) {
+                    return redirect($maintenanceRedirectUrl);
                 }
 
                 return $next($request);
@@ -192,7 +234,7 @@ class MaintenanceMode
             return $next($request);
         }
 
-        // Everything else: redirect to landing page.
-        return redirect()->route('home');
+        // Everything else: redirect to maintenance landing.
+        return redirect($maintenanceRedirectUrl);
     }
 }
