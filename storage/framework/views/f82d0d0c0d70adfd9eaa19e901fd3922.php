@@ -107,7 +107,7 @@
 
     // Layout/Navigation-Context
     $adminTab = $adminTab ?? 'overview';
-    $adminShowDebugTab = $adminShowDebugTab ?? ($maintenanceActive && $isSuperadminRole);
+    $adminShowDebugTab = ($maintenanceActive && (bool) ($adminShowDebugTab ?? $isSuperadminRole));
 
     $statusBadgeText = $statusBadgeText ?? '';
     $statusBadgeBg = $statusBadgeBg ?? '#16a34a';
@@ -238,4 +238,5 @@
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
     </div>
 <?php $__env->stopSection(); ?>
+
 <?php echo $__env->make('admin.layouts.admin', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/home.blade.php ENDPATH**/ ?>

@@ -112,7 +112,7 @@ Version: 2.2
 
     // Layout/Navigation-Context
     $adminTab = $adminTab ?? 'overview';
-    $adminShowDebugTab = $adminShowDebugTab ?? ($maintenanceActive && $isSuperadminRole);
+    $adminShowDebugTab = ($maintenanceActive && (bool) ($adminShowDebugTab ?? $isSuperadminRole));
 
     $statusBadgeText = $statusBadgeText ?? '';
     $statusBadgeBg = $statusBadgeBg ?? '#16a34a';

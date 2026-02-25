@@ -14,6 +14,15 @@
     $etaDateValue = (string) ($etaDateValue ?? '');
     $etaTimeValue = (string) ($etaTimeValue ?? '');
 
+    // Defensive UI policy: if 00:00 is present, treat as "no time".
+    if ($etaTimeValue === '00:00') {
+        $etaTimeValue = '';
+    }
+
+    // UI policy: if ETA display is off, do not prefill date/time inputs (matches "disabled => cleared" behavior on reload).
+    $etaDateInputValue = $maintenanceShowEta ? $etaDateValue : '';
+    $etaTimeInputValue = $maintenanceShowEta ? $etaTimeValue : '';
+
     $simulateProd = (bool) ($simulateProd ?? false);
     $isProd = (bool) ($isProd ?? app()->environment('production'));
 
@@ -29,6 +38,15 @@
     // - maintenance.allow_moderators
     $maintenanceAllowAdmins = (bool) ($maintenanceAllowAdmins ?? false);
     $maintenanceAllowModerators = (bool) ($maintenanceAllowModerators ?? false);
+
+    // Preview text for maintenance ETA (admin page)
+    $etaPreviewText = '';
+    if ($maintenanceShowEta && $etaDateValue !== '') {
+        $etaPreviewText = 'Voraussichtlich bis zum ' . $etaDateValue;
+        if ($etaTimeValue !== '') {
+            $etaPreviewText .= ' ' . $etaTimeValue . ' Uhr';
+        }
+    }
 ?>
 
 <?php $__env->startSection('content'); ?>
@@ -87,7 +105,7 @@
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_enabled" value="1" <?php if($maintenanceEnabled): echo 'checked'; endif; ?> <?php echo $maintenanceDisabled; ?>>
+                <input type="checkbox" id="maintenance_enabled" name="maintenance_enabled" value="1" <?php if($maintenanceEnabled): echo 'checked'; endif; ?> <?php echo $maintenanceDisabled; ?>>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -102,7 +120,7 @@
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_show_eta" value="1" <?php if($maintenanceShowEta): echo 'checked'; endif; ?> <?php echo $maintenanceDisabled; ?>>
+                <input type="checkbox" id="maintenance_show_eta" name="maintenance_show_eta" value="1" <?php if($maintenanceShowEta): echo 'checked'; endif; ?> <?php echo $maintenanceDisabled; ?>>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -113,7 +131,8 @@
             <input
                 type="date"
                 id="maintenance_eta_date"
-                value="<?php echo e($etaDateValue); ?>"
+                name="maintenance_eta_date"
+                value="<?php echo e($etaDateInputValue); ?>"
                 class="px-[12px] py-[10px] border border-gray-300 rounded-[10px] w-[170px] bg-white"
                 <?php echo $maintenanceDisabled; ?>
 
@@ -121,7 +140,8 @@
             <input
                 type="time"
                 id="maintenance_eta_time"
-                value="<?php echo e($etaTimeValue); ?>"
+                name="maintenance_eta_time"
+                value="<?php echo e($etaTimeInputValue); ?>"
                 class="px-[12px] py-[10px] border border-gray-300 rounded-[10px] w-[120px] bg-white"
                 <?php echo $maintenanceDisabled; ?>
 
@@ -138,6 +158,21 @@
             </button>
         </div>
 
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($etaPreviewText !== ''): ?>
+            <div class="text-sm text-gray-700 mb-3">
+                <?php echo e($etaPreviewText); ?>
+
+            </div>
+        <?php else: ?>
+            <div class="text-sm text-gray-500 mb-3">
+                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($maintenanceShowEta): ?>
+                    Hinweis: Datum reicht aus (Uhrzeit optional).
+                <?php else: ?>
+                    Hinweis: Wartungsende ist deaktiviert.
+                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+            </div>
+        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
         
         <div class="ks-row mb-3">
             <div class="ks-label">
@@ -149,7 +184,7 @@
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_notify_enabled" value="1" <?php if($maintenanceNotifyEnabled): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
+                <input type="checkbox" id="maintenance_notify_enabled" name="maintenance_notify_enabled" value="1" <?php if($maintenanceNotifyEnabled): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -167,7 +202,7 @@
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_allow_admins" value="1" <?php if($maintenanceAllowAdmins): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
+                <input type="checkbox" id="maintenance_allow_admins" name="maintenance_allow_admins" value="1" <?php if($maintenanceAllowAdmins): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -182,7 +217,7 @@
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_allow_moderators" value="1" <?php if($maintenanceAllowModerators): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
+                <input type="checkbox" id="maintenance_allow_moderators" name="maintenance_allow_moderators" value="1" <?php if($maintenanceAllowModerators): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -201,7 +236,7 @@
                 </div>
 
                 <label class="ks-toggle ml-auto">
-                    <input type="checkbox" id="debug_simulate_production" value="1" <?php if($simulateProd): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
+                    <input type="checkbox" id="debug_simulate_production" name="debug_simulate_production" value="1" <?php if($simulateProd): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
                     <span class="ks-slider"></span>
                 </label>
             </div>
@@ -217,7 +252,7 @@
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="debug_break_glass" value="1" <?php if($breakGlassEnabled): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
+                <input type="checkbox" id="debug_break_glass" name="debug_break_glass" value="1" <?php if($breakGlassEnabled): echo 'checked'; endif; ?> <?php echo $systemSettingsDisabled; ?>>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -243,6 +278,7 @@
             <input
                 type="number"
                 id="debug_break_glass_ttl_minutes"
+                name="debug_break_glass_ttl_minutes"
                 min="1"
                 max="120"
                 value="<?php echo e((string) $breakGlassTtlMinutes); ?>"
@@ -266,7 +302,7 @@
             </div>
         </div>
 
-        <input type="hidden" id="debug_break_glass_totp_secret" value="<?php echo e($breakGlassTotpSecret); ?>" <?php echo $systemSettingsDisabled; ?>>
+        <input type="hidden" id="debug_break_glass_totp_secret" name="debug_break_glass_totp_secret" value="<?php echo e($breakGlassTotpSecret); ?>" <?php echo $systemSettingsDisabled; ?>>
 
         <div
             id="break_glass_qr_modal"

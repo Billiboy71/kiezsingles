@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\landing.blade.php
 // Purpose: Public landing page with maintenance mode indicator + legal links
-// Changed: 23-02-2026 23:19 (Europe/Berlin)
-// Version: 1.1
+// Changed: 25-02-2026 16:23 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 ?>
 <!doctype html>
@@ -53,6 +53,22 @@
 
     $notifyOk = (bool) session('maintenance_notify_ok', false);
     $notifyErr = (string) session('maintenance_notify_error', '');
+
+    $etaText = '';
+    if ($showEta) {
+        try {
+            $dt = \Illuminate\Support\Carbon::parse($maintenance->maintenance_eta_at)->timezone('Europe/Berlin');
+
+            // Wenn Uhrzeit 00:00 -> nur Datum anzeigen (kein "00:00")
+            if ($dt->format('H:i') === '00:00') {
+                $etaText = $dt->format('d.m.Y');
+            } else {
+                $etaText = $dt->format('d.m.Y H:i') . ' Uhr';
+            }
+        } catch (\Throwable $e) {
+            $etaText = '';
+        }
+    }
 ?>
 
 <h1>KiezSingles</h1>
@@ -63,13 +79,11 @@
     <div class="my-5 p-4 border-2 border-red-600 bg-red-50">
         <strong>Wartungsmodus</strong><br>
         Die Plattform ist aktuell im Wartungsmodus.
-        <?php if ($showEta): ?>
+        <?php if ($etaText !== ''): ?>
             <br>
             <small>
                 Voraussichtlich bis:
-                <?= \Illuminate\Support\Carbon::parse($maintenance->maintenance_eta_at)
-                    ->timezone('Europe/Berlin')
-                    ->format('d.m.Y H:i') ?>
+                <?= e($etaText) ?>
             </small>
         <?php endif; ?>
 

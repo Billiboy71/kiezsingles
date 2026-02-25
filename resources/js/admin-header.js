@@ -2,7 +2,8 @@
 File: C:\laragon\www\kiezsingles\resources\js\admin-header.js
 Purpose: Admin header runtime (badge polling + nav sanitizing)
 Created: 23-02-2026 18:09 (Europe/Berlin)
-Version: 0.1
+Changed: 25-02-2026 14:25 (Europe/Berlin)
+Version: 0.3
 ============================================================================ */
 
 (function () {
@@ -47,12 +48,28 @@ Version: 0.1
         const el = qs('ks_admin_badge_debug');
         if (!el) return;
 
+        if (!isActive) {
+            el.dataset.active = '0';
+            el.classList.remove('bg-red-500');
+            el.classList.add('bg-green-600');
+            el.classList.add('hidden');
+            return;
+        }
+
         el.dataset.active = isActive ? '1' : '0';
 
         el.classList.remove('bg-red-500', 'bg-green-600');
         el.classList.add(isActive ? 'bg-red-500' : 'bg-green-600');
 
         el.classList.remove('hidden');
+    }
+
+    function setDebugButtonVisible(isVisible) {
+        const links = document.querySelectorAll('[data-ks-admin-nav-key="debug"]');
+        if (!links || links.length < 1) return;
+        links.forEach((el) => {
+            el.classList.toggle('hidden', !isVisible);
+        });
     }
 
     function setBreakGlassBadgeVisible(isVisible) {
@@ -97,7 +114,13 @@ Version: 0.1
             setMaintenanceBadgeVisible(s.maintenance);
         }
 
-        if (typeof s.debug_enabled === 'boolean') {
+        if (typeof s.debug === 'boolean') {
+            setDebugButtonVisible(s.debug);
+        }
+
+        if (typeof s.debug_any === 'boolean') {
+            setDebugBadgeActive(s.debug_any);
+        } else if (typeof s.debug_enabled === 'boolean') {
             setDebugBadgeActive(s.debug_enabled);
         } else if (typeof s.debug === 'boolean') {
             setDebugBadgeActive(s.debug);
@@ -113,7 +136,7 @@ Version: 0.1
     };
 
     async function pollStatusOnce(statusUrl, state) {
-        if (!statusUrl || state.inFlight) return;
+        if (!statusUrl || state.inFlight) return null;
         state.inFlight = true;
 
         try {
@@ -124,12 +147,13 @@ Version: 0.1
                 credentials: 'same-origin',
             });
 
-            if (!res.ok) return;
+            if (!res.ok) return null;
 
             const data = await res.json();
             window.KSAdminUI.setStatus(data);
+            return data || null;
         } catch (e) {
-            // ignore
+            return null;
         } finally {
             state.inFlight = false;
         }
@@ -146,9 +170,15 @@ Version: 0.1
 
         if (!statusUrl) return;
 
-        pollStatusOnce(statusUrl, state);
-        setInterval(function () {
-            pollStatusOnce(statusUrl, state);
-        }, 3000);
+        // Expose an on-demand refresh hook (no polling).
+        // Keep existing implementation if already provided elsewhere.
+        if (!window.KSAdminUI.refreshStatusOnce || typeof window.KSAdminUI.refreshStatusOnce !== 'function') {
+            window.KSAdminUI.refreshStatusOnce = function () {
+                return pollStatusOnce(statusUrl, state);
+            };
+        }
+
+        // Initial one-shot status fetch on page load.
+        try { window.KSAdminUI.refreshStatusOnce(); } catch (e) {}
     });
 })();

@@ -1,8 +1,8 @@
 <!-- =========================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\tickets\index.blade.php
 Purpose: Admin – Tickets Index (Blade)
-Changed: 23-02-2026 20:48 (Europe/Berlin)
-Version: 1.0
+Changed: 23-02-2026 23:22 (Europe/Berlin)
+Version: 1.1
 ============================================================================= -->
 
 
@@ -23,7 +23,7 @@ Version: 1.0
             <h1 class="ks-h1">Admin – Tickets</h1>
         </div>
 
-        <form method="GET" action="<?php echo e(route('admin.tickets.index')); ?>" class="ks-row" style="margin:0 0 14px 0;">
+        <form method="GET" action="<?php echo e(route('admin.tickets.index')); ?>" class="ks-row ks-mb-14">
             <label class="ks-muted">Typ</label>
             <select class="ks-input" name="type">
                 <option value="" <?php if($type === ''): echo 'selected'; endif; ?>>Alle</option>
@@ -60,7 +60,7 @@ Version: 1.0
             </thead>
             <tbody>
             <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(count($ticketRows) < 1): ?>
-                <tr><td colspan="9" style="color:#666;">(keine Tickets)</td></tr>
+                <tr><td colspan="9" class="ks-text-muted">(keine Tickets)</td></tr>
             <?php else: ?>
                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $ticketRows; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $r): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <?php
@@ -79,7 +79,7 @@ Version: 1.0
                                 <?php echo e($subjectText); ?>
 
                             <?php else: ?>
-                                <span style="color:#666;">(ohne)</span>
+                                <span class="ks-text-muted">(ohne)</span>
                             <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </td>
                         <td><?php echo e((string) ($r['creator_display'] ?? '-')); ?></td>

@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\routes\web\admin\status.php
 // Purpose: Admin live status endpoint (JSON for header auto-refresh)
 // Created: 16-02-2026 19:15 (Europe/Berlin)
-// Changed: 20-02-2026 16:31 (Europe/Berlin)
-// Version: 1.1
+// Changed: 25-02-2026 15:10 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 use App\Support\SystemSettingHelper;
@@ -21,6 +21,9 @@ Route::get('/status', function () {
 
     // debug = UI-Sichtbarkeit (Wartung aktiv + Debug-UI erlaubt)
     $debug = false;
+
+    // debug_any = irgendein Debug-Schalter aktiv (für Badge)
+    $debugAny = false;
 
     $breakGlass = false;
     $env = 'prod';
@@ -39,6 +42,27 @@ Route::get('/status', function () {
     if ($hasSystemSettingsTable) {
         $debugEnabled = (bool) SystemSettingHelper::get('debug.ui_enabled', false);
         $breakGlass = (bool) SystemSettingHelper::get('debug.break_glass', false);
+
+        // NOTE:
+        // "simulate_production" soll NICHT als "Debug aktiv" für das Badge zählen.
+        $debugAnyKeys = [
+            'debug.ui_enabled',
+            'debug.routes_enabled',
+            'debug.routes',
+            'debug.turnstile_enabled',
+            'debug.turnstile',
+            'debug.register_errors',
+            'debug.register_payload',
+            //'debug.break_glass',
+            'debug.local_banner_enabled',
+        ];
+
+        foreach ($debugAnyKeys as $k) {
+            if ((bool) SystemSettingHelper::get($k, false)) {
+                $debugAny = true;
+                break;
+            }
+        }
     }
 
     if (app()->environment('local')) {
@@ -49,18 +73,15 @@ Route::get('/status', function () {
         $env = 'prod-sim';
     }
 
-    // UI-only: Debug-Button anzeigen, wenn Wartung aktiv und Debug-UI grundsätzlich erlaubt ist.
+    // UI-only: Debug-Button anzeigen, sobald Wartung aktiv ist.
     // Serverseitige Autorisierung läuft ausschließlich über Middleware (auth + superadmin + section:debug).
-    if ($maintenance && $hasSystemSettingsTable) {
-        $debug = (bool) SystemSettingHelper::debugUiAllowed();
-    } else {
-        $debug = false;
-    }
+    $debug = (bool) $maintenance;
 
     return response()->json([
         'maintenance'   => $maintenance,
         'debug'         => $debug,
         'debug_enabled' => $debugEnabled,
+        'debug_any'     => $debugAny,
         'break_glass'   => $breakGlass,
         'env'           => $env,
     ]);

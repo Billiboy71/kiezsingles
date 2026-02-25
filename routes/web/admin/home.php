@@ -261,6 +261,24 @@ $buildAdminContext = function (string $adminTab): array {
 | /admin
 */
 Route::get('/', function () use ($buildAdminContext) {
+    $tabQuery = mb_strtolower(trim((string) request()->query('tab', '')));
+
+    // Legacy compatibility: canonicalize old /admin?tab=* links to section routes.
+    if ($tabQuery !== '') {
+        if ($tabQuery === 'maintenance' && Route::has('admin.maintenance')) {
+            return redirect()->route('admin.maintenance');
+        }
+        if ($tabQuery === 'debug' && Route::has('admin.debug')) {
+            return redirect()->route('admin.debug');
+        }
+        if ($tabQuery === 'moderation' && Route::has('admin.moderation')) {
+            return redirect()->route('admin.moderation');
+        }
+        if ($tabQuery === 'tickets' && Route::has('admin.tickets.index')) {
+            return redirect()->route('admin.tickets.index');
+        }
+    }
+
     $tab = 'overview';
 
     $ctx = $buildAdminContext($tab);

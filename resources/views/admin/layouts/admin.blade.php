@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\admin.blade.php
 Purpose: Admin root layout (separate from app layout; dedicated admin header + admin navigation + content)
-Changed: 23-02-2026 23:21 (Europe/Berlin)
-Version: 5.6
+Changed: 25-02-2026 12:40 (Europe/Berlin)
+Version: 5.7
 ============================================================================ --}}
 
 @php
@@ -195,7 +195,7 @@ Version: 5.6
 
     <base target="_self">
 
-    @vite(['resources/css/admin.css', 'resources/js/admin.js', 'resources/js/admin-header.js', 'resources/js/app.js'])
+    @vite(['resources/css/admin.css', 'resources/js/admin.js', 'resources/js/admin-header.js'])
 </head>
 <body class="font-sans antialiased bg-gray-100 min-h-screen flex flex-col">
 
@@ -208,8 +208,12 @@ Version: 5.6
         'isLocalEnv' => $isLocalEnv,
     ])
 
-    @if($isLocalEnv && $localBannerEnabled && is_array($ksLocalDebug))
-        <div class="{{ $adminMaxWidthClass }} mx-auto px-4 sm:px-6 lg:px-8 mt-3">
+    @if($isLocalEnv && $maintenanceEnabledFlag && $localBannerEnabled && is_array($ksLocalDebug))
+        <div
+            id="ks_local_debug_banner"
+            data-ks-local-banner-enabled="{{ $localBannerEnabled ? '1' : '0' }}"
+            class="{{ $adminMaxWidthClass }} mx-auto px-4 sm:px-6 lg:px-8 mt-3"
+        >
             <div class="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-xs text-gray-800">
                 <div class="font-semibold">LOCAL DEBUG</div>
                 <div class="mt-1 leading-5 break-words">

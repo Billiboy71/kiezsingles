@@ -2,13 +2,12 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\settings_ajax.php
 // Purpose: Admin settings save (AJAX) routes
-// Changed: 20-02-2026 12:08 (Europe/Berlin)
-// Version: 1.1
+// Changed: 25-02-2026 12:25 (Europe/Berlin)
+// Version: 1.3
 // ============================================================================
 
 use App\Mail\MaintenanceEndedMail;
 use App\Models\SystemSetting;
-use App\Support\Admin\AdminSectionAccess;
 use App\Support\SystemSettingHelper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -17,8 +16,12 @@ use Illuminate\Support\Facades\Schema;
 
 /*
 |--------------------------------------------------------------------------
-| Save Wartung + Debug (Ebene 2) – AJAX
+| Save Wartung + Debug (Ebene 2) - AJAX
 |--------------------------------------------------------------------------
+| Minimal bugfix:
+| - Write only keys explicitly present in the request.
+| - No implicit resets of unrelated maintenance.* or debug.* settings.
+| - No cross-coupling writes between maintenance and debug keys.
 */
 Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) {
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
@@ -32,47 +35,12 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
         return response()->json(['ok' => false, 'message' => 'system_settings fehlt'], 422);
     }
 
-    $maintenanceRequested = (bool) $request->input('maintenance_enabled', false);
-
-    // Wartungs-Login-Ausnahmen (serverseitig) – werden als SystemSettings gespeichert
-    // WICHTIG: nur speichern, wenn Wartung AN ist (sonst Zustand behalten).
-    if ($maintenanceRequested) {
-        $allowAdminsRequested = (bool) $request->input('maintenance_allow_admins', false);
-        $allowModeratorsRequested = (bool) $request->input('maintenance_allow_moderators', false);
-
-        SystemSetting::updateOrCreate(
-            ['key' => 'maintenance.allow_admins'],
-            ['value' => $allowAdminsRequested ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
-        );
-
-        SystemSetting::updateOrCreate(
-            ['key' => 'maintenance.allow_moderators'],
-            ['value' => $allowModeratorsRequested ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
-        );
-    }
-
-    // wichtig: Zustand VOR dem Update merken (für Wartungsende-Mailversand)
+    $beforeRow = DB::table('app_settings')->select(['maintenance_enabled'])->first();
+    $maintenanceBefore = $beforeRow ? (bool) ($beforeRow->maintenance_enabled ?? false) : false;
     $notifyEnabledBefore = (bool) SystemSettingHelper::get('maintenance.notify_enabled', false);
 
-    $maintenanceNotifyRequested = (bool) $request->input('maintenance_notify_enabled', false);
-
-    SystemSetting::updateOrCreate(
-        ['key' => 'maintenance.notify_enabled'],
-        ['value' => $maintenanceNotifyRequested ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
-    );
-
-    // simulate_production ist NUR im Wartungsmodus zulässig
-    $simulateRequested = $maintenanceRequested
-        ? (bool) $request->input('simulate_production', false)
-        : false;
-
-    SystemSetting::updateOrCreate(
-        ['key' => 'debug.simulate_production'],
-        ['value' => $simulateRequested ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
-    );
-
-    $settings = DB::table('app_settings')->select(['id'])->first();
-    if (!$settings) {
+    $settingsRowExists = DB::table('app_settings')->select(['id'])->first();
+    if (!$settingsRowExists) {
         DB::table('app_settings')->insert([
             'maintenance_enabled' => 0,
             'maintenance_show_eta' => 0,
@@ -80,88 +48,133 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
         ]);
     }
 
-    DB::table('app_settings')->update([
-        'maintenance_enabled' => $maintenanceRequested ? 1 : 0,
-    ]);
+    $appSettingsUpdate = [];
 
-    $breakGlassRequested = (bool) $request->input('break_glass_enabled', false);
+    $maintenanceEnabledProvided = $request->has('maintenance_enabled');
+    $maintenanceRequested = $maintenanceBefore;
 
-    $breakGlassSecret = (string) $request->input('break_glass_totp_secret', '');
-    $breakGlassSecret = strtoupper(trim($breakGlassSecret));
-    $breakGlassSecret = preg_replace('/\s+/', '', $breakGlassSecret);
-
-    if ($breakGlassSecret !== '' && !preg_match('/^[A-Z2-7]+$/', $breakGlassSecret)) {
-        $breakGlassSecret = '';
+    if ($maintenanceEnabledProvided) {
+        $maintenanceRequested = $request->boolean('maintenance_enabled');
+        $appSettingsUpdate['maintenance_enabled'] = $maintenanceRequested ? 1 : 0;
     }
 
-    $breakGlassTtl = (string) $request->input('break_glass_ttl_minutes', '');
-    $breakGlassTtl = trim($breakGlassTtl);
-    $breakGlassTtlInt = (int) $breakGlassTtl;
-
-    if ($breakGlassTtlInt < 1) {
-        $breakGlassTtlInt = 1;
-    }
-    if ($breakGlassTtlInt > 120) {
-        $breakGlassTtlInt = 120;
+    if ($request->has('maintenance_show_eta')) {
+        $appSettingsUpdate['maintenance_show_eta'] = $request->boolean('maintenance_show_eta') ? 1 : 0;
     }
 
-    SystemSetting::updateOrCreate(
-        ['key' => 'debug.break_glass'],
-        ['value' => $breakGlassRequested ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
-    );
+    if (!empty($appSettingsUpdate)) {
+        DB::table('app_settings')->update($appSettingsUpdate);
+    }
 
-    SystemSetting::updateOrCreate(
-        ['key' => 'debug.break_glass_totp_secret'],
-        ['value' => $breakGlassSecret, 'group' => 'debug', 'cast' => 'string']
-    );
+    // Product rule: leaving maintenance disables debug switches server-side.
+    if ($maintenanceEnabledProvided && !$maintenanceRequested) {
+        $resetDebugKeys = [
+            'debug.ui_enabled',
+            'debug.routes_enabled',
+            'debug.routes',
+            'debug.turnstile_enabled',
+            'debug.turnstile',
+            'debug.register_errors',
+            'debug.register_payload',
+            'debug.break_glass',
+            'debug.simulate_production',
+            'debug.local_banner_enabled',
+        ];
 
-    SystemSetting::updateOrCreate(
-        ['key' => 'debug.break_glass_ttl_minutes'],
-        ['value' => (string) $breakGlassTtlInt, 'group' => 'debug', 'cast' => 'int']
-    );
+        foreach ($resetDebugKeys as $k) {
+            SystemSetting::updateOrCreate(
+                ['key' => $k],
+                ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
+            );
+        }
+    }
 
-    if (!$maintenanceRequested) {
-        DB::table('app_settings')->update([
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
-        ]);
-
+    if ($request->has('maintenance_notify_enabled')) {
         SystemSetting::updateOrCreate(
             ['key' => 'maintenance.notify_enabled'],
-            ['value' => '0', 'group' => 'maintenance', 'cast' => 'bool']
+            ['value' => $request->boolean('maintenance_notify_enabled') ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
         );
+    }
 
+    if ($request->has('maintenance_allow_admins')) {
+        SystemSetting::updateOrCreate(
+            ['key' => 'maintenance.allow_admins'],
+            ['value' => $request->boolean('maintenance_allow_admins') ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
+        );
+    }
+
+    if ($request->has('maintenance_allow_moderators')) {
+        SystemSetting::updateOrCreate(
+            ['key' => 'maintenance.allow_moderators'],
+            ['value' => $request->boolean('maintenance_allow_moderators') ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
+        );
+    }
+
+    if ($request->has('debug_ui_enabled')) {
         SystemSetting::updateOrCreate(
             ['key' => 'debug.ui_enabled'],
-            ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
+            ['value' => $request->boolean('debug_ui_enabled') ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
         );
+    }
 
+    if ($request->has('debug_routes_enabled')) {
         SystemSetting::updateOrCreate(
             ['key' => 'debug.routes_enabled'],
-            ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
+            ['value' => $request->boolean('debug_routes_enabled') ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
         );
+    }
 
+    if ($request->has('simulate_production')) {
+        SystemSetting::updateOrCreate(
+            ['key' => 'debug.simulate_production'],
+            ['value' => $request->boolean('simulate_production') ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
+        );
+    }
+
+    if ($request->has('break_glass_enabled')) {
         SystemSetting::updateOrCreate(
             ['key' => 'debug.break_glass'],
-            ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
+            ['value' => $request->boolean('break_glass_enabled') ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
         );
+    }
+
+    if ($request->has('break_glass_totp_secret')) {
+        $breakGlassSecret = (string) $request->input('break_glass_totp_secret', '');
+        $breakGlassSecret = strtoupper(trim($breakGlassSecret));
+        $breakGlassSecret = preg_replace('/\s+/', '', $breakGlassSecret);
+
+        if ($breakGlassSecret !== '' && !preg_match('/^[A-Z2-7]+$/', $breakGlassSecret)) {
+            $breakGlassSecret = '';
+        }
+
+        SystemSetting::updateOrCreate(
+            ['key' => 'debug.break_glass_totp_secret'],
+            ['value' => $breakGlassSecret, 'group' => 'debug', 'cast' => 'string']
+        );
+    }
+
+    if ($request->has('break_glass_ttl_minutes')) {
+        $breakGlassTtlInt = (int) trim((string) $request->input('break_glass_ttl_minutes', '15'));
+        if ($breakGlassTtlInt < 1) {
+            $breakGlassTtlInt = 1;
+        }
+        if ($breakGlassTtlInt > 120) {
+            $breakGlassTtlInt = 120;
+        }
 
         SystemSetting::updateOrCreate(
             ['key' => 'debug.break_glass_ttl_minutes'],
-            ['value' => '15', 'group' => 'debug', 'cast' => 'int']
+            ['value' => (string) $breakGlassTtlInt, 'group' => 'debug', 'cast' => 'int']
         );
+    }
 
-        // simulate_production beim Verlassen der Wartung hart AUS
-        SystemSetting::updateOrCreate(
-            ['key' => 'debug.simulate_production'],
-            ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
-        );
+    $afterRow = DB::table('app_settings')->select(['maintenance_enabled'])->first();
+    $maintenanceAfter = $afterRow ? (bool) ($afterRow->maintenance_enabled ?? false) : false;
 
+    // Wartungsende-Mails nur beim echten Übergang 1 -> 0 und nur wenn Notify davor aktiv war.
+    if ($maintenanceBefore && !$maintenanceAfter && $notifyEnabledBefore) {
         try {
-            // wichtig: nicht DB lesen (wurde oben bereits auf 0 gesetzt), sondern Zustand von davor verwenden
-            $notifyEnabled = (bool) $notifyEnabledBefore;
-
-            if ($notifyEnabled && Schema::hasTable('maintenance_notifications')) {
+            if (Schema::hasTable('maintenance_notifications')) {
                 $batch = DB::table('maintenance_notifications')
                     ->select(['id', 'email'])
                     ->whereNull('notified_at')
@@ -197,10 +210,9 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
 
                     try {
                         Mail::to($email)->send(new MaintenanceEndedMail());
-
                         DB::table('maintenance_notifications')->where('id', $id)->delete();
                     } catch (\Throwable $e) {
-                        // bewusst: claim zurücknehmen, damit später erneut versucht werden kann
+                        // Claim zurücknehmen, damit ein späterer Versuch möglich bleibt.
                         try {
                             DB::table('maintenance_notifications')
                                 ->where('id', $id)
@@ -211,32 +223,13 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
                         } catch (\Throwable $e2) {
                             // bewusst ignorieren
                         }
-                        continue;
                     }
                 }
             }
         } catch (\Throwable $e) {
             // bewusst ignorieren
         }
-
-        return response()->json(['ok' => true]);
     }
-
-    $requestedUi = (bool) $request->input('debug_ui_enabled', false);
-    $requestedRoutes = (bool) $request->input('debug_routes_enabled', false);
-
-    $finalUi = $requestedUi ? '1' : '0';
-    $finalRoutes = ($requestedUi && $requestedRoutes) ? '1' : '0';
-
-    SystemSetting::updateOrCreate(
-        ['key' => 'debug.ui_enabled'],
-        ['value' => $finalUi, 'group' => 'debug', 'cast' => 'bool']
-    );
-
-    SystemSetting::updateOrCreate(
-        ['key' => 'debug.routes_enabled'],
-        ['value' => $finalRoutes, 'group' => 'debug', 'cast' => 'bool']
-    );
 
     return response()->json(['ok' => true]);
 })->name('settings.save.ajax');

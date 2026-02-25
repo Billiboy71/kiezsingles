@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\landing.blade.php
 // Purpose: Public landing page with maintenance mode indicator + legal links
-// Changed: 13-02-2026 01:05 (Europe/Berlin)
-// Version: 1.0
+// Changed: 25-02-2026 16:23 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 ?>
 <!doctype html>
@@ -12,8 +12,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>KiezSingles</title>
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/app.css']); ?>
 </head>
-<body style="font-family: system-ui; margin: 40px;">
+<body class="font-sans m-10">
 
 <?php
     // Minimal, direkte DB-Abfrage – bewusst ohne Helper/Magie
@@ -52,6 +53,22 @@
 
     $notifyOk = (bool) session('maintenance_notify_ok', false);
     $notifyErr = (string) session('maintenance_notify_error', '');
+
+    $etaText = '';
+    if ($showEta) {
+        try {
+            $dt = \Illuminate\Support\Carbon::parse($maintenance->maintenance_eta_at)->timezone('Europe/Berlin');
+
+            // Wenn Uhrzeit 00:00 -> nur Datum anzeigen (kein "00:00")
+            if ($dt->format('H:i') === '00:00') {
+                $etaText = $dt->format('d.m.Y');
+            } else {
+                $etaText = $dt->format('d.m.Y H:i') . ' Uhr';
+            }
+        } catch (\Throwable $e) {
+            $etaText = '';
+        }
+    }
 ?>
 
 <h1>KiezSingles</h1>
@@ -59,35 +76,33 @@
 <p>(Beta).</p>
 
 <?php if ($maintenanceEnabled): ?>
-    <div style="margin: 20px 0; padding: 15px; border: 2px solid #c00; background: #fff3f3;">
+    <div class="my-5 p-4 border-2 border-red-600 bg-red-50">
         <strong>Wartungsmodus</strong><br>
         Die Plattform ist aktuell im Wartungsmodus.
-        <?php if ($showEta): ?>
+        <?php if ($etaText !== ''): ?>
             <br>
             <small>
                 Voraussichtlich bis:
-                <?= \Illuminate\Support\Carbon::parse($maintenance->maintenance_eta_at)
-                    ->timezone('Europe/Berlin')
-                    ->format('d.m.Y H:i') ?>
+                <?= e($etaText) ?>
             </small>
         <?php endif; ?>
 
         <?php if ($notifyEnabled): ?>
-            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,.15);">
+            <div class="mt-4 pt-3 border-t border-black/15">
                 <strong>Benachrichtige mich</strong><br>
                 <small>Wenn der Wartungsmodus beendet ist, bekommst du eine E-Mail. Danach wird deine Adresse gelöscht.</small>
 
                 <?php if ($notifyOk): ?>
-                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #16a34a; background: #f0fff4;">
+                    <div class="mt-2.5 p-2.5 border border-green-600 bg-green-50">
                         <strong>Danke.</strong> Du wirst benachrichtigt.
                     </div>
                 <?php elseif ($notifyErr !== ''): ?>
-                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #c00; background: #fff3f3;">
+                    <div class="mt-2.5 p-2.5 border border-red-600 bg-red-50">
                         <?= e($notifyErr) ?>
                     </div>
                 <?php endif; ?>
 
-                <form method="POST" action="/maintenance-notify" style="margin-top: 10px;">
+                <form method="POST" action="/maintenance-notify" class="mt-2.5">
                     <input type="hidden" name="_token" value="<?= e(csrf_token()) ?>">
                     <input
                         type="email"
@@ -96,9 +111,9 @@
                         autocomplete="email"
                         inputmode="email"
                         placeholder="E-Mail-Adresse"
-                        style="padding: 10px 12px; border: 1px solid #ccc; border-radius: 10px; width: 280px; max-width: 100%;"
+                        class="px-3 py-2.5 border border-gray-300 rounded-xl w-72 max-w-full"
                     >
-                    <button type="submit" style="padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; margin-left: 8px;">
+                    <button type="submit" class="px-3 py-2.5 rounded-xl border border-slate-300 bg-white cursor-pointer ml-2">
                         Benachrichtigen
                     </button>
                 </form>
@@ -114,9 +129,9 @@
     <?php endif; ?>
 </p>
 
-<hr style="margin: 30px 0;">
+<hr class="my-8">
 
-<p style="font-size: 0.9em;">
+<p class="text-sm">
     <a href="/contact">Kontakt</a> |
     <a href="/impressum">Impressum</a> |
     <a href="/datenschutz">Datenschutz</a> |
@@ -124,5 +139,4 @@
 </p>
 
 </body>
-</html>
-<?php /**PATH C:\laragon\www\kiezsingles\resources\views/landing.blade.php ENDPATH**/ ?>
+</html><?php /**PATH C:\laragon\www\kiezsingles\resources\views/landing.blade.php ENDPATH**/ ?>

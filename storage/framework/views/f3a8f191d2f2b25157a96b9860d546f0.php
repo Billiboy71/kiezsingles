@@ -190,7 +190,7 @@
 
     <base target="_self">
 
-    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/admin.css', 'resources/js/admin.js', 'resources/js/admin-header.js', 'resources/js/app.js']); ?>
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/admin.css', 'resources/js/admin.js', 'resources/js/admin-header.js']); ?>
 </head>
 <body class="font-sans antialiased bg-gray-100 min-h-screen flex flex-col">
 
@@ -203,8 +203,12 @@
         'isLocalEnv' => $isLocalEnv,
     ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
-    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isLocalEnv && $localBannerEnabled && is_array($ksLocalDebug)): ?>
-        <div class="<?php echo e($adminMaxWidthClass); ?> mx-auto px-4 sm:px-6 lg:px-8 mt-3">
+    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isLocalEnv && $maintenanceEnabledFlag && $localBannerEnabled && is_array($ksLocalDebug)): ?>
+        <div
+            id="ks_local_debug_banner"
+            data-ks-local-banner-enabled="<?php echo e($localBannerEnabled ? '1' : '0'); ?>"
+            class="<?php echo e($adminMaxWidthClass); ?> mx-auto px-4 sm:px-6 lg:px-8 mt-3"
+        >
             <div class="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-xs text-gray-800">
                 <div class="font-semibold">LOCAL DEBUG</div>
                 <div class="mt-1 leading-5 break-words">

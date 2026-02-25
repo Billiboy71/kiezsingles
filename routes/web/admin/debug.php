@@ -262,6 +262,31 @@ Route::post('/debug/toggle', function (Request $request) use ($enforceMaintenanc
                 'created_at' => now(),
             ]
         );
+
+        // Keep legacy aliases in sync to avoid key drift in DB diagnostics.
+        if ($key === 'debug.routes_enabled') {
+            DB::table('system_settings')->updateOrInsert(
+                ['key' => 'debug.routes'],
+                [
+                    'value' => $bool ? '1' : '0',
+                    'cast' => 'bool',
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
+
+        if ($key === 'debug.turnstile_enabled') {
+            DB::table('system_settings')->updateOrInsert(
+                ['key' => 'debug.turnstile'],
+                [
+                    'value' => $bool ? '1' : '0',
+                    'cast' => 'bool',
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+        }
     } catch (\Throwable $e) {
         // still redirect back silently
     }

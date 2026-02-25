@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\moderation.php
 // Purpose: Admin moderation routes (configure moderator/admin section whitelist in DB)
-// Changed: 23-02-2026 00:43 (Europe/Berlin)
-// Version: 1.7
+// Changed: 24-02-2026 03:29 (Europe/Berlin)
+// Version: 1.8
 // ============================================================================
 
 use App\Models\SystemSetting;
@@ -36,6 +36,16 @@ Route::get('/moderation', function (Request $request) {
 
     $hasSystemSettingsTable = Schema::hasTable('system_settings');
     $hasUsersTable = Schema::hasTable('users');
+    $maintenanceEnabled = false;
+
+    try {
+        if (Schema::hasTable('app_settings')) {
+            $row = \Illuminate\Support\Facades\DB::table('app_settings')->select(['maintenance_enabled'])->first();
+            $maintenanceEnabled = $row ? (bool) ($row->maintenance_enabled ?? false) : false;
+        }
+    } catch (\Throwable $e) {
+        $maintenanceEnabled = false;
+    }
 
     $hasUserNameColumn = false;
     $hasUserUsernameColumn = false;
@@ -237,6 +247,8 @@ Route::get('/moderation', function (Request $request) {
     return view('admin.moderation', [
         'tab' => 'moderation',
         'adminTab' => 'moderation',
+        'maintenanceEnabled' => $maintenanceEnabled,
+        'adminShowDebugTab' => (bool) $maintenanceEnabled,
         'notice' => $notice,
         'hasSystemSettingsTable' => $hasSystemSettingsTable,
         'hasUsersTable' => $hasUsersTable,

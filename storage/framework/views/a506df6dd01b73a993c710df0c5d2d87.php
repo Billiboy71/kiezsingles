@@ -15,6 +15,9 @@
     // In inline mode, default: hide profile link (because Breeze header already has Profile/Logout).
     $adminNavShowProfileLink = $adminNavShowProfileLink ?? (!$adminNavInline);
 
+    // Optional: remove keys from nav (e.g. items rendered in top header).
+    $adminNavExcludeKeys = $adminNavExcludeKeys ?? [];
+
     // IMPORTANT:
     // Badges (Wartung/Debug/Env) must be rendered in the top app header (Dashboard bar)
     // next to the profile dropdown. They are intentionally NOT rendered here anymore.
@@ -24,9 +27,13 @@
         $adminShowDebugTab = false;
     }
 
-    $adminNavItems = array_values(array_filter($adminNavItems, function ($item) use ($adminShowDebugTab) {
+    $adminNavItems = array_values(array_filter($adminNavItems, function ($item) use ($adminShowDebugTab, $adminNavExcludeKeys) {
         $k = (string) ($item['key'] ?? '');
         $k = ($k === 'home') ? 'overview' : $k;
+
+        if (!empty($adminNavExcludeKeys) && in_array($k, $adminNavExcludeKeys, true)) {
+            return false;
+        }
 
         if ($k === 'debug') {
             return (bool) $adminShowDebugTab;
@@ -164,4 +171,5 @@
         </div>
     </nav>
 
-<?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/navigation.blade.php ENDPATH**/ ?>
+<?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+<?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/navigation.blade.php ENDPATH**/ ?>

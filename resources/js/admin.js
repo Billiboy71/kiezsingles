@@ -2,8 +2,8 @@
 // File: C:\laragon\www\kiezsingles\resources\js\admin.js
 // Purpose: Admin-only JS (centralized handlers for admin views; no inline scripts)
 // Created: 23-02-2026 17:52 (Europe/Berlin)
-// Changed: 23-02-2026 19:27 (Europe/Berlin)
-// Version: 0.6
+// Changed: 25-02-2026 15:58 (Europe/Berlin)
+// Version: 0.8
 // ============================================================================
 
 (function () {
@@ -178,6 +178,7 @@
         var codesWrap = document.getElementById('noteinstieg_codes');
         var codesList = document.getElementById('noteinstieg_codes_list');
         var printBtn = document.getElementById('noteinstieg_print_btn');
+        var localDebugBanner = document.getElementById('ks_local_debug_banner');
 
         if (!toast || !m || !allowAdmins || !allowMods || !bg || !bgSecret || !bgTtl || !etaShow || !etaDate || !etaTime || !etaClear || !bgLinkWrap || !bgLink || !bgQrBtn || !bgQrModal || !bgQrClose || !bgQrImg || !recBtn || !genBtn || !codesWrap || !codesList || !printBtn || !notify) return;
 
@@ -185,6 +186,8 @@
 
         var saveTimer = null;
         var saving = false;
+        var pendingSaveSettings = false;
+        var pendingSaveEta = false;
 
         var codesPollTimer = null;
         var CODES_POLL_MS = 5000;
@@ -430,13 +433,25 @@
             });
         }
 
-        function scheduleSave() {
+        function scheduleSave(kind) {
+            var k = (kind || '').toString();
+
+            if (k === 'eta') {
+                pendingSaveEta = true;
+            } else if (k === 'both') {
+                pendingSaveSettings = true;
+                pendingSaveEta = true;
+            } else {
+                pendingSaveSettings = true;
+            }
+
             window.clearTimeout(saveTimer);
             saveTimer = window.setTimeout(saveAll, 200);
         }
 
         function saveAll() {
             if (saving) return;
+            if (!pendingSaveSettings && !pendingSaveEta) return;
             saving = true;
 
             var payloadSettings = {
@@ -447,6 +462,11 @@
 
                 maintenance_allow_admins: !!allowAdmins.checked,
                 maintenance_allow_moderators: !!allowMods.checked,
+
+                // IMPORTANT:
+                // Some backends treat missing keys as default(0). Keep maintenance_show_eta stable across
+                // settings saves by always sending the current value as well.
+                maintenance_show_eta: !!etaShow.checked,
 
                 break_glass_enabled: !!bg.checked,
                 break_glass_totp_secret: (bgSecret.value || ''),
@@ -459,9 +479,21 @@
                 maintenance_eta_time: (etaTime.value || '')
             };
 
+            var doSettings = pendingSaveSettings;
+            var doEta = pendingSaveEta;
+
+            pendingSaveSettings = false;
+            pendingSaveEta = false;
+
             Promise.resolve()
-                .then(function () { return postJson(urlSettingsSave, payloadSettings); })
-                .then(function () { return postJson(urlEtaSave, payloadEta); })
+                .then(function () {
+                    if (!doSettings) return null;
+                    return postJson(urlSettingsSave, payloadSettings);
+                })
+                .then(function () {
+                    if (!doEta) return null;
+                    return postJson(urlEtaSave, payloadEta);
+                })
                 .then(function () {
                     showToast('Gespeichert.', false);
                 })
@@ -470,6 +502,9 @@
                 })
                 .finally(function () {
                     saving = false;
+                    if (pendingSaveSettings || pendingSaveEta) {
+                        scheduleSave('both');
+                    }
                 });
         }
 
@@ -507,6 +542,10 @@
             }
 
             var maintenanceOn = !!m.checked;
+            if (localDebugBanner) {
+                var localBannerEnabled = (localDebugBanner.getAttribute('data-ks-local-banner-enabled') === '1');
+                localDebugBanner.classList.toggle('hidden', !(maintenanceOn && localBannerEnabled));
+            }
 
             // Statusfarben: rot wenn Wartungsmodus aktiv, sonst grün.
             setStatusBox(maintenanceOn);
@@ -542,6 +581,9 @@
                 etaTime.value = '';
 
                 notify.checked = false;
+
+                allowAdmins.checked = false;
+                allowMods.checked = false;
 
                 if (sim) sim.checked = false;
 
@@ -582,8 +624,8 @@
 
             // Wartung AN: ETA aktivierbar.
             etaShow.disabled = (!hasSettingsTable);
-            etaDate.disabled = (!hasSettingsTable);
-            etaTime.disabled = (!hasSettingsTable);
+            etaDate.disabled = (!hasSettingsTable) || (!etaShow.checked);
+            etaTime.disabled = (!hasSettingsTable) || (!etaShow.checked);
             etaClear.disabled = (!hasSettingsTable);
 
             // Wartung AN: Allowlist bedienbar (nur wenn system_settings existiert).
@@ -651,7 +693,7 @@
             prepareQr();
 
             if (secretWasGeneratedOrNormalized) {
-                scheduleSave();
+                scheduleSave('settings');
             }
         }
 
@@ -766,29 +808,39 @@
         });
 
         if (sim) {
-            sim.addEventListener('change', function () { apply(); scheduleSave(); });
+            sim.addEventListener('change', function () { apply(); scheduleSave('settings'); });
         }
 
-        m.addEventListener('change', function () { apply(); scheduleSave(); });
+        m.addEventListener('change', function () { apply(); scheduleSave('both'); });
 
-        allowAdmins.addEventListener('change', function () { apply(); scheduleSave(); });
-        allowMods.addEventListener('change', function () { apply(); scheduleSave(); });
+        allowAdmins.addEventListener('change', function () { apply(); scheduleSave('settings'); });
+        allowMods.addEventListener('change', function () { apply(); scheduleSave('settings'); });
 
-        etaShow.addEventListener('change', function () { scheduleSave(); });
-        etaDate.addEventListener('change', function () { scheduleSave(); });
-        etaTime.addEventListener('change', function () { scheduleSave(); });
+        // When ETA display is toggled OFF: clear date/time immediately and persist via eta-ajax.
+        etaShow.addEventListener('change', function () {
+            if (!etaShow.checked) {
+                etaDate.value = '';
+                etaTime.value = '';
+            }
+            apply();
+            scheduleSave('eta');
+        });
+
+        etaDate.addEventListener('change', function () { scheduleSave('eta'); });
+        etaTime.addEventListener('change', function () { scheduleSave('eta'); });
 
         etaClear.addEventListener('click', function () {
             etaShow.checked = false;
             etaDate.value = '';
             etaTime.value = '';
-            scheduleSave();
+            apply();
+            scheduleSave('eta');
         });
 
-        notify.addEventListener('change', function () { apply(); scheduleSave(); });
+        notify.addEventListener('change', function () { apply(); scheduleSave('settings'); });
 
-        bg.addEventListener('change', function () { apply(); scheduleSave(); });
-        bgTtl.addEventListener('input', function () { scheduleSave(); });
+        bg.addEventListener('change', function () { apply(); scheduleSave('settings'); });
+        bgTtl.addEventListener('input', function () { scheduleSave('settings'); });
 
         apply();
     })();
@@ -839,6 +891,14 @@
             setHidden(el, !isVisible);
         }
 
+        function setDebugButtonVisible(isVisible) {
+            var links = document.querySelectorAll('[data-ks-admin-nav-key="debug"]');
+            if (!links || links.length < 1) return;
+            for (var i = 0; i < links.length; i++) {
+                links[i].classList.toggle('hidden', !isVisible);
+            }
+        }
+
         function setBreakGlassBadgeVisible(isVisible) {
             var el = qs('ks_admin_badge_break_glass');
             if (!el) return;
@@ -881,8 +941,14 @@
                 setMaintenanceBadgeVisible(s.maintenance);
             }
 
-            // Debug-Badge: prefer "debug_enabled", fallback "debug"
-            if (typeof s.debug_enabled === 'boolean') {
+            if (typeof s.debug === 'boolean') {
+                setDebugButtonVisible(s.debug);
+            }
+
+            // Debug-Badge: prefer "debug_any", fallback "debug_enabled", then "debug"
+            if (typeof s.debug_any === 'boolean') {
+                setDebugBadgeVisible(s.debug_any);
+            } else if (typeof s.debug_enabled === 'boolean') {
                 setDebugBadgeVisible(s.debug_enabled);
             } else if (typeof s.debug === 'boolean') {
                 setDebugBadgeVisible(s.debug);

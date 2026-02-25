@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\maintenance_eta.php
 // Purpose: Admin maintenance (GET /admin/maintenance) + ETA routes (AJAX + form)
-// Changed: 20-02-2026 11:53 (Europe/Berlin)
-// Version: 1.2
+// Changed: 25-02-2026 15:30 (Europe/Berlin)
+// Version: 1.5
 // ============================================================================
 
 use App\Support\SystemSettingHelper;
@@ -38,6 +38,12 @@ $buildMaintenanceContext = function (): array {
             $dt = \Illuminate\Support\Carbon::parse($maintenanceEtaAt);
             $etaDateValue = $dt->format('Y-m-d');
             $etaTimeValue = $dt->format('H:i');
+
+            // UI-Policy: wenn Zeit 00:00 ist, als "keine Uhrzeit" behandeln.
+            // (Ambiguität zu echter 00:00-Uhrzeit ist hier akzeptiert.)
+            if ($etaTimeValue === '00:00') {
+                $etaTimeValue = '';
+            }
         } catch (\Throwable $e) {
             $etaDateValue = '';
             $etaTimeValue = '';
@@ -300,9 +306,35 @@ Route::post('/maintenance/eta-ajax', function (\Illuminate\Http\Request $request
         return response()->json(['ok' => true]);
     }
 
+    // Stabilität: Wenn "Anzeige an" aber kein Datum geliefert wird, nichts am DB-ETA-Stand ändern.
+    // (Verhindert unbeabsichtigtes Deaktivieren bei Requests, die nur Settings speichern.)
+    if ($showEta && $etaDate === '') {
+        return response()->json(['ok' => true]);
+    }
+
+    // Wenn Anzeige aus: ETA hart löschen
+    if (!$showEta) {
+        DB::table('app_settings')->update([
+            'maintenance_show_eta' => 0,
+            'maintenance_eta_at' => null,
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
     $etaDbValue = null;
 
-    if ($etaDate !== '' && $etaTime !== '') {
+    // Datum-only erlauben (Uhrzeit optional)
+    if ($etaDate !== '' && $etaTime === '') {
+        $etaRaw = $etaDate . ' 00:00';
+
+        try {
+            $dt = \Illuminate\Support\Carbon::createFromFormat('Y-m-d H:i', $etaRaw, config('app.timezone'));
+            $etaDbValue = $dt->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => 'Ungültiges Datum-Format'], 422);
+        }
+    } elseif ($etaDate !== '' && $etaTime !== '') {
         $etaRaw = $etaDate . ' ' . $etaTime;
 
         try {
@@ -313,13 +345,13 @@ Route::post('/maintenance/eta-ajax', function (\Illuminate\Http\Request $request
         }
     }
 
-    // Stabil: Wenn kein Datum/Zeit gesetzt ist -> Anzeige immer aus
+    // Wenn Anzeige an ist, muss mindestens ein Datum gesetzt sein (oben abgefangen). Hier: etaDbValue muss existieren.
     if ($etaDbValue === null) {
-        $showEta = false;
+        return response()->json(['ok' => false, 'message' => 'Bitte ein Datum setzen.'], 422);
     }
 
     DB::table('app_settings')->update([
-        'maintenance_show_eta' => $showEta ? 1 : 0,
+        'maintenance_show_eta' => 1,
         'maintenance_eta_at' => $etaDbValue,
     ]);
 
@@ -390,9 +422,33 @@ Route::post('/maintenance/eta', function (\Illuminate\Http\Request $request) {
         return redirect()->route('admin.maintenance')->with('admin_notice', 'Wartung ist aus – ETA wurde zurückgesetzt.');
     }
 
+    // Wenn Anzeige aus: ETA hart löschen und zurück
+    if (!$showEta) {
+        DB::table('app_settings')->update([
+            'maintenance_show_eta' => 0,
+            'maintenance_eta_at' => null,
+        ]);
+
+        return redirect()->route('admin.maintenance')->with('admin_notice', 'Wartung-ETA gelöscht.');
+    }
+
+    if ($etaDate === '') {
+        return redirect()->route('admin.maintenance')->with('admin_notice', 'Bitte ein Datum setzen.');
+    }
+
     $etaDbValue = null;
 
-    if ($etaDate !== '' && $etaTime !== '') {
+    // Datum-only erlauben (Uhrzeit optional)
+    if ($etaTime === '') {
+        $etaRaw = $etaDate . ' 00:00';
+
+        try {
+            $dt = \Illuminate\Support\Carbon::createFromFormat('Y-m-d H:i', $etaRaw, config('app.timezone'));
+            $etaDbValue = $dt->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return redirect()->route('admin.maintenance')->with('admin_notice', 'Ungültiges Datum-Format. Bitte erneut versuchen.');
+        }
+    } else {
         $etaRaw = $etaDate . ' ' . $etaTime;
 
         try {
@@ -403,13 +459,8 @@ Route::post('/maintenance/eta', function (\Illuminate\Http\Request $request) {
         }
     }
 
-    // Stabil: Wenn kein Datum/Zeit gesetzt ist -> Anzeige immer aus
-    if ($etaDbValue === null) {
-        $showEta = false;
-    }
-
     DB::table('app_settings')->update([
-        'maintenance_show_eta' => $showEta ? 1 : 0,
+        'maintenance_show_eta' => 1,
         'maintenance_eta_at' => $etaDbValue,
     ]);
 
