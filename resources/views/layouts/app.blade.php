@@ -1,9 +1,39 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\layouts\app.blade.php
 Purpose: Base application layout (navigation + optional leader/header/footer + slot)
-Changed: 16-02-2026 18:32 (Europe/Berlin)
-Version: 0.6
+Changed: 25-02-2026 20:16 (Europe/Berlin)
+Version: 0.7
 ============================================================================ --}}
+
+@php
+    $layoutOutlinesIsSuperadmin = auth()->check() && ((string) (auth()->user()->role ?? 'user') === 'superadmin');
+    $layoutOutlinesAllowProduction = false;
+    $layoutOutlinesFrontendEnabled = false;
+
+    if ($layoutOutlinesIsSuperadmin) {
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                $rows = \Illuminate\Support\Facades\DB::table('system_settings')
+                    ->select(['key', 'value'])
+                    ->whereIn('key', [
+                        'debug.layout_outlines_allow_production',
+                        'debug.layout_outlines_frontend_enabled',
+                    ])
+                    ->get()
+                    ->keyBy('key');
+
+                $layoutOutlinesAllowProduction = ((string) ($rows['debug.layout_outlines_allow_production']->value ?? '0') === '1');
+                $layoutOutlinesFrontendEnabled = ((string) ($rows['debug.layout_outlines_frontend_enabled']->value ?? '0') === '1');
+            }
+        } catch (\Throwable $e) {
+            $layoutOutlinesAllowProduction = false;
+            $layoutOutlinesFrontendEnabled = false;
+        }
+    }
+
+    $layoutOutlinesEnvOk = app()->environment('local') || $layoutOutlinesAllowProduction;
+    $showFrontendOutlines = $layoutOutlinesIsSuperadmin && $layoutOutlinesEnvOk && $layoutOutlinesFrontendEnabled;
+@endphp
 
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -23,14 +53,28 @@ Version: 0.6
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased">
-        <div class="min-h-screen flex flex-col bg-gray-100">
-            @include('layouts.header', [
-                'leader' => $leader ?? null,
-                'header' => $header ?? null,
-            ])
+        <div class="min-h-screen flex flex-col bg-gray-100 {{ $showFrontendOutlines ? 'relative border-2 border-dashed border-indigo-400' : '' }}">
+            @if($showFrontendOutlines)
+                <div class="absolute -top-3 left-2 bg-indigo-500 text-white text-[10px] leading-none px-2 py-1 rounded">APP</div>
+            @endif
+
+            <div class="{{ $showFrontendOutlines ? 'relative border-2 border-dashed border-sky-400 m-2 mt-4' : '' }}">
+                @if($showFrontendOutlines)
+                    <div class="absolute -top-3 left-2 bg-sky-500 text-white text-[10px] leading-none px-2 py-1 rounded">HEADER</div>
+                @endif
+
+                @include('layouts.header', [
+                    'leader' => $leader ?? null,
+                    'header' => $header ?? null,
+                ])
+            </div>
 
             <!-- Page Content -->
-            <main class="flex-1">
+            <main class="flex-1 {{ $showFrontendOutlines ? 'relative border-2 border-dashed border-emerald-400 m-2' : '' }}">
+                @if($showFrontendOutlines)
+                    <div class="absolute -top-3 left-2 bg-emerald-500 text-white text-[10px] leading-none px-2 py-1 rounded">MAIN</div>
+                @endif
+
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div class="bg-white rounded-xl shadow-sm p-6">
                         {{ $slot }}
@@ -38,9 +82,15 @@ Version: 0.6
                 </div>
             </main>
 
-            @include('layouts.footer', [
-                'footer' => $footer ?? null,
-            ])
+            <div class="{{ $showFrontendOutlines ? 'relative border-2 border-dashed border-rose-400 m-2 mb-4' : '' }}">
+                @if($showFrontendOutlines)
+                    <div class="absolute -top-3 left-2 bg-rose-500 text-white text-[10px] leading-none px-2 py-1 rounded">FOOTER</div>
+                @endif
+
+                @include('layouts.footer', [
+                    'footer' => $footer ?? null,
+                ])
+            </div>
         </div>
     </body>
 </html>

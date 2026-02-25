@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\home.blade.php
 Purpose: Admin landing (overview) – section-based navigation (no maintenance content)
-Changed: 25-02-2026 11:10 (Europe/Berlin)
-Version: 2.3
+Changed: 25-02-2026 20:23 (Europe/Berlin)
+Version: 2.5
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -140,6 +140,7 @@ Version: 2.3
     $adminModerationUrl = (isset($adminModules['moderation']['route']) && \Illuminate\Support\Facades\Route::has((string) $adminModules['moderation']['route']))
         ? route((string) $adminModules['moderation']['route'])
         : url('/admin/moderation');
+
 @endphp
 
 @section('content')
@@ -215,4 +216,5 @@ Version: 2.3
             </div>
         @endif
     </div>
+
 @endsection

@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\settings_ajax.php
 // Purpose: Admin settings save (AJAX) routes
-// Changed: 25-02-2026 12:25 (Europe/Berlin)
-// Version: 1.3
+// Changed: 25-02-2026 20:24 (Europe/Berlin)
+// Version: 1.4
 // ============================================================================
 
 use App\Mail\MaintenanceEndedMail;
@@ -165,6 +165,27 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
         SystemSetting::updateOrCreate(
             ['key' => 'debug.break_glass_ttl_minutes'],
             ['value' => (string) $breakGlassTtlInt, 'group' => 'debug', 'cast' => 'int']
+        );
+    }
+
+    if ($request->has('layout_outlines_frontend_enabled')) {
+        SystemSetting::updateOrCreate(
+            ['key' => 'debug.layout_outlines_frontend_enabled'],
+            ['value' => $request->boolean('layout_outlines_frontend_enabled') ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
+        );
+    }
+
+    if ($request->has('layout_outlines_admin_enabled')) {
+        SystemSetting::updateOrCreate(
+            ['key' => 'debug.layout_outlines_admin_enabled'],
+            ['value' => $request->boolean('layout_outlines_admin_enabled') ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
+        );
+    }
+
+    if ($request->has('layout_outlines_allow_production')) {
+        SystemSetting::updateOrCreate(
+            ['key' => 'debug.layout_outlines_allow_production'],
+            ['value' => $request->boolean('layout_outlines_allow_production') ? '1' : '0', 'group' => 'debug', 'cast' => 'bool']
         );
     }
 

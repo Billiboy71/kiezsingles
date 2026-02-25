@@ -2,8 +2,8 @@
 // File: C:\laragon\www\kiezsingles\resources\js\admin.js
 // Purpose: Admin-only JS (centralized handlers for admin views; no inline scripts)
 // Created: 23-02-2026 17:52 (Europe/Berlin)
-// Changed: 25-02-2026 15:58 (Europe/Berlin)
-// Version: 0.8
+// Changed: 25-02-2026 20:44 (Europe/Berlin)
+// Version: 1.3
 // ============================================================================
 
 (function () {
@@ -158,6 +158,9 @@
         var etaClear = document.getElementById('maintenance_eta_clear');
 
         var notify = document.getElementById('maintenance_notify_enabled');
+        var outlinesFrontend = document.getElementById('layout_outlines_frontend_enabled');
+        var outlinesAdmin = document.getElementById('layout_outlines_admin_enabled');
+        var outlinesAllowProduction = document.getElementById('layout_outlines_allow_production');
 
         var sim = document.getElementById('debug_simulate_production'); // can be absent
 
@@ -188,6 +191,7 @@
         var saving = false;
         var pendingSaveSettings = false;
         var pendingSaveEta = false;
+        var reloadAfterSave = false;
 
         var codesPollTimer = null;
         var CODES_POLL_MS = 5000;
@@ -473,6 +477,16 @@
                 break_glass_ttl_minutes: (bgTtl.value || '')
             };
 
+            if (outlinesFrontend) {
+                payloadSettings.layout_outlines_frontend_enabled = !!outlinesFrontend.checked;
+            }
+            if (outlinesAdmin) {
+                payloadSettings.layout_outlines_admin_enabled = !!outlinesAdmin.checked;
+            }
+            if (outlinesAllowProduction) {
+                payloadSettings.layout_outlines_allow_production = !!outlinesAllowProduction.checked;
+            }
+
             var payloadEta = {
                 maintenance_show_eta: !!etaShow.checked,
                 maintenance_eta_date: (etaDate.value || ''),
@@ -496,8 +510,18 @@
                 })
                 .then(function () {
                     showToast('Gespeichert.', false);
+                    if (reloadAfterSave) {
+                        reloadAfterSave = false;
+                        try {
+                            sessionStorage.setItem('ks_layout_outlines_reload_once', '1');
+                        } catch (e) {}
+                        window.setTimeout(function () {
+                            window.location.reload();
+                        }, 150);
+                    }
                 })
                 .catch(function () {
+                    reloadAfterSave = false;
                     showToast('Fehler beim Speichern.', true);
                 })
                 .finally(function () {
@@ -838,6 +862,30 @@
         });
 
         notify.addEventListener('change', function () { apply(); scheduleSave('settings'); });
+        if (outlinesFrontend) {
+            outlinesFrontend.addEventListener('change', function () {
+                reloadAfterSave = true;
+                scheduleSave('settings');
+            });
+        }
+        if (outlinesAdmin) {
+            outlinesAdmin.addEventListener('change', function () {
+                reloadAfterSave = true;
+                scheduleSave('settings');
+            });
+        }
+        if (outlinesAllowProduction) {
+            outlinesAllowProduction.addEventListener('change', function () {
+                reloadAfterSave = true;
+                scheduleSave('settings');
+            });
+        }
+
+        try {
+            if (sessionStorage.getItem('ks_layout_outlines_reload_once') === '1') {
+                sessionStorage.removeItem('ks_layout_outlines_reload_once');
+            }
+        } catch (e) {}
 
         bg.addEventListener('change', function () { apply(); scheduleSave('settings'); });
         bgTtl.addEventListener('input', function () { scheduleSave('settings'); });
@@ -993,7 +1041,6 @@
         }
 
         pollStatusOnce();
-        window.setInterval(pollStatusOnce, 3000);
     })();
 
     // ------------------------------------------------------------------------

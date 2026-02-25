@@ -74,6 +74,35 @@
         ? route('dashboard')
         : url('/');
 
+    $layoutOutlinesAllowProduction = false;
+    $layoutOutlinesAdminEnabled = false;
+    $showAdminOutlines = false;
+    $layoutOutlinesIsSuperadmin = ($currentRoleForFlags === 'superadmin');
+
+    if ($layoutOutlinesIsSuperadmin) {
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                $rows = \Illuminate\Support\Facades\DB::table('system_settings')
+                    ->select(['key', 'value'])
+                    ->whereIn('key', [
+                        'debug.layout_outlines_allow_production',
+                        'debug.layout_outlines_admin_enabled',
+                    ])
+                    ->get()
+                    ->keyBy('key');
+
+                $layoutOutlinesAllowProduction = ((string) ($rows['debug.layout_outlines_allow_production']->value ?? '0') === '1');
+                $layoutOutlinesAdminEnabled = ((string) ($rows['debug.layout_outlines_admin_enabled']->value ?? '0') === '1');
+            }
+        } catch (\Throwable $e) {
+            $layoutOutlinesAllowProduction = false;
+            $layoutOutlinesAdminEnabled = false;
+        }
+    }
+
+    $layoutOutlinesEnvOk = app()->environment('local') || $layoutOutlinesAllowProduction;
+    $showAdminOutlines = $layoutOutlinesIsSuperadmin && $layoutOutlinesEnvOk && $layoutOutlinesAdminEnabled;
+
     $ksLocalDebug = null;
     if ($isLocalEnv) {
         $ksLocalDebug = [
@@ -194,14 +223,20 @@
 </head>
 <body class="font-sans antialiased bg-gray-100 min-h-screen flex flex-col">
 
-    <?php echo $__env->make('admin.layouts.header', [
-        'backToAppUrl' => $backToAppUrl,
-        'maintenanceEnabledFlag' => $maintenanceEnabledFlag,
-        'debugActiveFlag' => $debugActiveFlag,
-        'breakGlassActiveFlag' => $breakGlassActiveFlag,
-        'productionSimulationFlag' => $productionSimulationFlag,
-        'isLocalEnv' => $isLocalEnv,
-    ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+    <div class="<?php echo e($showAdminOutlines ? 'relative border-2 border-dashed border-sky-400 m-2 mt-4' : ''); ?>">
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($showAdminOutlines): ?>
+            <div class="absolute -top-3 left-2 bg-sky-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-HEADER</div>
+        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
+        <?php echo $__env->make('admin.layouts.header', [
+            'backToAppUrl' => $backToAppUrl,
+            'maintenanceEnabledFlag' => $maintenanceEnabledFlag,
+            'debugActiveFlag' => $debugActiveFlag,
+            'breakGlassActiveFlag' => $breakGlassActiveFlag,
+            'productionSimulationFlag' => $productionSimulationFlag,
+            'isLocalEnv' => $isLocalEnv,
+        ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+    </div>
 
     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isLocalEnv && $maintenanceEnabledFlag && $localBannerEnabled && is_array($ksLocalDebug)): ?>
         <div
@@ -233,13 +268,24 @@
         </div>
     <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
-    <main class="flex-1 py-8">
+    <main class="flex-1 py-8 <?php echo e($showAdminOutlines ? 'relative border-2 border-dashed border-emerald-400 m-2' : ''); ?>">
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($showAdminOutlines): ?>
+            <div class="absolute -top-3 left-2 bg-emerald-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-MAIN</div>
+        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
         <div class="<?php echo e($adminMaxWidthClass); ?> mx-auto px-4 sm:px-6 lg:px-8">
             <?php echo $__env->yieldContent('content'); ?>
         </div>
     </main>
 
-    <?php echo $__env->make('admin.layouts.footer', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+    <div class="<?php echo e($showAdminOutlines ? 'relative border-2 border-dashed border-rose-400 m-2 mb-4' : ''); ?>">
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($showAdminOutlines): ?>
+            <div class="absolute -top-3 left-2 bg-rose-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-FOOTER</div>
+        <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
+        <?php echo $__env->make('admin.layouts.footer', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+    </div>
 
 </body>
-</html><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/admin.blade.php ENDPATH**/ ?>
+</html>
+<?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/layouts/admin.blade.php ENDPATH**/ ?>

@@ -2,12 +2,14 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin.php
 // Purpose: Admin routes (single backend; admin-only access; single source of truth)
-// Changed: 22-02-2026 23:28 (Europe/Berlin)
-// Version: 5.0
+// Changed: 25-02-2026 20:16 (Europe/Berlin)
+// Version: 5.1
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminUserController;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 
 /*
 |--------------------------------------------------------------------------
@@ -110,6 +112,33 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'superadmin'])->grou
 
         require __DIR__ . '/admin/noteinstieg_recovery_ajax.php';
     });
+
+    Route::post('settings/layout-outlines', function (\Illuminate\Http\Request $request) {
+        if (!Schema::hasTable('system_settings')) {
+            abort(503, 'system_settings fehlt');
+        }
+
+        $frontendEnabled = $request->boolean('layout_outlines_frontend_enabled') ? '1' : '0';
+        $adminEnabled = $request->boolean('layout_outlines_admin_enabled') ? '1' : '0';
+        $allowProduction = $request->boolean('layout_outlines_allow_production') ? '1' : '0';
+
+        DB::table('system_settings')->updateOrInsert(
+            ['key' => 'debug.layout_outlines_frontend_enabled'],
+            ['value' => $frontendEnabled, 'group' => 'debug', 'cast' => 'bool']
+        );
+
+        DB::table('system_settings')->updateOrInsert(
+            ['key' => 'debug.layout_outlines_admin_enabled'],
+            ['value' => $adminEnabled, 'group' => 'debug', 'cast' => 'bool']
+        );
+
+        DB::table('system_settings')->updateOrInsert(
+            ['key' => 'debug.layout_outlines_allow_production'],
+            ['value' => $allowProduction, 'group' => 'debug', 'cast' => 'bool']
+        );
+
+        return back();
+    })->name('settings.layout_outlines');
 
     /*
      |--------------------------------------------------------------
