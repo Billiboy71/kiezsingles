@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\moderation.php
 // Purpose: Admin moderation routes (configure moderator/admin section whitelist in DB)
-// Changed: 24-02-2026 03:29 (Europe/Berlin)
-// Version: 1.8
+// Changed: 25-02-2026 10:15 (Europe/Berlin)
+// Version: 1.9
 // ============================================================================
 
 use App\Models\SystemSetting;
@@ -64,7 +64,7 @@ Route::get('/moderation', function (Request $request) {
         }
     }
 
-    $defaultModerator = AdminSectionAccess::defaultModeratorSections();
+    $defaultStaffManaged = AdminSectionAccess::defaultStaffManagedSections();
     $notice = session('admin_notice');
 
     $targetRole = $request->query('role', 'moderator');
@@ -83,18 +83,16 @@ Route::get('/moderation', function (Request $request) {
     // Server-side enforcement happens exclusively via middleware (auth + staff/superadmin + section:*).
     if ($targetRole === 'admin') {
         $options = [
-            AdminSectionAccess::SECTION_OVERVIEW => 'Übersicht',
             AdminSectionAccess::SECTION_TICKETS => 'Tickets',
         ];
-        $default = array_values(array_unique(array_keys($options)));
+        $default = $defaultStaffManaged;
     } else {
         $options = [
-            AdminSectionAccess::SECTION_OVERVIEW => 'Übersicht',
             AdminSectionAccess::SECTION_TICKETS => 'Tickets',
             // admin-only (absichtlich NICHT auswählbar für Moderatoren):
             // maintenance, debug, moderation
         ];
-        $default = $defaultModerator;
+        $default = $defaultStaffManaged;
     }
 
     $users = [];
@@ -167,13 +165,13 @@ Route::get('/moderation', function (Request $request) {
             $rawValue = SystemSettingHelper::get($perUserKey, '');
         }
 
-        // Backward-compat: fall back to old global key if per-user is empty
-        $isEmpty =
-            $rawValue === null
-            || $rawValue === ''
-            || (is_array($rawValue) && count($rawValue) < 1);
+        // Backward-compat: fall back to old global key if per-user key missing
+        // or explicitly an empty string. An explicit empty array is a legitimate
+        // value and must not trigger the legacy fallback, so we avoid treating
+        // arrays with count()<1 as "empty".
+        $shouldFallback = $rawValue === null || $rawValue === '';
 
-        if ($isEmpty) {
+        if ($shouldFallback) {
             if ($targetRole === 'admin') {
                 $rawValue = SystemSettingHelper::get('moderation.admin_sections', '');
             } else {
@@ -228,9 +226,9 @@ Route::get('/moderation', function (Request $request) {
             }
 
             $tmp = array_values(array_unique($tmp));
-            if (count($tmp) > 0) {
-                $current = $tmp;
-            }
+            // honour an explicit empty list instead of silently reverting to
+            // the default set of sections
+            $current = $tmp;
         }
     }
 
@@ -315,15 +313,13 @@ Route::post('/moderation/save', function (Request $request) {
 
     // Only sections that can ever be granted for the selected role.
     // Server-side enforcement happens exclusively via middleware (auth + staff/superadmin + section:*).
-    // Current server rules allow admin only: overview + tickets.
+    // Current server rules allow admin/moderator DB-managed section only: tickets.
     if ($role === 'admin') {
         $allowedKeys = [
-            AdminSectionAccess::SECTION_OVERVIEW,
             AdminSectionAccess::SECTION_TICKETS,
         ];
     } else {
         $allowedKeys = [
-            AdminSectionAccess::SECTION_OVERVIEW,
             AdminSectionAccess::SECTION_TICKETS,
         ];
     }
@@ -349,14 +345,15 @@ Route::post('/moderation/save', function (Request $request) {
 
     $out = array_values(array_unique($out));
 
-    // Fail-closed defaults:
-    // - moderator: Defaults (damit Moderatoren nicht aus Versehen komplett ausgesperrt werden)
-    // - admin: Defaults (aktuell: overview + tickets)
+    // no automatic re‑activation of sections when the form posts an empty
+    // list. unless an explicit policy exists that at least one section must
+    // be selected, we simply persist whatever the user sent (including an
+    // empty array). if you enable the policy via configuration the request
+    // will be rejected with an error message instead of silently falling back.
     if (count($out) < 1) {
-        if ($role === 'admin') {
-            $out = array_values(array_unique($allowedKeys));
-        } else {
-            $out = AdminSectionAccess::defaultModeratorSections();
+        if (config('admin.require_section_selection', false)) {
+            return redirect()->route('admin.moderation', ['role' => $role, 'user_id' => $userId])
+                ->with('admin_notice', 'Mindestens eine Section muss ausgewählt werden.');
         }
     }
 

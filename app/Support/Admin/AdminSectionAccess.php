@@ -1,9 +1,9 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\Admin\AdminSectionAccess.php
-// Purpose: Server-side backend section access (admin full; moderator via DB whitelist; fail-closed)
-// Changed: 22-02-2026 00:44 (Europe/Berlin)
-// Version: 1.5
+// Purpose: Server-side backend section access (superadmin full; admin/moderator via DB whitelist; fail-closed)
+// Changed: 25-02-2026 17:45 (Europe/Berlin)
+// Version: 1.8
 // ============================================================================
 
 namespace App\Support\Admin;
@@ -110,7 +110,17 @@ final class AdminSectionAccess
     }
 
     /**
-     * Allowed moderator keys (UI may show more, but moderator can never receive admin-only sections).
+     * Allowed staff keys for DB-managed sections (overview is always allowed server-side).
+     */
+    public static function allowedStaffManagedSectionKeys(): array
+    {
+        return [
+            self::SECTION_TICKETS,
+        ];
+    }
+
+    /**
+     * Backward-compat alias.
      */
     public static function allowedModeratorSectionKeys(): array
     {
@@ -121,7 +131,15 @@ final class AdminSectionAccess
     }
 
     /**
-     * Default moderator sections if per-user whitelist missing/invalid.
+     * Default staff-managed sections if per-user whitelist missing/invalid.
+     */
+    public static function defaultStaffManagedSections(): array
+    {
+        return [];
+    }
+
+    /**
+     * Backward-compat alias.
      */
     public static function defaultModeratorSections(): array
     {
@@ -147,25 +165,30 @@ final class AdminSectionAccess
     }
 
     /**
-     * Read moderator section whitelist from system_settings as configured by admin/moderation UI.
+     * Read per-user section whitelist from system_settings as configured by admin/moderation UI.
      *
      * Source of truth:
-     * - moderation.moderator_sections.user_{id} (preferred)
-     * - fallback: moderation.moderator_sections (legacy/global)
+     * - moderation.{role}_sections.user_{id} (preferred)
+     * - fallback: moderation.{role}_sections (legacy/global)
      *
      * Fail-closed:
-     * - If system_settings missing/unreadable OR decoded empty/invalid -> defaultModeratorSections()
+     * - If system_settings missing/unreadable OR decoded invalid -> defaultStaffManagedSections()
      */
-    public static function moderatorSectionsForUserFailClosed($user): array
+    public static function staffManagedSectionsForUserFailClosed(string $role, $user): array
     {
-        $allowed = self::allowedModeratorSectionKeys();
+        $role = self::normalizeRole($role);
+        if ($role !== self::ROLE_ADMIN && $role !== self::ROLE_MODERATOR) {
+            return [];
+        }
+
+        $allowed = self::allowedStaffManagedSectionKeys();
 
         try {
             if (!Schema::hasTable('system_settings')) {
-                return self::defaultModeratorSections();
+                return self::defaultStaffManagedSections();
             }
         } catch (\Throwable $e) {
-            return self::defaultModeratorSections();
+            return self::defaultStaffManagedSections();
         }
 
         $userId = null;
@@ -184,18 +207,22 @@ final class AdminSectionAccess
 
         // Per-user key first
         if ($userId !== null && $userId > 0) {
-            $perUserKey = 'moderation.moderator_sections.user_' . (string) $userId;
+            $perUserKey = ($role === self::ROLE_ADMIN)
+                ? ('moderation.admin_sections.user_' . (string) $userId)
+                : ('moderation.moderator_sections.user_' . (string) $userId);
             $rawValue = SystemSettingHelper::get($perUserKey, '');
         }
 
-        // Backward-compat: fall back to old global key if per-user is empty
-        $isEmpty =
-            $rawValue === null
-            || $rawValue === ''
-            || (is_array($rawValue) && count($rawValue) < 1);
+        // Backward-compat: fall back to old global key if per-user key
+        // missing or an empty string. we do *not* treat an explicit empty array
+        // as a signal to fall back, because an administrator might deliberately
+        // revoke all sections and that choice must be respected.
+        $shouldFallback = $rawValue === null || $rawValue === '';
 
-        if ($isEmpty) {
-            $rawValue = SystemSettingHelper::get('moderation.moderator_sections', '');
+        if ($shouldFallback) {
+            $rawValue = ($role === self::ROLE_ADMIN)
+                ? SystemSettingHelper::get('moderation.admin_sections', '')
+                : SystemSettingHelper::get('moderation.moderator_sections', '');
         }
 
         // SystemSettingHelper::get can return array for cast=json
@@ -222,7 +249,7 @@ final class AdminSectionAccess
         }
 
         if (!is_array($decoded)) {
-            return self::defaultModeratorSections();
+            return self::defaultStaffManagedSections();
         }
 
         $out = [];
@@ -249,11 +276,16 @@ final class AdminSectionAccess
 
         $out = array_values(array_unique($out));
 
-        if (count($out) < 1) {
-            return self::defaultModeratorSections();
-        }
-
+        // honor explicit emptiness; caller will treat empty array as no access
         return $out;
+    }
+
+    /**
+     * Backward-compat alias for older call-sites.
+     */
+    public static function moderatorSectionsForUserFailClosed($user): array
+    {
+        return self::staffManagedSectionsForUserFailClosed(self::ROLE_MODERATOR, $user);
     }
 
     /**
@@ -275,6 +307,11 @@ final class AdminSectionAccess
             return true;
         }
 
+        // Übersicht is mandatory and cannot be disabled for staff users.
+        if (self::isStaffRole($role) && $sectionKey === self::SECTION_OVERVIEW) {
+            return true;
+        }
+
         // Fail-closed for admin/moderator if permission source cannot be read.
         if ($role === self::ROLE_ADMIN || $role === self::ROLE_MODERATOR) {
             if (!self::permissionSourceAvailableFailClosed()) {
@@ -282,16 +319,11 @@ final class AdminSectionAccess
             }
         }
 
-        // Admin: darf NICHT wartung/debug/moderation/roles (nicht freischaltbar).
-        if ($role === self::ROLE_ADMIN) {
-            return in_array($sectionKey, [self::SECTION_OVERVIEW, self::SECTION_TICKETS], true);
-        }
-
-        if ($role !== self::ROLE_MODERATOR) {
+        if ($role !== self::ROLE_ADMIN && $role !== self::ROLE_MODERATOR) {
             return false;
         }
 
-        // Moderator: admin-only sections are never accessible (hard-block).
+        // Admin/Moderator: admin-only sections are never accessible (hard-block).
         if ($sectionKey === self::SECTION_MAINTENANCE) {
             return false;
         }
@@ -310,7 +342,7 @@ final class AdminSectionAccess
             $resolvedUser = auth()->user();
         }
 
-        $allowed = self::moderatorSectionsForUserFailClosed($resolvedUser);
+        $allowed = self::staffManagedSectionsForUserFailClosed($role, $resolvedUser);
 
         return in_array($sectionKey, $allowed, true);
     }

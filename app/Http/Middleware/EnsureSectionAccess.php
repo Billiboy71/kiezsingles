@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureSectionAccess.php
 // Purpose: Enforce backend section access server-side (admin full; moderator via DB whitelist; fail-closed)
-// Changed: 22-02-2026 23:57 (Europe/Berlin)
-// Version: 1.5
+// Changed: 25-02-2026 12:27 (Europe/Berlin)
+// Version: 1.7
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -66,12 +66,17 @@ class EnsureSectionAccess
             \App\Support\Admin\AdminSectionAccess::requireSection($role, $sectionKey, $maintenanceEnabled, auth()->user());
         } catch (HttpException $e) {
             // LOCAL diagnostics: expose why we 403'd via headers (no behavior change in prod).
+            // IMPORTANT: Do NOT return a plain "Forbidden" response here, otherwise the global 403 rendering
+            // (admin layout) cannot take over.
             if ($e->getStatusCode() === 403 && app()->environment('local')) {
-                return response('Forbidden', 403)
-                    ->header('X-KS-Role', (string) $role)
-                    ->header('X-KS-Section', (string) $sectionKey)
-                    ->header('X-KS-Section-Original', (string) $originalSectionKey)
-                    ->header('X-KS-Path', (string) $request->path());
+                $headers = [
+                    'X-KS-Role' => (string) $role,
+                    'X-KS-Section' => (string) $sectionKey,
+                    'X-KS-Section-Original' => (string) $originalSectionKey,
+                    'X-KS-Path' => (string) $request->path(),
+                ];
+
+                throw new HttpException(403, $e->getMessage() ?: 'Forbidden', $e, $headers, $e->getCode());
             }
 
             throw $e;

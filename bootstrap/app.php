@@ -2,14 +2,15 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\bootstrap\app.php
 // Purpose: Application bootstrap & middleware registration
-// Changed: 22-02-2026 15:34 (Europe/Berlin)
-// Version: 1.3
+// Changed: 25-02-2026 12:25 (Europe/Berlin)
+// Version: 1.4
 // ============================================================================
 
 use App\Http\Middleware\MaintenanceMode;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Support\Facades\Blade;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -155,5 +156,109 @@ return Application::configure(basePath: dirname(__DIR__))
                 $resp->headers->set($k, $v);
             }
             return $resp;
+        });
+
+        // Admin-Layout für "Forbidden" (403) statt Default-Errorseite.
+        $exceptions->renderable(function (\Throwable $e, $request) {
+            $status = null;
+
+            try {
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                    $status = (int) $e->getStatusCode();
+                } elseif ($e instanceof \Illuminate\Auth\Access\AuthorizationException) {
+                    $status = 403;
+                }
+            } catch (\Throwable $ignore) {
+                $status = null;
+            }
+
+            if ($status !== 403) {
+                return null;
+            }
+
+            // JSON/Fetch clients
+            try {
+                if (method_exists($request, 'expectsJson') && $request->expectsJson()) {
+                    return response()->json(['ok' => false, 'message' => 'Forbidden'], 403);
+                }
+            } catch (\Throwable $ignore) {
+                // bewusst ignorieren
+            }
+
+            // Nur Admin-URLs im Admin-Layout rendern
+            $isAdminPath = false;
+            try {
+                if (method_exists($request, 'path')) {
+                    $p = (string) $request->path();
+                    $isAdminPath = ($p === 'admin') || str_starts_with($p, 'admin/');
+                }
+            } catch (\Throwable $ignore) {
+                $isAdminPath = false;
+            }
+
+            if (!$isAdminPath) {
+                return null;
+            }
+
+            // Wenn Admin-Layout nicht existiert, nichts überschreiben (Default-Handler)
+            try {
+                if (!function_exists('view') || !view()->exists('admin.layouts.admin')) {
+                    return null;
+                }
+            } catch (\Throwable $ignore) {
+                return null;
+            }
+
+            $module = null;
+            try {
+                if (method_exists($request, 'segment')) {
+                    $module = (string) ($request->segment(2) ?? '');
+                }
+            } catch (\Throwable $ignore) {
+                $module = null;
+            }
+
+            $title = 'Kein Zugriff';
+            $subtitle = null;
+            if (!empty($module)) {
+                $subtitle = 'Modul: '.$module;
+            }
+
+            $tpl = <<<'BLADE'
+@extends('admin.layouts.admin')
+
+@section('content')
+    <div class="space-y-4">
+        <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+            <div class="text-base font-semibold text-red-900">
+                Kein Zugriff auf dieses Modul.
+            </div>
+            @if(!empty($subtitle))
+                <div class="mt-1 text-sm text-red-800">
+                    {{ $subtitle }}
+                </div>
+            @endif
+        </div>
+
+        <div>
+            <a href="{{ url('/admin') }}" class="inline-flex items-center rounded-lg border px-3 py-2 text-sm font-medium">
+                Zurück zur Übersicht
+            </a>
+        </div>
+    </div>
+@endsection
+BLADE;
+
+            try {
+                $html = Blade::render($tpl, [
+                    'adminTitle' => $title,
+                    'adminSubtitle' => null,
+                    'subtitle' => $subtitle,
+                ]);
+
+                return response($html, 403);
+            } catch (\Throwable $ignore) {
+                return null;
+            }
         });
     })->create();

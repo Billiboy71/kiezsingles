@@ -5,7 +5,7 @@ Changed: 17-02-2026 16:28 (Europe/Berlin)
 Version: 0.2
 ============================================================================ --}}
 
-@include('layouts.navigation', ['showBackendButton' => (auth()->check() && in_array((string) (auth()->user()->role ?? 'user'), ['admin', 'superadmin'], true))])
+@include('layouts.navigation', ['showBackendButton' => (auth()->check() && in_array((string) (auth()->user()->role ?? 'user'), ['superadmin', 'admin', 'moderator'], true))])
 
 <!-- Page Leader (optional) -->
 @if(!empty($leader))

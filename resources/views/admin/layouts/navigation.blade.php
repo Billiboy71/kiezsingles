@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\navigation.blade.php
 Purpose: Admin navigation bar (admin layout only; uses adminNavItems/adminTab + optional badges/header)
-Changed: 23-02-2026 18:30 (Europe/Berlin)
-Version: 2.3
+// Changed: 25-02-2026 11:05 (Europe/Berlin)
+Version: 2.4
 ============================================================================ --}}
 
 @php
@@ -12,6 +12,12 @@ Version: 2.3
     $adminShowDebugTab = $adminShowDebugTab ?? null;
 
     $adminNavItems = $adminNavItems ?? [];
+
+    // determine current role and maintenance flag for SectionAccess filtering
+    $currentRoleNormalized = auth()->check()
+        ? mb_strtolower(trim((string) (auth()->user()->role ?? 'user')))
+        : 'user';
+    $maintenanceEnabledFlag = $maintenanceEnabledFlag ?? false;
 
     // Optional render variants:
     // - inline: for embedding (e.g. inside dashboard header). No <nav> wrapper by default.
@@ -32,7 +38,7 @@ Version: 2.3
         $adminShowDebugTab = false;
     }
 
-    $adminNavItems = array_values(array_filter($adminNavItems, function ($item) use ($adminShowDebugTab, $adminNavExcludeKeys) {
+    $adminNavItems = array_values(array_filter($adminNavItems, function ($item) use ($adminShowDebugTab, $adminNavExcludeKeys, $currentRoleNormalized, $maintenanceEnabledFlag) {
         $k = (string) ($item['key'] ?? '');
         $k = ($k === 'home') ? 'overview' : $k;
 
@@ -41,7 +47,21 @@ Version: 2.3
         }
 
         if ($k === 'debug') {
-            return (bool) $adminShowDebugTab;
+            if (!(bool) $adminShowDebugTab) {
+                return false;
+            }
+        }
+
+        // enforce section access for the current role (fail-closed)
+        if (class_exists(\App\Support\Admin\AdminSectionAccess::class)) {
+            if (!\App\Support\Admin\AdminSectionAccess::canAccessSection($currentRoleNormalized, $k, $maintenanceEnabledFlag)) {
+                return false;
+            }
+        } else {
+            // fallback to superadmin only
+            if ($currentRoleNormalized !== 'superadmin') {
+                return false;
+            }
         }
 
         return true;

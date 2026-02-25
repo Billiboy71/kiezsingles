@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\home.blade.php
 Purpose: Admin landing (overview) – section-based navigation (no maintenance content)
-Changed: 23-02-2026 00:13 (Europe/Berlin)
-Version: 2.2
+Changed: 25-02-2026 11:10 (Europe/Berlin)
+Version: 2.3
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -189,12 +189,6 @@ Version: 2.2
                 <p>Ticket-Inbox, Details, Aktionen.</p>
                 <a href="{{ $adminTicketsUrl }}" target="_self">Öffnen</a>
             </div>
-        @else
-            <div class="ks-card ks-card--locked">
-                <h3>Tickets</h3>
-                <p>Kein Zugriff.</p>
-                <span class="ks-locked">Gesperrt</span>
-            </div>
         @endif
 
         @if($canAccessSection('maintenance'))
@@ -203,33 +197,13 @@ Version: 2.2
                 <p>Wartungsmodus, ETA, Notify und Debug-Schalter.</p>
                 <a href="{{ $adminMaintenanceUrl }}" target="_self">Öffnen</a>
             </div>
-        @else
-            <div class="ks-card ks-card--locked">
-                <h3>Wartung</h3>
-                <p>Kein Zugriff.</p>
-                <span class="ks-locked">Gesperrt</span>
-            </div>
         @endif
 
-        @if($isSuperadminRole)
-            @if($canAccessSection('debug'))
-                <div class="ks-card">
-                    <h3>Debug</h3>
-                    <p>Debug-UI (nur während Wartung aktiv).</p>
-                    <a href="{{ $adminDebugUrl }}" target="_self">Öffnen</a>
-                </div>
-            @else
-                <div class="ks-card ks-card--locked">
-                    <h3>Debug</h3>
-                    <p>Nur verfügbar, wenn Wartung aktiv ist.</p>
-                    <span class="ks-locked">Gesperrt</span>
-                </div>
-            @endif
-        @else
-            <div class="ks-card ks-card--locked">
+        @if($isSuperadminRole && $canAccessSection('debug'))
+            <div class="ks-card">
                 <h3>Debug</h3>
-                <p>Nur für Superadmin.</p>
-                <span class="ks-locked">Gesperrt</span>
+                <p>Debug-UI (nur während Wartung aktiv).</p>
+                <a href="{{ $adminDebugUrl }}" target="_self">Öffnen</a>
             </div>
         @endif
 

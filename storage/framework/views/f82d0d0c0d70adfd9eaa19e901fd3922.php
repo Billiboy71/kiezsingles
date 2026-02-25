@@ -185,12 +185,6 @@
                 <p>Ticket-Inbox, Details, Aktionen.</p>
                 <a href="<?php echo e($adminTicketsUrl); ?>" target="_self">Öffnen</a>
             </div>
-        <?php else: ?>
-            <div class="ks-card ks-card--locked">
-                <h3>Tickets</h3>
-                <p>Kein Zugriff.</p>
-                <span class="ks-locked">Gesperrt</span>
-            </div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($canAccessSection('maintenance')): ?>
@@ -199,33 +193,13 @@
                 <p>Wartungsmodus, ETA, Notify und Debug-Schalter.</p>
                 <a href="<?php echo e($adminMaintenanceUrl); ?>" target="_self">Öffnen</a>
             </div>
-        <?php else: ?>
-            <div class="ks-card ks-card--locked">
-                <h3>Wartung</h3>
-                <p>Kein Zugriff.</p>
-                <span class="ks-locked">Gesperrt</span>
-            </div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
-        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isSuperadminRole): ?>
-            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($canAccessSection('debug')): ?>
-                <div class="ks-card">
-                    <h3>Debug</h3>
-                    <p>Debug-UI (nur während Wartung aktiv).</p>
-                    <a href="<?php echo e($adminDebugUrl); ?>" target="_self">Öffnen</a>
-                </div>
-            <?php else: ?>
-                <div class="ks-card ks-card--locked">
-                    <h3>Debug</h3>
-                    <p>Nur verfügbar, wenn Wartung aktiv ist.</p>
-                    <span class="ks-locked">Gesperrt</span>
-                </div>
-            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-        <?php else: ?>
-            <div class="ks-card ks-card--locked">
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($isSuperadminRole && $canAccessSection('debug')): ?>
+            <div class="ks-card">
                 <h3>Debug</h3>
-                <p>Nur für Superadmin.</p>
-                <span class="ks-locked">Gesperrt</span>
+                <p>Debug-UI (nur während Wartung aktiv).</p>
+                <a href="<?php echo e($adminDebugUrl); ?>" target="_self">Öffnen</a>
             </div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 

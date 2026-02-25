@@ -1,6 +1,6 @@
 
 
-<?php echo $__env->make('layouts.navigation', ['showBackendButton' => (auth()->check() && in_array((string) (auth()->user()->role ?? 'user'), ['admin', 'superadmin'], true))], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php echo $__env->make('layouts.navigation', ['showBackendButton' => (auth()->check() && in_array((string) (auth()->user()->role ?? 'user'), ['superadmin', 'admin', 'moderator'], true))], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
 <!-- Page Leader (optional) -->
 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(!empty($leader)): ?>
