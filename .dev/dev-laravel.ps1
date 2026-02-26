@@ -1,5 +1,5 @@
 $ProjectDir = "C:\laragon\www\kiezsingles"
-$PhpExe     = "C:\laragon\bin\php\php-8.3.28-Win32-vs16-x64\php.exe"
+$PhpExe     = "C:\laragon\bin\php\php-8.5.1-nts-Win32-vs17-x64\php.exe"
 
 Set-Location $ProjectDir
 

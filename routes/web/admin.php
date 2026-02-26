@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin.php
 // Purpose: Admin routes (single backend; admin-only access; single source of truth)
-// Changed: 25-02-2026 20:16 (Europe/Berlin)
-// Version: 5.1
+// Changed: 26-02-2026 21:52 (Europe/Berlin)
+// Version: 5.3
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminUserController;
@@ -113,14 +113,45 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'superadmin'])->grou
         require __DIR__ . '/admin/noteinstieg_recovery_ajax.php';
     });
 
+    /*
+     |--------------------------------------------------------------
+     | Develop (Section: develop)  /admin/develop
+     |--------------------------------------------------------------
+     */
+    Route::middleware(['section:develop'])->group(function () {
+        require __DIR__ . '/admin/develop.php';
+    });
+
     Route::post('settings/layout-outlines', function (\Illuminate\Http\Request $request) {
         if (!Schema::hasTable('system_settings')) {
             abort(503, 'system_settings fehlt');
         }
 
+        $maintenanceEnabled = false;
+
+        try {
+            $maintenanceValue = DB::table('system_settings')
+                ->where('key', 'maintenance.enabled')
+                ->value('value');
+
+            if ($maintenanceValue !== null) {
+                $maintenanceEnabled = in_array((string) $maintenanceValue, ['1', 'true', 'yes'], true);
+            } else {
+                $maintenanceEnabled = app()->isDownForMaintenance();
+            }
+        } catch (\Throwable $e) {
+            // fail-closed
+            $maintenanceEnabled = false;
+        }
+
         $frontendEnabled = $request->boolean('layout_outlines_frontend_enabled') ? '1' : '0';
         $adminEnabled = $request->boolean('layout_outlines_admin_enabled') ? '1' : '0';
-        $allowProduction = $request->boolean('layout_outlines_allow_production') ? '1' : '0';
+
+        // fail-closed: AllowProduction kann nur im Wartungsmodus aktiv sein
+        $allowProduction = '0';
+        if ($maintenanceEnabled) {
+            $allowProduction = $request->boolean('layout_outlines_allow_production') ? '1' : '0';
+        }
 
         DB::table('system_settings')->updateOrInsert(
             ['key' => 'debug.layout_outlines_frontend_enabled'],

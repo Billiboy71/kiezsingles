@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\layouts\app.blade.php
 Purpose: Base application layout (navigation + optional leader/header/footer + slot)
-Changed: 25-02-2026 20:16 (Europe/Berlin)
-Version: 0.7
+Changed: 25-02-2026 21:29 (Europe/Berlin)
+Version: 0.8
 ============================================================================ --}}
 
 @php

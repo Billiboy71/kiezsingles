@@ -1,8 +1,8 @@
 {{-- ==========================================================================
 File: C:\laragon\www\kiezsingles\resources\views\layouts\navigation.blade.php
 Purpose: Navigation layout (guest-safe; no Auth::user() when not logged in)
-Changed: 23-02-2026 23:04 (Europe/Berlin)
-Version: 1.0
+Changed: 25-02-2026 21:20 (Europe/Berlin)
+Version: 1.2
 ========================================================================== --}}
 
 @php
@@ -26,7 +26,16 @@ Version: 1.0
             $showBackendLink = in_array($role, ['admin', 'superadmin'], true);
         }
     }
+
+    $showFrontendOutlines = $showFrontendOutlines ?? false;
+    $isAdminHeaderContext = request()->is('admin*');
+    $topHeaderDebugLabel = $isAdminHeaderContext ? 'ADMIN-TOPHEADER' : 'FRONTEND-HEADER';
 @endphp
+
+<div class="{{ $showFrontendOutlines ? 'relative border-2 border-dashed border-amber-400' : '' }}">
+    @if($showFrontendOutlines)
+        <div class="absolute -top-3 left-2 bg-amber-500 text-white text-[10px] leading-none px-2 py-1 rounded">{{ $topHeaderDebugLabel }}</div>
+    @endif
 
 <nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -160,3 +169,4 @@ Version: 1.0
         @endauth
     </div>
 </nav>
+</div>

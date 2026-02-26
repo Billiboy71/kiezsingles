@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\Admin\AdminSectionAccess.php
 // Purpose: Server-side backend section access (superadmin full; admin/moderator via DB whitelist; fail-closed)
-// Changed: 25-02-2026 17:45 (Europe/Berlin)
-// Version: 1.8
+// Changed: 25-02-2026 23:06 (Europe/Berlin)
+// Version: 1.9
 // ============================================================================
 
 namespace App\Support\Admin;
@@ -35,6 +35,7 @@ final class AdminSectionAccess
     public const SECTION_OVERVIEW = 'overview';
     public const SECTION_TICKETS = 'tickets';
     public const SECTION_MAINTENANCE = 'maintenance';
+    public const SECTION_DEVELOP = 'develop';
     public const SECTION_DEBUG = 'debug';
     public const SECTION_MODERATION = 'moderation';
     public const SECTION_ROLES = 'roles';
@@ -48,6 +49,7 @@ final class AdminSectionAccess
             self::SECTION_OVERVIEW,
             self::SECTION_TICKETS,
             self::SECTION_MAINTENANCE,
+            self::SECTION_DEVELOP,
             self::SECTION_DEBUG,
             self::SECTION_MODERATION,
             self::SECTION_ROLES,
@@ -325,6 +327,9 @@ final class AdminSectionAccess
 
         // Admin/Moderator: admin-only sections are never accessible (hard-block).
         if ($sectionKey === self::SECTION_MAINTENANCE) {
+            return false;
+        }
+        if ($sectionKey === self::SECTION_DEVELOP) {
             return false;
         }
         if ($sectionKey === self::SECTION_MODERATION) {

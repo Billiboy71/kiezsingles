@@ -1,7 +1,6 @@
 
 
 
-
 <?php
     $adminTab = 'maintenance';
 
@@ -48,31 +47,6 @@
         }
     }
 
-    $layoutOutlinesFrontendEnabled = false;
-    $layoutOutlinesAdminEnabled = false;
-    $layoutOutlinesAllowProduction = false;
-
-    if ($hasSystemSettingsTable) {
-        try {
-            $rows = \Illuminate\Support\Facades\DB::table('system_settings')
-                ->select(['key', 'value'])
-                ->whereIn('key', [
-                    'debug.layout_outlines_frontend_enabled',
-                    'debug.layout_outlines_admin_enabled',
-                    'debug.layout_outlines_allow_production',
-                ])
-                ->get()
-                ->keyBy('key');
-
-            $layoutOutlinesFrontendEnabled = ((string) ($rows['debug.layout_outlines_frontend_enabled']->value ?? '0') === '1');
-            $layoutOutlinesAdminEnabled = ((string) ($rows['debug.layout_outlines_admin_enabled']->value ?? '0') === '1');
-            $layoutOutlinesAllowProduction = ((string) ($rows['debug.layout_outlines_allow_production']->value ?? '0') === '1');
-        } catch (\Throwable $e) {
-            $layoutOutlinesFrontendEnabled = false;
-            $layoutOutlinesAdminEnabled = false;
-            $layoutOutlinesAllowProduction = false;
-        }
-    }
 ?>
 
 <?php $__env->startSection('content'); ?>
@@ -363,83 +337,6 @@
             </div>
         </div>
 
-    </div>
-
-    <div class="p-4 rounded-lg border mb-4 border-gray-200 bg-white">
-        <div class="text-sm font-semibold text-gray-900 mb-3">Layout Outlines</div>
-
-<div class="ks-row mb-3">
-            <div class="ks-label">
-                <div>
-                    <strong>Rahmen in Production erlauben</strong> <span class="text-gray-600">(<code>debug.layout_outlines_allow_production</code>)</span>
-                    <span class="ks-info" title="Erlaubt Layout-Rahmen auch außerhalb von local, weiterhin nur für Superadmin.">i</span>
-                </div>
-                <div class="ks-sub">Standard: aus (fail-closed).</div>
-            </div>
-
-            <label class="ks-toggle ml-auto">
-                <input
-                    type="checkbox"
-                    id="layout_outlines_allow_production"
-                    name="layout_outlines_allow_production"
-                    value="1"
-                    <?php if($layoutOutlinesAllowProduction): echo 'checked'; endif; ?>
-                    <?php echo $systemSettingsDisabled; ?>
-
-                >
-                <span class="ks-slider"></span>
-            </label>
-        </div>
-
-
-
-        <div class="ks-row mb-3">
-            <div class="ks-label">
-                <div>
-                    <strong>Frontend-Rahmen</strong> <span class="text-gray-600">(<code>debug.layout_outlines_frontend_enabled</code>)</span>
-                    <span class="ks-info" title="Zeigt visuelle Layout-Rahmen im Frontend für Superadmin an.">i</span>
-                </div>
-                <div class="ks-sub">Nur visuell, ohne Funktionsänderung.</div>
-            </div>
-
-            <label class="ks-toggle ml-auto">
-                <input
-                    type="checkbox"
-                    id="layout_outlines_frontend_enabled"
-                    name="layout_outlines_frontend_enabled"
-                    value="1"
-                    <?php if($layoutOutlinesFrontendEnabled): echo 'checked'; endif; ?>
-                    <?php echo $systemSettingsDisabled; ?>
-
-                >
-                <span class="ks-slider"></span>
-            </label>
-        </div>
-
-        <div class="ks-row mb-0">
-            <div class="ks-label">
-                <div>
-                    <strong>Admin-Rahmen</strong> <span class="text-gray-600">(<code>debug.layout_outlines_admin_enabled</code>)</span>
-                    <span class="ks-info" title="Zeigt visuelle Layout-Rahmen im Admin für Superadmin an.">i</span>
-                </div>
-                <div class="ks-sub">Nur visuell, ohne Funktionsänderung.</div>
-            </div>
-
-            <label class="ks-toggle ml-auto">
-                <input
-                    type="checkbox"
-                    id="layout_outlines_admin_enabled"
-                    name="layout_outlines_admin_enabled"
-                    value="1"
-                    <?php if($layoutOutlinesAdminEnabled): echo 'checked'; endif; ?>
-                    <?php echo $systemSettingsDisabled; ?>
-
-                >
-                <span class="ks-slider"></span>
-            </label>
-        </div>
-
-        
     </div>
 
 <?php $__env->stopSection(); ?>

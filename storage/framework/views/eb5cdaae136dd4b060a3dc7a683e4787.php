@@ -21,7 +21,16 @@
             $showBackendLink = in_array($role, ['admin', 'superadmin'], true);
         }
     }
+
+    $showFrontendOutlines = $showFrontendOutlines ?? false;
+    $isAdminHeaderContext = request()->is('admin*');
+    $topHeaderDebugLabel = $isAdminHeaderContext ? 'ADMIN-TOPHEADER' : 'FRONTEND-HEADER';
 ?>
+
+<div class="<?php echo e($showFrontendOutlines ? 'relative border-2 border-dashed border-amber-400' : ''); ?>">
+    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($showFrontendOutlines): ?>
+        <div class="absolute -top-3 left-2 bg-amber-500 text-white text-[10px] leading-none px-2 py-1 rounded"><?php echo e($topHeaderDebugLabel); ?></div>
+    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
 <nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -339,4 +348,6 @@
             </div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
     </div>
-</nav><?php /**PATH C:\laragon\www\kiezsingles\resources\views/layouts/navigation.blade.php ENDPATH**/ ?>
+</nav>
+</div>
+<?php /**PATH C:\laragon\www\kiezsingles\resources\views/layouts/navigation.blade.php ENDPATH**/ ?>

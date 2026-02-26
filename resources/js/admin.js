@@ -2,8 +2,8 @@
 // File: C:\laragon\www\kiezsingles\resources\js\admin.js
 // Purpose: Admin-only JS (centralized handlers for admin views; no inline scripts)
 // Created: 23-02-2026 17:52 (Europe/Berlin)
-// Changed: 25-02-2026 20:44 (Europe/Berlin)
-// Version: 1.3
+// Changed: 25-02-2026 23:51 (Europe/Berlin)
+// Version: 1.5
 // ============================================================================
 
 (function () {
@@ -512,9 +512,6 @@
                     showToast('Gespeichert.', false);
                     if (reloadAfterSave) {
                         reloadAfterSave = false;
-                        try {
-                            sessionStorage.setItem('ks_layout_outlines_reload_once', '1');
-                        } catch (e) {}
                         window.setTimeout(function () {
                             window.location.reload();
                         }, 150);
@@ -832,10 +829,18 @@
         });
 
         if (sim) {
-            sim.addEventListener('change', function () { apply(); scheduleSave('settings'); });
+            sim.addEventListener('change', function () {
+                reloadAfterSave = true;
+                apply();
+                scheduleSave('settings');
+            });
         }
 
-        m.addEventListener('change', function () { apply(); scheduleSave('both'); });
+        m.addEventListener('change', function () {
+            reloadAfterSave = true;
+            apply();
+            scheduleSave('both');
+        });
 
         allowAdmins.addEventListener('change', function () { apply(); scheduleSave('settings'); });
         allowMods.addEventListener('change', function () { apply(); scheduleSave('settings'); });
@@ -881,166 +886,10 @@
             });
         }
 
-        try {
-            if (sessionStorage.getItem('ks_layout_outlines_reload_once') === '1') {
-                sessionStorage.removeItem('ks_layout_outlines_reload_once');
-            }
-        } catch (e) {}
-
         bg.addEventListener('change', function () { apply(); scheduleSave('settings'); });
         bgTtl.addEventListener('input', function () { scheduleSave('settings'); });
 
         apply();
-    })();
-
-    // ------------------------------------------------------------------------
-    // 5) Admin header status polling (badges only)
-    // Re-implements the previous inline JS behavior from admin/layouts/header.blade.php
-    //
-    // Required markup:
-    // - <div id="ks_admin_nav" data-ks-admin-status-url="...">...</div>
-    // - Badge IDs:
-    //   - ks_admin_badge_maintenance
-    //   - ks_admin_badge_debug
-    //   - ks_admin_badge_break_glass
-    //   - ks_admin_badge_env
-    // ------------------------------------------------------------------------
-    (function initAdminHeaderStatusPolling() {
-        var navWrap = document.getElementById('ks_admin_nav');
-        if (!navWrap) return;
-
-        var statusUrl = navWrap.getAttribute('data-ks-admin-status-url') || '';
-        if (!statusUrl) return;
-
-        function qs(id) { return document.getElementById(id); }
-
-        function setHidden(el, hidden) {
-            if (!el) return;
-            el.classList.toggle('hidden', !!hidden);
-        }
-
-        function setMaintenanceBadgeVisible(isVisible) {
-            var el = qs('ks_admin_badge_maintenance');
-            setHidden(el, !isVisible);
-        }
-
-        function setDebugBadgeVisible(isVisible) {
-            var el = qs('ks_admin_badge_debug');
-            if (!el) return;
-
-            el.dataset.active = isVisible ? '1' : '0';
-
-            // keep class semantics consistent with blade:
-            // - visible => bg-red-500
-            // - hidden when not active
-            el.classList.remove('bg-green-600', 'bg-red-500');
-            el.classList.add('bg-red-500');
-
-            setHidden(el, !isVisible);
-        }
-
-        function setDebugButtonVisible(isVisible) {
-            var links = document.querySelectorAll('[data-ks-admin-nav-key="debug"]');
-            if (!links || links.length < 1) return;
-            for (var i = 0; i < links.length; i++) {
-                links[i].classList.toggle('hidden', !isVisible);
-            }
-        }
-
-        function setBreakGlassBadgeVisible(isVisible) {
-            var el = qs('ks_admin_badge_break_glass');
-            if (!el) return;
-            el.dataset.active = isVisible ? '1' : '0';
-            setHidden(el, !isVisible);
-        }
-
-        function setEnvBadge(mode) {
-            var el = qs('ks_admin_badge_env');
-            if (!el) return;
-
-            var m = (mode || '').toString().toLowerCase().trim();
-            el.dataset.env = m;
-
-            // remove known env background classes
-            el.classList.remove('bg-violet-500', 'bg-sky-500', 'bg-slate-500');
-
-            if (m === 'prod-sim') {
-                el.textContent = 'PROD-SIM';
-                el.classList.add('bg-violet-500');
-                return;
-            }
-
-            if (m === 'local') {
-                el.textContent = 'LOCAL';
-                el.classList.add('bg-sky-500');
-                return;
-            }
-
-            el.textContent = 'PROD';
-            el.classList.add('bg-slate-500');
-        }
-
-        window.KSAdminUI = window.KSAdminUI || {};
-        window.KSAdminUI.setStatus = function (status) {
-            var s = status || {};
-            if (!s || typeof s !== 'object') return;
-
-            if (typeof s.maintenance === 'boolean') {
-                setMaintenanceBadgeVisible(s.maintenance);
-            }
-
-            if (typeof s.debug === 'boolean') {
-                setDebugButtonVisible(s.debug);
-            }
-
-            // Debug-Badge: prefer "debug_any", fallback "debug_enabled", then "debug"
-            if (typeof s.debug_any === 'boolean') {
-                setDebugBadgeVisible(s.debug_any);
-            } else if (typeof s.debug_enabled === 'boolean') {
-                setDebugBadgeVisible(s.debug_enabled);
-            } else if (typeof s.debug === 'boolean') {
-                setDebugBadgeVisible(s.debug);
-            }
-
-            if (typeof s.break_glass === 'boolean') {
-                setBreakGlassBadgeVisible(s.break_glass);
-            }
-
-            if (typeof s.env === 'string') {
-                setEnvBadge(s.env);
-            }
-        };
-
-        var inFlight = false;
-
-        function pollStatusOnce() {
-            if (!statusUrl || inFlight) return;
-            inFlight = true;
-
-            fetch(statusUrl, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
-                cache: 'no-store',
-                credentials: 'same-origin'
-            })
-                .then(function (res) {
-                    if (!res || !res.ok) return null;
-                    return res.json().catch(function () { return null; });
-                })
-                .then(function (data) {
-                    if (data) {
-                        try { window.KSAdminUI.setStatus(data); } catch (e) {}
-                    }
-                })
-                .catch(function () {
-                    // ignore
-                })
-                .finally(function () {
-                    inFlight = false;
-                });
-        }
-
-        pollStatusOnce();
     })();
 
     // ------------------------------------------------------------------------

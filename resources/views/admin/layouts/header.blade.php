@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\header.blade.php
 Purpose: Admin header (top area: title/status/actions + admin navigation include)
-Changed: 24-02-2026 02:52 (Europe/Berlin)
-Version: 1.4
+Changed: 26-02-2026 00:12 (Europe/Berlin)
+Version: 1.8
 ============================================================================ --}}
 
 @php
@@ -12,6 +12,7 @@ Version: 1.4
     $breakGlassActiveFlag = $breakGlassActiveFlag ?? false;
     $productionSimulationFlag = $productionSimulationFlag ?? false;
     $isLocalEnv = $isLocalEnv ?? false;
+    $showAdminOutlines = $showAdminOutlines ?? false;
 
     $adminDebugUrl = \Illuminate\Support\Facades\Route::has('admin.debug') ? route('admin.debug') : '';
 
@@ -19,7 +20,7 @@ Version: 1.4
 
     $adminTab = $adminTab ?? 'overview';
     $adminNavItems = $adminNavItems ?? [];
-    $adminTopNavKeys = ['maintenance', 'debug', 'moderation'];
+    $adminTopNavKeys = ['maintenance', 'develop', 'debug', 'moderation'];
     $adminNavItemsByKey = [];
     foreach ($adminNavItems as $item) {
         $key = (string) ($item['key'] ?? '');
@@ -36,6 +37,7 @@ Version: 1.4
 
     $adminTopNavFallback = [
         'maintenance' => ['label' => 'Wartung', 'route' => 'admin.maintenance', 'url' => url('/admin/maintenance')],
+        'develop' => ['label' => 'Develop', 'route' => 'admin.develop', 'url' => url('/admin/develop')],
         'debug' => ['label' => 'Debug', 'route' => 'admin.debug', 'url' => url('/admin/debug')],
         'moderation' => ['label' => 'Moderation', 'route' => 'admin.moderation', 'url' => url('/admin/moderation')],
     ];
@@ -79,8 +81,9 @@ Version: 1.4
     }
     $adminTopNavOrder = [
         'maintenance' => 10,
-        'debug' => 20,
-        'moderation' => 30,
+        'moderation' => 20,
+        'debug' => 30,
+        'develop' => 40,
     ];
     usort($adminTopNavItems, function ($a, $b) use ($adminTopNavOrder) {
         $ka = (string) ($a['key'] ?? '');
@@ -127,129 +130,117 @@ Version: 1.4
         $envBadgeClass = 'bg-slate-500';
     }
 
+    // NOTE:
+    // Do not compute debug badge state via DB reads during render.
+    // The client-side /admin/status endpoint updates the badge on page load.
     $debugBadgeActiveFlag = false;
-    try {
-        if ($maintenanceEnabledFlag && \Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
-            $debugAnyKeys = [
-                'debug.ui_enabled',
-                'debug.routes_enabled',
-                'debug.routes',
-                'debug.turnstile_enabled',
-                'debug.turnstile',
-                'debug.register_errors',
-                'debug.register_payload',
-                'debug.break_glass',
-                'debug.simulate_production',
-                'debug.local_banner_enabled',
-            ];
-
-            foreach ($debugAnyKeys as $k) {
-                if ((bool) \App\Support\SystemSettingHelper::get($k, false)) {
-                    $debugBadgeActiveFlag = true;
-                    break;
-                }
-            }
-        }
-    } catch (\Throwable $e) {
-        $debugBadgeActiveFlag = false;
-    }
 @endphp
 
 <header class="bg-white border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div class="flex items-center justify-between gap-4 flex-wrap">
-            <div class="min-w-0 flex items-center gap-3 flex-wrap">
-                <div class="text-sm font-semibold text-gray-900">
-                    {{ $ksRoleLabel }}
+        <div class="{{ $showAdminOutlines ? 'relative border-2 border-dashed border-cyan-400' : '' }}">
+            @if($showAdminOutlines)
+                <div class="absolute -top-3 left-2 bg-cyan-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-TOPHEADER</div>
+            @endif
+
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+                <div class="min-w-0 flex items-center gap-3 flex-wrap">
+                    <div class="text-sm font-semibold text-gray-900">
+                        {{ $ksRoleLabel }}
+                    </div>
+
+                    @if(count($adminTopNavItems) > 0)
+                        <div class="flex gap-2 flex-wrap">
+                            @foreach($adminTopNavItems as $item)
+                                @php
+                                    $itemKey = (string) ($item['key'] ?? '');
+                                    $itemKey = ($itemKey === 'home') ? 'overview' : $itemKey;
+
+                                    $itemLabel = (string) ($item['label'] ?? '');
+                                    $itemUrl = (string) ($item['url'] ?? '#');
+
+                                    if ($itemKey === '' || $itemLabel === '') {
+                                        continue;
+                                    }
+                                @endphp
+
+                                <a
+                                    href="{{ $itemUrl }}"
+                                    data-ks-admin-nav-key="{{ $itemKey }}"
+                                    class="inline-flex items-center px-4 py-2 border rounded-md font-semibold text-xs uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                                        {{ $adminTab === $itemKey ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}
+                                        {{ ($itemKey === 'debug' && !$debugActiveFlag) ? 'hidden' : '' }}"
+                                >
+                                    {{ $itemLabel }}
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
 
-                @if(count($adminTopNavItems) > 0)
-                    <div class="flex gap-2 flex-wrap">
-                        @foreach($adminTopNavItems as $item)
-                            @php
-                                $itemKey = (string) ($item['key'] ?? '');
-                                $itemKey = ($itemKey === 'home') ? 'overview' : $itemKey;
+                <div class="flex items-center gap-2 flex-wrap justify-end">
+                    {{-- WARTUNG --}}
+                    <span
+                        id="ks_admin_badge_maintenance"
+                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ $maintenanceEnabledFlag ? '' : 'hidden' }}"
+                    >
+                        WARTUNG
+                    </span>
 
-                                $itemLabel = (string) ($item['label'] ?? '');
-                                $itemUrl = (string) ($item['url'] ?? '#');
+                    {{-- DEBUG --}}
+                    <span
+                        id="ks_admin_badge_debug"
+                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '' : 'hidden' }}"
+                        data-active="{{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '1' : '0' }}"
+                    >
+                        DEBUG
+                    </span>
 
-                                if ($itemKey === '' || $itemLabel === '') {
-                                    continue;
-                                }
-                            @endphp
+                    {{-- BREAK-GLASS --}}
+                    <span
+                        id="ks_admin_badge_break_glass"
+                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-amber-500 {{ $breakGlassActiveFlag ? '' : 'hidden' }}"
+                        data-active="{{ $breakGlassActiveFlag ? '1' : '0' }}"
+                    >
+                        BREAK-GLASS
+                    </span>
 
-                            <a
-                                href="{{ $itemUrl }}"
-                                data-ks-admin-nav-key="{{ $itemKey }}"
-                                class="inline-flex items-center px-4 py-2 border rounded-md font-semibold text-xs uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
-                                    {{ $adminTab === $itemKey ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}
-                                    {{ ($itemKey === 'debug' && !$debugActiveFlag) ? 'hidden' : '' }}"
+                    {{-- ENV --}}
+                    <span
+                        id="ks_admin_badge_env"
+                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white {{ $envBadgeClass }}"
+                        data-env="{{ $envMode }}"
+                    >
+                        {{ $envLabel }}
+                    </span>
+
+                    <a
+                        href="{{ $backToAppUrl }}"
+                        class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    >
+                        Dashboard
+                    </a>
+
+                    @if(\Illuminate\Support\Facades\Route::has('logout'))
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button
+                                type="submit"
+                                class="inline-flex items-center px-4 py-2 bg-gray-900 border border-gray-900 rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                             >
-                                {{ $itemLabel }}
-                            </a>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-
-            <div class="flex items-center gap-2 flex-wrap justify-end">
-                {{-- WARTUNG --}}
-                <span
-                    id="ks_admin_badge_maintenance"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ $maintenanceEnabledFlag ? '' : 'hidden' }}"
-                >
-                    WARTUNG
-                </span>
-
-                {{-- DEBUG --}}
-                <span
-                    id="ks_admin_badge_debug"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '' : 'hidden' }}"
-                    data-active="{{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '1' : '0' }}"
-                >
-                    DEBUG
-                </span>
-
-                {{-- BREAK-GLASS --}}
-                <span
-                    id="ks_admin_badge_break_glass"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-amber-500 {{ $breakGlassActiveFlag ? '' : 'hidden' }}"
-                    data-active="{{ $breakGlassActiveFlag ? '1' : '0' }}"
-                >
-                    BREAK-GLASS
-                </span>
-
-                {{-- ENV --}}
-                <span
-                    id="ks_admin_badge_env"
-                    class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white {{ $envBadgeClass }}"
-                    data-env="{{ $envMode }}"
-                >
-                    {{ $envLabel }}
-                </span>
-
-                <a
-                    href="{{ $backToAppUrl }}"
-                    class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                    Dashboard
-                </a>
-
-                @if(\Illuminate\Support\Facades\Route::has('logout'))
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button
-                            type="submit"
-                            class="inline-flex items-center px-4 py-2 bg-gray-900 border border-gray-900 rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                        >
-                            Abmelden
-                        </button>
-                    </form>
-                @endif
+                                Abmelden
+                            </button>
+                        </form>
+                    @endif
+                </div>
             </div>
         </div>
 
-        <div class="mt-3" id="ks_admin_nav" data-ks-admin-status-url="{{ $adminStatusUrl }}">
+        <div class="mt-3 {{ $showAdminOutlines ? 'relative border-2 border-dashed border-amber-400' : '' }}" id="ks_admin_nav" data-ks-admin-status-url="{{ $adminStatusUrl }}">
+            @if($showAdminOutlines)
+                <div class="absolute -top-3 left-2 bg-amber-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-NAV</div>
+            @endif
+
             @include('admin.layouts.navigation', [
                 'adminNavInline' => false,
                 'adminNavShowProfileLink' => false,

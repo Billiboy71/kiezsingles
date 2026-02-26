@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\Admin\AdminModuleRegistry.php
 // Purpose: Central admin module registry (structure-only; role filter; no DB toggles)
-// Changed: 23-02-2026 00:10 (Europe/Berlin)
-// Version: 0.8
+// Changed: 25-02-2026 23:06 (Europe/Berlin)
+// Version: 0.9
 // ============================================================================
 
 namespace App\Support\Admin;
@@ -16,6 +16,7 @@ final class AdminModuleRegistry
     public const SECTION_OVERVIEW    = 'overview';
     public const SECTION_TICKETS     = 'tickets';
     public const SECTION_MAINTENANCE = 'maintenance';
+    public const SECTION_DEVELOP     = 'develop';
     public const SECTION_DEBUG       = 'debug';
     public const SECTION_MODERATION  = 'moderation';
     public const SECTION_ROLES       = 'roles';
@@ -47,6 +48,11 @@ final class AdminModuleRegistry
             self::SECTION_MAINTENANCE => [
                 'label' => 'Wartung',
                 'route' => 'admin.maintenance',
+                'access' => 'superadmin',
+            ],
+            self::SECTION_DEVELOP => [
+                'label' => 'Develop',
+                'route' => 'admin.develop',
                 'access' => 'superadmin',
             ],
             self::SECTION_DEBUG => [

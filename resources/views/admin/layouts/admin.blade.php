@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\admin.blade.php
 Purpose: Admin root layout (separate from app layout; dedicated admin header + admin navigation + content)
-Changed: 25-02-2026 20:16 (Europe/Berlin)
-Version: 5.8
+Changed: 25-02-2026 20:39 (Europe/Berlin)
+Version: 5.9
 ============================================================================ --}}
 
 @php
@@ -240,6 +240,7 @@ Version: 5.8
             'breakGlassActiveFlag' => $breakGlassActiveFlag,
             'productionSimulationFlag' => $productionSimulationFlag,
             'isLocalEnv' => $isLocalEnv,
+            'showAdminOutlines' => $showAdminOutlines,
         ])
     </div>
 
