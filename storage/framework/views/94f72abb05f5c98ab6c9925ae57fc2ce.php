@@ -40,7 +40,7 @@
 
     $adminTopNavItems = [];
     foreach ($adminTopNavKeys as $key) {
-        if (!$maintenanceEnabledFlag && ($key === 'debug' || $key === 'develop')) {
+        if (!$maintenanceEnabledFlag && $key === 'debug') {
             continue;
         }
 

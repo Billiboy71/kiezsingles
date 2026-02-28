@@ -2,18 +2,17 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\MaintenanceMode.php
 // Purpose: App maintenance gate (DB-driven).
-// Changed: 28-02-2026 00:43 (Europe/Berlin)
+// Changed: 28-02-2026 02:33 (Europe/Berlin)
 //          Superadmin is ALWAYS allowed (no toggle).
 //          Admin allowed only if maintenance_settings.allow_admins = true.
 //          Moderator allowed only if maintenance_settings.allow_moderators = true.
 //          Non-allowed users are blocked during maintenance (no forced logout).
 //          Registration and verification flows are blocked.
-// Version: 2.5
+// Version: 2.7
 // ============================================================================
 
 namespace App\Http\Middleware;
 
-use App\Models\User;
 use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Closure;
@@ -112,7 +111,15 @@ class MaintenanceMode
         );
 
         $isLogout = $request->is('logout');
-        $isMaintenanceLanding = $request->is('/');
+
+        // Root path handling: request()->path() is "/" in this project (tinker confirmed).
+        $isMaintenanceLanding = false;
+        try {
+            $p = (string) $request->path();
+            $isMaintenanceLanding = ($p === '' || $p === '/');
+        } catch (\Throwable $ignore) {
+            $isMaintenanceLanding = false;
+        }
 
         // Public allowlist during maintenance (public essentials + login/logout + health + break-glass)
         if (
@@ -137,36 +144,8 @@ class MaintenanceMode
                 return redirect($maintenanceRedirectUrl);
             }
 
-            // Special case: POST /login is allowed, but only whitelisted roles may attempt to log in.
-            // Others get redirected to the maintenance home BEFORE the auth flow can produce "auth.failed".
-            if ($request->is('login') && $request->isMethod('post')) {
-                $login = (string) $request->input('email', '');
-                $login = trim($login);
-
-                $loginLower = mb_strtolower($login);
-
-                $user = $login !== ''
-                    ? User::query()
-                        ->select(['id', 'role'])
-                        ->where(function ($q) use ($login, $loginLower) {
-                            $q->where('email', $loginLower);
-
-                            // Support username login in maintenance as well (login comes in "email" field).
-                            if (!str_contains($login, '@')) {
-                                $q->orWhere('username', $login)
-                                  ->orWhere('username', $loginLower);
-                            }
-                        })
-                        ->first()
-                    : null;
-
-                if (!$user || !$isAllowedDuringMaintenance((string) $user->role)) {
-                    return redirect($maintenanceRedirectUrl);
-                }
-
-                return $next($request);
-            }
-
+            // IMPORTANT: POST /login must reach the controller so it can show a clear maintenance message
+            // (no role lookup by email/username here, to avoid redirect loops and enumeration).
             return $next($request);
         }
 

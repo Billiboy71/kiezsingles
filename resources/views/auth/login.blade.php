@@ -1,13 +1,24 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\login.blade.php       --}}
-{{-- Changed: 23-02-2026 23:26 (Europe/Berlin)                                 --}}
-{{-- Version: 0.2                                                              --}}
+{{-- Changed: 28-02-2026 02:40 (Europe/Berlin)                                 --}}
+{{-- Version: 0.4                                                              --}}
 {{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
 {{-- ========================================================================= --}}
 
 <x-guest-layout>
     <!-- Session Status (BLEIBT) -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
+
+    @if (session('maintenance_login_blocked'))
+        <div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+            <div class="font-medium text-center">
+                Wartungsmodus aktiv
+            </div>
+            <div class="mt-1 text-center">
+                {{ $errors->first('email') }}
+            </div>
+        </div>
+    @endif
 
     @if (session('email_not_verified'))
         <div class="mb-4 rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
@@ -59,7 +70,10 @@
                     autocapitalize="none"
                     spellcheck="false"
                 />
-                <x-input-error :messages="$errors->get('email')" class="mt-2" />
+
+                @if (!session('maintenance_login_blocked'))
+                    <x-input-error :messages="$errors->get('email')" class="mt-2" />
+                @endif
             </div>
 
             <!-- Password -->

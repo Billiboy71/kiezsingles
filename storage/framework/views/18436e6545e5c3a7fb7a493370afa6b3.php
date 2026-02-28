@@ -2,6 +2,8 @@
 
 <?php
     $layoutOutlinesIsSuperadmin = auth()->check() && ((string) (auth()->user()->role ?? 'user') === 'superadmin');
+
+    $simulateProd = false;
     $layoutOutlinesAllowProduction = false;
     $layoutOutlinesFrontendEnabled = false;
 
@@ -11,22 +13,31 @@
                 $rows = \Illuminate\Support\Facades\DB::table('debug_settings')
                     ->select(['key', 'value'])
                     ->whereIn('key', [
+                        'debug.simulate_production',
                         'debug.layout_outlines_allow_production',
                         'debug.layout_outlines_frontend_enabled',
                     ])
                     ->get()
                     ->keyBy('key');
 
+                $simulateProd = ((string) ($rows['debug.simulate_production']->value ?? '0') === '1');
                 $layoutOutlinesAllowProduction = ((string) ($rows['debug.layout_outlines_allow_production']->value ?? '0') === '1');
                 $layoutOutlinesFrontendEnabled = ((string) ($rows['debug.layout_outlines_frontend_enabled']->value ?? '0') === '1');
             }
         } catch (\Throwable $e) {
+            $simulateProd = false;
             $layoutOutlinesAllowProduction = false;
             $layoutOutlinesFrontendEnabled = false;
         }
     }
 
-    $layoutOutlinesEnvOk = app()->environment('local') || $layoutOutlinesAllowProduction;
+    // Effective "production" for gating:
+    // - real production OR local simulation flag
+    $layoutOutlinesEffectiveIsProd = app()->environment('production') || $simulateProd;
+
+    // In production (real or simulated), outlines require explicit allow_production.
+    $layoutOutlinesEnvOk = (!$layoutOutlinesEffectiveIsProd) || $layoutOutlinesAllowProduction;
+
     $showFrontendOutlines = $layoutOutlinesIsSuperadmin && $layoutOutlinesEnvOk && $layoutOutlinesFrontendEnabled;
 ?>
 
@@ -89,5 +100,4 @@
             </div>
         </div>
     </body>
-</html>
-<?php /**PATH C:\laragon\www\kiezsingles\resources\views/layouts/app.blade.php ENDPATH**/ ?>
+</html><?php /**PATH C:\laragon\www\kiezsingles\resources\views/layouts/app.blade.php ENDPATH**/ ?>

@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\header.blade.php
 Purpose: Admin header (top area: title/status/actions + admin navigation include)
-Changed: 27-02-2026 21:31 (Europe/Berlin)
-Version: 2.3
+Changed: 28-02-2026 13:03 (Europe/Berlin)
+Version: 2.4
 ============================================================================ --}}
 
 @php
@@ -45,7 +45,7 @@ Version: 2.3
 
     $adminTopNavItems = [];
     foreach ($adminTopNavKeys as $key) {
-        if (!$maintenanceEnabledFlag && ($key === 'debug' || $key === 'develop')) {
+        if (!$maintenanceEnabledFlag && $key === 'debug') {
             continue;
         }
 

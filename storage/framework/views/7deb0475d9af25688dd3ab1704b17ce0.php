@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\landing.blade.php
 // Purpose: Public landing page with maintenance mode indicator + legal links
-// Changed: 27-02-2026 18:44 (Europe/Berlin)
-// Version: 1.4
+// Changed: 28-02-2026 01:56 (Europe/Berlin)
+// Version: 1.5
 // ============================================================================
 ?>
 <!doctype html>
@@ -40,6 +40,32 @@
             }
         } else {
             $etaText = $etaDateValue . ' ' . $etaTimeValue . ' Uhr';
+        }
+    }
+
+    $isLoggedIn = auth()->check();
+    $authRole = $isLoggedIn ? mb_strtolower(trim((string) (auth()->user()->role ?? 'user'))) : 'guest';
+    $authEmail = $isLoggedIn ? (string) (auth()->user()->email ?? '') : '';
+
+    $maintenanceRoleAllowed = true;
+    if ($maintenanceEnabled && $isLoggedIn) {
+        if ($authRole === 'superadmin') {
+            $maintenanceRoleAllowed = true;
+        } elseif ($authRole === 'admin') {
+            $maintenanceRoleAllowed = \App\Support\KsMaintenance::allowAdmins();
+        } elseif ($authRole === 'moderator') {
+            $maintenanceRoleAllowed = \App\Support\KsMaintenance::allowModerators();
+        } else {
+            $maintenanceRoleAllowed = false;
+        }
+    }
+
+    $backendUrl = '/admin';
+    if (\Illuminate\Support\Facades\Route::has('admin.home')) {
+        try {
+            $backendUrl = route('admin.home');
+        } catch (\Throwable $e) {
+            $backendUrl = '/admin';
         }
     }
 ?>
@@ -96,9 +122,29 @@
 <?php endif; ?>
 
 <p>
-    <a href="/login">Login</a>
-    <?php if (!$maintenanceEnabled): ?>
-        | <a href="/register">Registrieren</a>
+    <?php if (!$isLoggedIn): ?>
+        <a href="/login">Login</a>
+        <?php if (!$maintenanceEnabled): ?>
+            | <a href="/register">Registrieren</a>
+        <?php endif; ?>
+    <?php else: ?>
+        <strong>Du bist Eingeloggt mit</strong>
+        
+        <?php if ($authEmail !== ''): ?>
+            (<?= e($authEmail) ?>)
+        <?php endif; ?>
+
+        <?php if ($maintenanceEnabled && !$maintenanceRoleAllowed): ?>
+            <br>
+            <small class="text-red-700">Hinweis: Im Wartungsmodus ist der Zugang für deine Rolle aktuell nicht freigeschaltet.</small>
+        <?php endif; ?>
+
+        
+
+        <form method="POST" action="/logout" class="inline">
+            <input type="hidden" name="_token" value="<?= e(csrf_token()) ?>">
+            <button type="submit" class="underline text-sky-600">Logout</button>
+        </form>
     <?php endif; ?>
 </p>
 
@@ -112,5 +158,4 @@
 </p>
 
 </body>
-</html>
-<?php /**PATH C:\laragon\www\kiezsingles\resources\views/landing.blade.php ENDPATH**/ ?>
+</html><?php /**PATH C:\laragon\www\kiezsingles\resources\views/landing.blade.php ENDPATH**/ ?>

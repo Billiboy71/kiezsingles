@@ -3,7 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
 // Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
 //          + supports login via email OR username (entered in the same "email" field)
-// Changed: 07-02-2026 21:34
+// Changed: 28-02-2026 02:53 (Europe/Berlin)
+// Version: 0.1
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -11,6 +12,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
+use App\Support\KsMaintenance;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -59,6 +61,33 @@ class AuthenticatedSessionController extends Controller
                 $request->merge(['email' => $originalLogin]);
             }
             throw $e;
+        }
+
+        // Wartung: erst NACH erfolgreichem Auth prüfen (keine Rollen-Erkennung via E-Mail vor dem Login).
+        // Fail-closed: nur Superadmin immer erlaubt, Admin/Moderator nur wenn allow_* aktiv.
+        $user = Auth::user();
+
+        if ($user && KsMaintenance::enabled()) {
+            $role = mb_strtolower(trim((string) ($user->role ?? 'user')));
+
+            $allowed =
+                ($role === 'superadmin')
+                || ($role === 'admin' && KsMaintenance::allowAdmins())
+                || ($role === 'moderator' && KsMaintenance::allowModerators());
+
+            if (!$allowed) {
+                Auth::guard('web')->logout();
+
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()
+                    ->withErrors([
+                        'email' => 'Login ist aktuell nicht erlaubt.',
+                    ])
+                    ->with('maintenance_login_blocked', true)
+                    ->withInput(['email' => $originalLogin]);
+            }
         }
 
         // HARD GATE: ohne verifizierte E-Mail kein Login

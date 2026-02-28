@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\home.blade.php
 Purpose: Admin landing (overview) – section-based navigation (no maintenance content)
-Changed: 27-02-2026 00:39 (Europe/Berlin)
-Version: 2.6
+Changed: 28-02-2026 13:03 (Europe/Berlin)
+Version: 2.7
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -58,6 +58,12 @@ Version: 2.6
                 'access' => 'superadmin',
             ];
 
+            $adminModules['develop'] = [
+                'label' => 'Develop',
+                'route' => 'admin.develop',
+                'access' => 'superadmin',
+            ];
+
             if ($maintenanceActive) {
                 $adminModules['debug'] = [
                     'label' => 'Debug',
@@ -79,6 +85,7 @@ Version: 2.6
         'overview'     => 'overview',
         'tickets'      => 'tickets',
         'maintenance'  => 'maintenance',
+        'develop'      => 'develop',
         'debug'        => 'debug',
         'moderation'   => 'moderation',
     ];
@@ -134,6 +141,10 @@ Version: 2.6
         ? route((string) $adminModules['debug']['route'])
         : url('/admin/debug');
 
+    $adminDevelopUrl = (isset($adminModules['develop']['route']) && \Illuminate\Support\Facades\Route::has((string) $adminModules['develop']['route']))
+        ? route((string) $adminModules['develop']['route'])
+        : url('/admin/develop');
+
     $adminModerationUrl = (isset($adminModules['moderation']['route']) && \Illuminate\Support\Facades\Route::has((string) $adminModules['moderation']['route']))
         ? route((string) $adminModules['moderation']['route'])
         : url('/admin/moderation');
@@ -169,6 +180,10 @@ Version: 2.6
                     <a class="ks-btn" href="{{ $adminMaintenanceUrl }}" target="_self">Wartung</a>
                 @endif
 
+                @if($canAccessSection('develop'))
+                    <a class="ks-btn" href="{{ $adminDevelopUrl }}" target="_self">Develop</a>
+                @endif
+
                 @if($canAccessSection('debug'))
                     <a class="ks-btn" href="{{ $adminDebugUrl }}" target="_self">Debug</a>
                 @endif
@@ -202,6 +217,14 @@ Version: 2.6
                 <h3>Debug</h3>
                 <p>Debug-UI (nur während Wartung aktiv).</p>
                 <a href="{{ $adminDebugUrl }}" target="_self">Öffnen</a>
+            </div>
+        @endif
+
+        @if($canAccessSection('develop'))
+            <div class="ks-card">
+                <h3>Develop</h3>
+                <p>Entwicklungsoptionen (Layout Outlines).</p>
+                <a href="{{ $adminDevelopUrl }}" target="_self">Öffnen</a>
             </div>
         @endif
 

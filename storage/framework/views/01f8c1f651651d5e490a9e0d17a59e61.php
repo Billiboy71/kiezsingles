@@ -37,6 +37,18 @@
 <?php unset($__componentOriginal7c1bf3a9346f208f66ee83b06b607fb5); ?>
 <?php endif; ?>
 
+    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(session('maintenance_login_blocked')): ?>
+        <div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+            <div class="font-medium text-center">
+                Wartungsmodus aktiv
+            </div>
+            <div class="mt-1 text-center">
+                <?php echo e($errors->first('email')); ?>
+
+            </div>
+        </div>
+    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(session('email_not_verified')): ?>
         <div class="mb-4 rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
             <div class="font-medium text-center">
@@ -117,7 +129,9 @@
 <?php $component = $__componentOriginal18c21970322f9e5c938bc954620c12bb; ?>
 <?php unset($__componentOriginal18c21970322f9e5c938bc954620c12bb); ?>
 <?php endif; ?>
-                <?php if (isset($component)) { $__componentOriginalf94ed9c5393ef72725d159fe01139746 = $component; } ?>
+
+                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(!session('maintenance_login_blocked')): ?>
+                    <?php if (isset($component)) { $__componentOriginalf94ed9c5393ef72725d159fe01139746 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalf94ed9c5393ef72725d159fe01139746 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.input-error','data' => ['messages' => $errors->get('email'),'class' => 'mt-2']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('input-error'); ?>
@@ -137,6 +151,7 @@
 <?php $component = $__componentOriginalf94ed9c5393ef72725d159fe01139746; ?>
 <?php unset($__componentOriginalf94ed9c5393ef72725d159fe01139746); ?>
 <?php endif; ?>
+                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
             </div>
 
             <!-- Password -->

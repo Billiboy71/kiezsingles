@@ -1,7 +1,6 @@
 
 
 
-
 <?php
     $adminTab = 'develop';
     $hasSystemSettingsTable = $hasSystemSettingsTable ?? true;
@@ -18,6 +17,12 @@
         <div class="ks-notice p-3 rounded-lg border mb-3">
             <?php echo e($notice); ?>
 
+        </div>
+    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
+    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(!$maintenanceEnabled): ?>
+        <div class="ks-notice p-3 rounded-lg border mb-3">
+            Wartung ist aus - Änderungen wirken ggf. nur lokal / allow_production Regeln beachten.
         </div>
     <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 

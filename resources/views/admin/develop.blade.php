@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\develop.blade.php
 Purpose: Admin develop page (layout outlines controls)
-Changed: 27-02-2026 19:15 (Europe/Berlin)
-Version: 0.5
+Changed: 28-02-2026 13:03 (Europe/Berlin)
+Version: 0.6
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -22,6 +22,12 @@ Version: 0.5
     @if(!empty($notice))
         <div class="ks-notice p-3 rounded-lg border mb-3">
             {{ $notice }}
+        </div>
+    @endif
+
+    @if(!$maintenanceEnabled)
+        <div class="ks-notice p-3 rounded-lg border mb-3">
+            Wartung ist aus - Änderungen wirken ggf. nur lokal / allow_production Regeln beachten.
         </div>
     @endif
 
