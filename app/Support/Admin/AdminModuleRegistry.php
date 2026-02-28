@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\Admin\AdminModuleRegistry.php
 // Purpose: Central admin module registry (structure-only; role filter; no DB toggles)
-// Changed: 25-02-2026 23:06 (Europe/Berlin)
-// Version: 0.9
+// Changed: 27-02-2026 19:59 (Europe/Berlin)
+// Version: 1.1
 // ============================================================================
 
 namespace App\Support\Admin;

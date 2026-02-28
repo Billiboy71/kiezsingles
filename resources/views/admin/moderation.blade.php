@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\moderation.blade.php
 Purpose: Admin moderation UI (configure per-user section whitelist for moderator/admin)
-Changed: 23-02-2026 18:00 (Europe/Berlin)
-Version: 0.3
+Changed: 27-02-2026 00:38 (Europe/Berlin)
+Version: 0.5
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -33,9 +33,9 @@ Version: 0.3
             </div>
         @endif
 
-        @if(!$hasSystemSettingsTable)
+        @if(!$hasStaffPermissionsTable)
             <div class="px-[14px] py-[12px] rounded-[10px] border border-red-200 bg-red-50 mb-4">
-                <b>Hinweis:</b> Tabelle <code>system_settings</code> existiert nicht. Speichern ist nicht möglich.
+                <b>Hinweis:</b> Tabelle <code>staff_permissions</code> existiert nicht. Speichern ist nicht möglich.
             </div>
         @endif
 
@@ -110,7 +110,7 @@ Version: 0.3
                 @foreach($options as $key => $label)
                     @php
                         $checked = in_array((string) $key, (array) $current, true);
-                        $disabled = (!$hasSystemSettingsTable || $selectedUserId === null);
+                        $disabled = (!$hasStaffPermissionsTable || $selectedUserId === null);
                     @endphp
 
                     <label class="flex items-center gap-[10px] px-[12px] py-[10px] border border-gray-200 rounded-[10px] mb-[10px]">
@@ -128,13 +128,15 @@ Version: 0.3
                     Zur Übersicht
                 </a>
 
-                <button
-                    type="submit"
-                    class="px-[12px] py-[10px] rounded-[10px] border border-gray-900 bg-gray-900 text-white cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-                    @disabled(!$hasSystemSettingsTable || $selectedUserId === null)
-                >
-                    Speichern
-                </button>
+                <noscript>
+                    <button
+                        type="submit"
+                        class="px-[12px] py-[10px] rounded-[10px] border border-gray-900 bg-gray-900 text-white cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                        @disabled(!$hasStaffPermissionsTable || $selectedUserId === null)
+                    >
+                        Speichern
+                    </button>
+                </noscript>
             </div>
         </form>
 

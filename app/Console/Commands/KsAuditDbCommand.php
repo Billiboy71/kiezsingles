@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Console\Commands\KsAuditDbCommand.php
 // Purpose: Non-interactive DB sanity check for audit scripts (no tinker/psysh)
 // Created: 19-02-2026 18:45 (Europe/Berlin)
-// Changed: 19-02-2026 18:45 (Europe/Berlin)
-// Version: 0.1
+// Changed: 28-02-2026 00:30 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 namespace App\Console\Commands;
@@ -23,7 +23,7 @@ class KsAuditDbCommand extends Command
     /**
      * The console command description.
      */
-    protected $description = 'KiezSingles: DB sanity checks (users count, system_settings count, app_settings first row) without tinker.';
+    protected $description = 'KiezSingles: DB sanity checks (users count, debug_settings count, maintenance_settings first row, staff_permissions count) without tinker.';
 
     public function handle(): int
     {
@@ -46,22 +46,31 @@ class KsAuditDbCommand extends Command
             return ['ok' => true, 'count' => $count];
         });
 
-        // 3) system_settings count (table may not exist yet)
-        $this->runCheck($result, 'system_settings_count', function () {
-            if (!Schema::hasTable('system_settings')) {
+        // 3) debug_settings count (table may not exist yet)
+        $this->runCheck($result, 'debug_settings_count', function () {
+            if (!Schema::hasTable('debug_settings')) {
                 return ['ok' => true, 'skipped' => true, 'reason' => 'table_missing'];
             }
-            $count = DB::table('system_settings')->count();
+            $count = DB::table('debug_settings')->count();
             return ['ok' => true, 'count' => $count];
         });
 
-        // 4) app_settings first row (table may not exist yet)
-        $this->runCheck($result, 'app_settings_first', function () {
-            if (!Schema::hasTable('app_settings')) {
+        // 4) maintenance_settings first row (SSOT; table may not exist yet)
+        $this->runCheck($result, 'maintenance_settings_first', function () {
+            if (!Schema::hasTable('maintenance_settings')) {
                 return ['ok' => true, 'skipped' => true, 'reason' => 'table_missing'];
             }
-            $row = DB::table('app_settings')->first();
+            $row = DB::table('maintenance_settings')->first();
             return ['ok' => true, 'row' => $row];
+        });
+
+        // 5) staff_permissions count (table may not exist yet)
+        $this->runCheck($result, 'staff_permissions_count', function () {
+            if (!Schema::hasTable('staff_permissions')) {
+                return ['ok' => true, 'skipped' => true, 'reason' => 'table_missing'];
+            }
+            $count = DB::table('staff_permissions')->count();
+            return ['ok' => true, 'count' => $count];
         });
 
         if ($asJson) {

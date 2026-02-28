@@ -2,23 +2,22 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\MaintenanceMode.php
 // Purpose: App maintenance gate (DB-driven).
+// Changed: 28-02-2026 00:43 (Europe/Berlin)
 //          Superadmin is ALWAYS allowed (no toggle).
-//          Admin allowed only if maintenance.allow_admins = true.
-//          Moderator allowed only if maintenance.allow_moderators = true.
+//          Admin allowed only if maintenance_settings.allow_admins = true.
+//          Moderator allowed only if maintenance_settings.allow_moderators = true.
 //          Non-allowed users are blocked during maintenance (no forced logout).
 //          Registration and verification flows are blocked.
-// Changed: 20-02-2026 16:33 (Europe/Berlin)
-// Version: 2.1
+// Version: 2.5
 // ============================================================================
 
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -26,61 +25,7 @@ class MaintenanceMode
 {
     public function handle(Request $request, Closure $next): Response
     {
-        try {
-            // If settings table doesn't exist yet (e.g. before migrate), do nothing.
-            if (!Schema::hasTable('app_settings')) {
-                return $next($request);
-            }
-
-            $settings = DB::table('app_settings')->select([
-                'maintenance_enabled',
-                'maintenance_show_eta',
-                'maintenance_eta_at',
-            ])->first();
-        } catch (\Throwable $e) {
-            Log::error('MaintenanceMode: DB access failed (forcing 503 maintenance fallback).', [
-                'exception' => get_class($e),
-                'message' => $e->getMessage(),
-                'url' => $request->fullUrl(),
-                'method' => $request->method(),
-                'path' => $request->path(),
-            ]);
-
-            $now = now()->format('Y-m-d H:i:s');
-
-            // Prefer editable static HTML in /public (DB-independent). Fallback to inline minimal HTML.
-            $staticPath = public_path('maintenance-db-down.html');
-            $html = null;
-
-            if (is_string($staticPath) && $staticPath !== '' && is_file($staticPath) && is_readable($staticPath)) {
-                $content = @file_get_contents($staticPath);
-
-                if (is_string($content) && $content !== '') {
-                    // Optional placeholder support: replace {{timestamp}} with current server time.
-                    $html = str_replace('{{timestamp}}', $now, $content);
-                }
-            }
-
-            if (!is_string($html) || $html === '') {
-                $html = '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-                    . '<title>Wartung</title></head><body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 24px; line-height: 1.4;">'
-                    . '<h1 style="margin: 0 0 12px 0;">Service nicht verf&uuml;gbar</h1>'
-                    . '<p style="margin: 0 0 12px 0;">Die Anwendung ist momentan nicht erreichbar (Datenbankverbindung fehlgeschlagen).</p>'
-                    . '<p style="margin: 0; color: #666;">Zeitpunkt: ' . e($now) . '</p>'
-                    . '</body></html>';
-            }
-
-            return response($html, 503)
-                ->header('Content-Type', 'text/html; charset=UTF-8')
-                ->header('Retry-After', '60');
-        }
-
-        // If no settings row exists yet, do nothing.
-        if (!$settings) {
-            return $next($request);
-        }
-
-        $maintenanceEnabled = (bool) $settings->maintenance_enabled;
+        $maintenanceEnabled = KsMaintenance::enabled();
 
         if (!$maintenanceEnabled) {
             return $next($request);
@@ -98,19 +43,8 @@ class MaintenanceMode
             $request->session()->forget('status');
         }
 
-        $allowAdmins = false;
-        $allowModerators = false;
-
-        try {
-            if (Schema::hasTable('system_settings')) {
-                $allowAdmins = (bool) SystemSettingHelper::get('maintenance.allow_admins', false);
-                $allowModerators = (bool) SystemSettingHelper::get('maintenance.allow_moderators', false);
-            }
-        } catch (\Throwable $e) {
-            // fail-closed
-            $allowAdmins = false;
-            $allowModerators = false;
-        }
+        $allowAdmins = KsMaintenance::allowAdmins();
+        $allowModerators = KsMaintenance::allowModerators();
 
         $isAllowedDuringMaintenance = function (?string $role) use ($allowAdmins, $allowModerators): bool {
             $role = mb_strtolower(trim((string) ($role ?? '')));
@@ -138,7 +72,7 @@ class MaintenanceMode
         // Break-glass bypass (level 3): allow everything for valid bypass cookie while maintenance is active.
         // Gilt nur in Production ODER wenn simulate_production aktiv ist.
         try {
-            if (Schema::hasTable('system_settings') && (bool) SystemSettingHelper::get('debug.break_glass', false)) {
+            if (Schema::hasTable('debug_settings') && (bool) SystemSettingHelper::get('debug.break_glass', false)) {
                 $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
                 $isProdEffective = app()->environment('production') || $simulateProd;
 
@@ -178,10 +112,11 @@ class MaintenanceMode
         );
 
         $isLogout = $request->is('logout');
+        $isMaintenanceLanding = $request->is('/');
 
         // Public allowlist during maintenance (public essentials + login/logout + health + break-glass)
         if (
-            $request->is('/') ||
+            $isMaintenanceLanding ||
             $request->is('contact') ||
             $request->is('impressum') ||
             $request->is('datenschutz') ||
@@ -197,7 +132,8 @@ class MaintenanceMode
             // If a non-whitelisted user is authenticated at ANY time during maintenance, block access but keep session.
             // Ausnahme: Noteinstieg muss auch dann erreichbar sein (Browser mit bestehender Session).
             // Ausnahme: Logout muss erreichbar sein.
-            if (auth()->check() && !$isAllowedDuringMaintenance((string) auth()->user()->role) && !$isNoteinstieg && !$isLogout) {
+            // Ausnahme: Maintenance Landing darf NICHT auf sich selbst redirecten (sonst 302-loop).
+            if (auth()->check() && !$isAllowedDuringMaintenance((string) auth()->user()->role) && !$isNoteinstieg && !$isLogout && !$isMaintenanceLanding) {
                 return redirect($maintenanceRedirectUrl);
             }
 

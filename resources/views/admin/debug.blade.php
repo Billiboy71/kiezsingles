@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\debug.blade.php
 Purpose: Admin Debug UI (toggles + log tail) – rendered via view() from routes/web/admin/debug.php
-Changed: 23-02-2026 17:56 (Europe/Berlin)
-Version: 0.3
+Changed: 27-02-2026 00:38 (Europe/Berlin)
+Version: 0.4
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -33,6 +33,9 @@ Version: 0.3
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -59,6 +62,9 @@ Version: 0.3
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -85,6 +91,9 @@ Version: 0.3
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -111,6 +120,9 @@ Version: 0.3
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -137,6 +149,9 @@ Version: 0.3
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -163,6 +178,9 @@ Version: 0.3
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
     </div>

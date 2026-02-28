@@ -3,12 +3,12 @@
 // File: C:\laragon\www\kiezsingles\routes\web\admin\status.php
 // Purpose: Admin live status endpoint (JSON for header auto-refresh)
 // Created: 16-02-2026 19:15 (Europe/Berlin)
-// Changed: 26-02-2026 00:17 (Europe/Berlin)
-// Version: 1.3
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 1.5
 // ============================================================================
 
+use App\Support\KsMaintenance;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/status', function () {
@@ -34,13 +34,7 @@ Route::get('/status', function () {
         $breakGlass = false;
         $env = 'prod';
 
-        // app_settings: maintenance_enabled
-        try {
-            $val = DB::table('app_settings')->value('maintenance_enabled');
-            $maintenance = (bool) $val;
-        } catch (\Throwable $e) {
-            $maintenance = false;
-        }
+        $maintenance = KsMaintenance::enabled();
 
         $debugAnyKeys = [
             'debug.ui_enabled',
@@ -65,7 +59,7 @@ Route::get('/status', function () {
 
         $settings = [];
         try {
-            $settings = DB::table('system_settings')
+            $settings = DB::table('debug_settings')
                 ->whereIn('key', $requiredKeys)
                 ->pluck('value', 'key')
                 ->all();

@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\home.blade.php
 Purpose: Admin landing (overview) – section-based navigation (no maintenance content)
-Changed: 25-02-2026 20:23 (Europe/Berlin)
-Version: 2.5
+Changed: 27-02-2026 00:39 (Europe/Berlin)
+Version: 2.6
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -83,7 +83,12 @@ Version: 2.5
         'moderation'   => 'moderation',
     ];
 
-    $canAccessSection = function (string $sectionKey) use ($adminModules, $sectionToModuleKey, $currentRoleNormalized, $maintenanceActive): bool {
+    $staffAllowedSections = array_values(array_unique(array_filter(array_map(
+        static fn ($key) => mb_strtolower(trim((string) $key)),
+        (array) ($staffAllowedSections ?? [])
+    ), static fn ($key) => $key !== '')));
+
+    $canAccessSection = function (string $sectionKey) use ($adminModules, $sectionToModuleKey, $maintenanceActive, $staffAllowedSections): bool {
         if (!isset($sectionToModuleKey[$sectionKey])) {
             return false;
         }
@@ -99,15 +104,7 @@ Version: 2.5
             return false;
         }
 
-        if (class_exists(\App\Support\Admin\AdminSectionAccess::class)) {
-            return \App\Support\Admin\AdminSectionAccess::canAccessSection(
-                (string) $currentRoleNormalized,
-                (string) $sectionKey,
-                (bool) $maintenanceActive
-            );
-        }
-
-        return true;
+        return in_array($sectionKey, $staffAllowedSections, true);
     };
 
     // Layout/Navigation-Context

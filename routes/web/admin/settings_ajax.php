@@ -2,13 +2,13 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\settings_ajax.php
 // Purpose: Admin settings save (AJAX) routes
-// Changed: 25-02-2026 20:24 (Europe/Berlin)
-// Version: 1.4
+// Changed: 27-02-2026 20:58 (Europe/Berlin)
+// Version: 1.8
 // ============================================================================
 
 use App\Mail\MaintenanceEndedMail;
 use App\Models\SystemSetting;
-use App\Support\SystemSettingHelper;
+use App\Support\KsMaintenance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
@@ -27,43 +27,60 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
     // (Keine versteckten abort_unless/auth-Guards in Route-Closures.)
 
-    if (!Schema::hasTable('app_settings')) {
-        return response()->json(['ok' => false, 'message' => 'app_settings fehlt'], 422);
+    if (!Schema::hasTable('maintenance_settings')) {
+        return response()->json(['ok' => false, 'message' => 'maintenance_settings fehlt'], 422);
     }
 
-    if (!Schema::hasTable('system_settings')) {
-        return response()->json(['ok' => false, 'message' => 'system_settings fehlt'], 422);
+    if (!Schema::hasTable('debug_settings')) {
+        return response()->json(['ok' => false, 'message' => 'debug_settings fehlt'], 422);
     }
 
-    $beforeRow = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-    $maintenanceBefore = $beforeRow ? (bool) ($beforeRow->maintenance_enabled ?? false) : false;
-    $notifyEnabledBefore = (bool) SystemSettingHelper::get('maintenance.notify_enabled', false);
+    $maintenanceBefore = KsMaintenance::enabled();
+    $notifyEnabledBefore = KsMaintenance::notifyEnabled();
 
-    $settingsRowExists = DB::table('app_settings')->select(['id'])->first();
+    $settingsRowExists = DB::table('maintenance_settings')->select(['id'])->first();
     if (!$settingsRowExists) {
-        DB::table('app_settings')->insert([
-            'maintenance_enabled' => 0,
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+        DB::table('maintenance_settings')->insert([
+            'enabled' => 0,
+            'show_eta' => 0,
+            'eta_at' => null,
+            'notify_enabled' => 0,
+            'allow_admins' => 0,
+            'allow_moderators' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 
-    $appSettingsUpdate = [];
+    $maintenanceSettingsUpdate = [];
 
-    $maintenanceEnabledProvided = $request->has('maintenance_enabled');
+    $maintenanceEnabledProvided = $request->has('enabled');
     $maintenanceRequested = $maintenanceBefore;
 
     if ($maintenanceEnabledProvided) {
-        $maintenanceRequested = $request->boolean('maintenance_enabled');
-        $appSettingsUpdate['maintenance_enabled'] = $maintenanceRequested ? 1 : 0;
+        $maintenanceRequested = $request->boolean('enabled');
+        $maintenanceSettingsUpdate['enabled'] = $maintenanceRequested ? 1 : 0;
     }
 
-    if ($request->has('maintenance_show_eta')) {
-        $appSettingsUpdate['maintenance_show_eta'] = $request->boolean('maintenance_show_eta') ? 1 : 0;
+    if ($request->has('show_eta')) {
+        $maintenanceSettingsUpdate['show_eta'] = $request->boolean('show_eta') ? 1 : 0;
     }
 
-    if (!empty($appSettingsUpdate)) {
-        DB::table('app_settings')->update($appSettingsUpdate);
+    if ($request->has('maintenance_notify_enabled')) {
+        $maintenanceSettingsUpdate['notify_enabled'] = $request->boolean('maintenance_notify_enabled') ? 1 : 0;
+    }
+
+    if ($request->has('maintenance_allow_admins')) {
+        $maintenanceSettingsUpdate['allow_admins'] = $request->boolean('maintenance_allow_admins') ? 1 : 0;
+    }
+
+    if ($request->has('maintenance_allow_moderators')) {
+        $maintenanceSettingsUpdate['allow_moderators'] = $request->boolean('maintenance_allow_moderators') ? 1 : 0;
+    }
+
+    if (!empty($maintenanceSettingsUpdate)) {
+        $maintenanceSettingsUpdate['updated_at'] = now();
+        DB::table('maintenance_settings')->update($maintenanceSettingsUpdate);
     }
 
     // Product rule: leaving maintenance disables debug switches server-side.
@@ -79,6 +96,9 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
             'debug.break_glass',
             'debug.simulate_production',
             'debug.local_banner_enabled',
+            'debug.layout_outlines_frontend_enabled',
+            'debug.layout_outlines_admin_enabled',
+            'debug.layout_outlines_allow_production',
         ];
 
         foreach ($resetDebugKeys as $k) {
@@ -87,27 +107,6 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
                 ['value' => '0', 'group' => 'debug', 'cast' => 'bool']
             );
         }
-    }
-
-    if ($request->has('maintenance_notify_enabled')) {
-        SystemSetting::updateOrCreate(
-            ['key' => 'maintenance.notify_enabled'],
-            ['value' => $request->boolean('maintenance_notify_enabled') ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
-        );
-    }
-
-    if ($request->has('maintenance_allow_admins')) {
-        SystemSetting::updateOrCreate(
-            ['key' => 'maintenance.allow_admins'],
-            ['value' => $request->boolean('maintenance_allow_admins') ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
-        );
-    }
-
-    if ($request->has('maintenance_allow_moderators')) {
-        SystemSetting::updateOrCreate(
-            ['key' => 'maintenance.allow_moderators'],
-            ['value' => $request->boolean('maintenance_allow_moderators') ? '1' : '0', 'group' => 'maintenance', 'cast' => 'bool']
-        );
     }
 
     if ($request->has('debug_ui_enabled')) {
@@ -189,8 +188,7 @@ Route::post('/settings/save-ajax', function (\Illuminate\Http\Request $request) 
         );
     }
 
-    $afterRow = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-    $maintenanceAfter = $afterRow ? (bool) ($afterRow->maintenance_enabled ?? false) : false;
+    $maintenanceAfter = KsMaintenance::enabled();
 
     // Wartungsende-Mails nur beim echten Übergang 1 -> 0 und nur wenn Notify davor aktiv war.
     if ($maintenanceBefore && !$maintenanceAfter && $notifyEnabledBefore) {

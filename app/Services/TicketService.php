@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\TicketService.php
 // Purpose: Central domain/service layer for Ticket workflows (create/reply/close).
-// Changed: 20-02-2026 17:35 (Europe/Berlin)
-// Version: 0.8
+// Changed: 27-02-2026 14:27 (Europe/Berlin)
+// Version: 1.0
 // ============================================================================
 
 namespace App\Services;
@@ -261,7 +261,7 @@ class TicketService
 
             $assignedAdmin = null;
             if ($assignedAdminUserId !== null) {
-                $assignedAdmin = $this->assertAdminUserId($assignedAdminUserId);
+                $assignedAdmin = $this->assertStaffAssigneeUserId($assignedAdminUserId);
             }
 
             $oldAssigned = $ticket->assigned_admin_user_id ?? null;
@@ -592,8 +592,20 @@ class TicketService
         $user = User::query()->findOrFail((int) $userId);
 
         $role = mb_strtolower(trim((string) ($user->role ?? '')));
-        if (!in_array($role, ['admin', 'superadmin'], true)) {
-            throw new RuntimeException('Admin privileges required.');
+        if (!in_array($role, ['moderator', 'admin', 'superadmin'], true)) {
+            throw new RuntimeException('Staff privileges required.');
+        }
+
+        return $user;
+    }
+
+    private function assertStaffAssigneeUserId(int $userId): User
+    {
+        $user = User::query()->findOrFail((int) $userId);
+
+        $role = mb_strtolower(trim((string) ($user->role ?? '')));
+        if (!in_array($role, ['moderator', 'admin', 'superadmin'], true)) {
+            throw new RuntimeException('Staff privileges required.');
         }
 
         return $user;

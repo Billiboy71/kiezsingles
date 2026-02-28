@@ -1,8 +1,8 @@
 {{-- ==========================================================================
 File: C:\laragon\www\kiezsingles\resources\views\layouts\navigation.blade.php
 Purpose: Navigation layout (guest-safe; no Auth::user() when not logged in)
-Changed: 25-02-2026 21:20 (Europe/Berlin)
-Version: 1.2
+Changed: 27-02-2026 23:27 (Europe/Berlin)
+Version: 1.3
 ========================================================================== --}}
 
 @php
@@ -85,8 +85,9 @@ Version: 1.2
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <x-dropdown-link
-                                    :href="route('logout')"
+                                    :href="'#'"
                                     data-ks-logout-link="1"
+                                    onclick="event.preventDefault(); this.closest('form').submit();"
                                 >
                                     {{ __('Log Out') }}
                                 </x-dropdown-link>
@@ -158,8 +159,9 @@ Version: 1.2
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <x-responsive-nav-link
-                            :href="route('logout')"
+                            :href="'#'"
                             data-ks-logout-link="1"
+                            onclick="event.preventDefault(); this.closest('form').submit();"
                         >
                             {{ __('Log Out') }}
                         </x-responsive-nav-link>

@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\maintenance.blade.php
 Purpose: Admin maintenance page (restored full maintenance + debug UI, based on historical routes/web.php UI)
-Changed: 25-02-2026 23:06 (Europe/Berlin)
-Version: 2.3
+Changed: 27-02-2026 19:15 (Europe/Berlin)
+Version: 2.6
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -38,9 +38,9 @@ Version: 2.3
     $maintenanceNotifyEnabled = (bool) ($maintenanceNotifyEnabled ?? false);
 
     // Wer darf sich im Wartungsmodus einloggen?
-    // Erwartet system_settings keys:
-    // - maintenance.allow_admins
-    // - maintenance.allow_moderators
+    // Erwartet maintenance_settings columns:
+    // - allow_admins
+    // - allow_moderators
     $maintenanceAllowAdmins = (bool) ($maintenanceAllowAdmins ?? false);
     $maintenanceAllowModerators = (bool) ($maintenanceAllowModerators ?? false);
 
@@ -82,13 +82,13 @@ Version: 2.3
 
         @if(!$hasSettingsTable)
             <p class="m-0 text-sm text-red-700">
-                Hinweis: Tabelle <code>app_settings</code> existiert nicht. Wartung kann hier nicht geschaltet werden.
+                Hinweis: Tabelle <code>maintenance_settings</code> existiert nicht. Wartung kann hier nicht geschaltet werden.
             </p>
         @endif
 
         @if(!$hasSystemSettingsTable)
             <p class="m-0 text-sm mt-2 text-red-700">
-                Hinweis: Tabelle <code>system_settings</code> existiert nicht. Debug-Schalter können nicht gespeichert werden.
+                Hinweis: Tabelle <code>debug_settings</code> existiert nicht. Debug-Schalter können nicht gespeichert werden.
             </p>
         @endif
 
@@ -110,7 +110,7 @@ Version: 2.3
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_enabled" name="maintenance_enabled" value="1" @checked($maintenanceEnabled) {!! $maintenanceDisabled !!}>
+                <input type="checkbox" id="enabled" name="enabled" value="1" form="ks_maintenance_noscript_settings_form" @checked($maintenanceEnabled) {!! $maintenanceDisabled !!}>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -125,7 +125,7 @@ Version: 2.3
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_show_eta" name="maintenance_show_eta" value="1" @checked($maintenanceShowEta) {!! $maintenanceDisabled !!}>
+                <input type="checkbox" id="show_eta" name="show_eta" value="1" form="ks_maintenance_noscript_eta_form" @checked($maintenanceShowEta) {!! $maintenanceDisabled !!}>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -137,6 +137,7 @@ Version: 2.3
                 type="date"
                 id="maintenance_eta_date"
                 name="maintenance_eta_date"
+                form="ks_maintenance_noscript_eta_form"
                 value="{{ $etaDateInputValue }}"
                 class="px-[12px] py-[10px] border border-gray-300 rounded-[10px] w-[170px] bg-white"
                 {!! $maintenanceDisabled !!}
@@ -145,6 +146,7 @@ Version: 2.3
                 type="time"
                 id="maintenance_eta_time"
                 name="maintenance_eta_time"
+                form="ks_maintenance_noscript_eta_form"
                 value="{{ $etaTimeInputValue }}"
                 class="px-[12px] py-[10px] border border-gray-300 rounded-[10px] w-[120px] bg-white"
                 {!! $maintenanceDisabled !!}
@@ -178,14 +180,14 @@ Version: 2.3
         <div class="ks-row mb-3">
             <div class="ks-label">
                 <div>
-                    <strong>E-Mail-Notify im Wartungsmodus</strong> <span class="text-gray-600">(<code>maintenance.notify_enabled</code>)</span>
+                    <strong>E-Mail-Notify im Wartungsmodus</strong> <span class="text-gray-600">(<code>maintenance_settings.notify_enabled</code>)</span>
                     <span class="ks-info" title="Zeigt im Wartungsmodus ein E-Mail-Feld auf der öffentlichen Wartungsseite. Wenn Wartung beendet wird, können gespeicherte Adressen benachrichtigt werden (serverseitig).">i</span>
                 </div>
                 <div class="ks-sub">Nur relevant, solange Wartung aktiv ist.</div>
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_notify_enabled" name="maintenance_notify_enabled" value="1" @checked($maintenanceNotifyEnabled) {!! $systemSettingsDisabled !!}>
+                <input type="checkbox" id="maintenance_notify_enabled" name="maintenance_notify_enabled" value="1" form="ks_maintenance_noscript_settings_form" @checked($maintenanceNotifyEnabled) {!! $systemSettingsDisabled !!}>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -196,14 +198,14 @@ Version: 2.3
         <div class="ks-row mb-3">
             <div class="ks-label">
                 <div>
-                    <strong>Admins dürfen sich einloggen</strong> <span class="text-gray-600">(<code>maintenance.allow_admins</code>)</span>
+                    <strong>Admins dürfen sich einloggen</strong> <span class="text-gray-600">(<code>maintenance_settings.allow_admins</code>)</span>
                     <span class="ks-info" title="Wenn aktiv: Rolle admin darf sich im Wartungsmodus einloggen. Superadmin ist immer erlaubt.">i</span>
                 </div>
                 <div class="ks-sub">Gilt nur, solange Wartung aktiv ist. Superadmin immer erlaubt.</div>
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_allow_admins" name="maintenance_allow_admins" value="1" @checked($maintenanceAllowAdmins) {!! $systemSettingsDisabled !!}>
+                <input type="checkbox" id="maintenance_allow_admins" name="maintenance_allow_admins" value="1" form="ks_maintenance_noscript_settings_form" @checked($maintenanceAllowAdmins) {!! $systemSettingsDisabled !!}>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -211,14 +213,14 @@ Version: 2.3
         <div class="ks-row mb-3">
             <div class="ks-label">
                 <div>
-                    <strong>Moderatoren dürfen sich einloggen</strong> <span class="text-gray-600">(<code>maintenance.allow_moderators</code>)</span>
+                    <strong>Moderatoren dürfen sich einloggen</strong> <span class="text-gray-600">(<code>maintenance_settings.allow_moderators</code>)</span>
                     <span class="ks-info" title="Wenn aktiv: Rolle moderator darf sich im Wartungsmodus einloggen (sonst ausgesperrt). Superadmin ist immer erlaubt.">i</span>
                 </div>
                 <div class="ks-sub">Gilt nur, solange Wartung aktiv ist.</div>
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="maintenance_allow_moderators" name="maintenance_allow_moderators" value="1" @checked($maintenanceAllowModerators) {!! $systemSettingsDisabled !!}>
+                <input type="checkbox" id="maintenance_allow_moderators" name="maintenance_allow_moderators" value="1" form="ks_maintenance_noscript_settings_form" @checked($maintenanceAllowModerators) {!! $systemSettingsDisabled !!}>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -237,7 +239,7 @@ Version: 2.3
                 </div>
 
                 <label class="ks-toggle ml-auto">
-                    <input type="checkbox" id="debug_simulate_production" name="debug_simulate_production" value="1" @checked($simulateProd) {!! $systemSettingsDisabled !!}>
+                    <input type="checkbox" id="debug_simulate_production" name="simulate_production" value="1" form="ks_maintenance_noscript_settings_form" @checked($simulateProd) {!! $systemSettingsDisabled !!}>
                     <span class="ks-slider"></span>
                 </label>
             </div>
@@ -253,7 +255,7 @@ Version: 2.3
             </div>
 
             <label class="ks-toggle ml-auto">
-                <input type="checkbox" id="debug_break_glass" name="debug_break_glass" value="1" @checked($breakGlassEnabled) {!! $systemSettingsDisabled !!}>
+                <input type="checkbox" id="debug_break_glass" name="break_glass_enabled" value="1" form="ks_maintenance_noscript_settings_form" @checked($breakGlassEnabled) {!! $systemSettingsDisabled !!}>
                 <span class="ks-slider"></span>
             </label>
         </div>
@@ -278,7 +280,8 @@ Version: 2.3
             <input
                 type="number"
                 id="debug_break_glass_ttl_minutes"
-                name="debug_break_glass_ttl_minutes"
+                name="break_glass_ttl_minutes"
+                form="ks_maintenance_noscript_settings_form"
                 min="1"
                 max="120"
                 value="{{ (string) $breakGlassTtlMinutes }}"
@@ -301,7 +304,7 @@ Version: 2.3
             </div>
         </div>
 
-        <input type="hidden" id="debug_break_glass_totp_secret" name="debug_break_glass_totp_secret" value="{{ $breakGlassTotpSecret }}" {!! $systemSettingsDisabled !!}>
+        <input type="hidden" id="debug_break_glass_totp_secret" name="break_glass_totp_secret" form="ks_maintenance_noscript_settings_form" value="{{ $breakGlassTotpSecret }}" {!! $systemSettingsDisabled !!}>
 
         <div
             id="break_glass_qr_modal"
@@ -335,6 +338,34 @@ Version: 2.3
                 >
             </div>
         </div>
+
+        <noscript>
+            <div class="mt-4 pt-4 border-t border-gray-200 flex gap-2 flex-wrap">
+                <form id="ks_maintenance_noscript_settings_form" method="POST" action="{{ route('admin.settings.save.ajax') }}" class="m-0">
+                    @csrf
+                    <input type="hidden" name="enabled" value="0">
+                    <input type="hidden" name="maintenance_notify_enabled" value="0">
+                    <input type="hidden" name="maintenance_allow_admins" value="0">
+                    <input type="hidden" name="maintenance_allow_moderators" value="0">
+                    @if(!$isProd)
+                        <input type="hidden" name="simulate_production" value="0">
+                    @endif
+                    <input type="hidden" name="break_glass_enabled" value="0">
+
+                    <button type="submit" class="px-[12px] py-[10px] rounded-[10px] border border-gray-900 bg-gray-900 text-white cursor-pointer">
+                        Einstellungen speichern (Fallback)
+                    </button>
+                </form>
+
+                <form id="ks_maintenance_noscript_eta_form" method="POST" action="{{ route('admin.maintenance.eta') }}" class="m-0">
+                    @csrf
+                    <input type="hidden" name="show_eta" value="0">
+                    <button type="submit" class="px-[12px] py-[10px] rounded-[10px] border border-gray-900 bg-gray-900 text-white cursor-pointer">
+                        ETA speichern (Fallback)
+                    </button>
+                </form>
+            </div>
+        </noscript>
 
     </div>
 

@@ -2,11 +2,12 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\home.php
 // Purpose: Admin landing routes (GET /admin) – overview only (maintenance moved to its own section routes)
-// Changed: 22-02-2026 23:00 (Europe/Berlin)
-// Version: 4.7
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 5.1
 // ============================================================================
 
 use App\Support\Admin\AdminSectionAccess;
+use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -22,20 +23,11 @@ $buildAdminContext = function (string $adminTab): array {
 
     $isSuperadminRole = ($roleNormalized === AdminSectionAccess::ROLE_SUPERADMIN);
 
-    $hasSettingsTable = Schema::hasTable('app_settings');
-    $settings = null;
+    $hasSettingsTable = Schema::hasTable('maintenance_settings');
 
-    if ($hasSettingsTable) {
-        $settings = DB::table('app_settings')->select([
-            'maintenance_enabled',
-            'maintenance_show_eta',
-            'maintenance_eta_at',
-        ])->first();
-    }
-
-    $maintenanceEnabled  = $settings ? (bool) $settings->maintenance_enabled : false;
-    $maintenanceShowEta  = $settings ? (bool) $settings->maintenance_show_eta : false;
-    $maintenanceEtaAt    = (string) ($settings->maintenance_eta_at ?? '');
+    $maintenanceEnabled  = KsMaintenance::enabled();
+    $maintenanceShowEta  = KsMaintenance::showEta();
+    $maintenanceEtaAt    = (string) (KsMaintenance::etaAt() ?? '');
 
     $etaDateValue = '';
     $etaTimeValue = '';
@@ -51,7 +43,7 @@ $buildAdminContext = function (string $adminTab): array {
         }
     }
 
-    $hasSystemSettingsTable = Schema::hasTable('system_settings');
+    $hasSystemSettingsTable = Schema::hasTable('debug_settings');
 
     $debugUiEnabled = false;
     $debugRoutesEnabled = false;
@@ -80,7 +72,7 @@ $buildAdminContext = function (string $adminTab): array {
 
         $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
 
-        $maintenanceNotifyEnabled = (bool) SystemSettingHelper::get('maintenance.notify_enabled', false);
+        $maintenanceNotifyEnabled = KsMaintenance::notifyEnabled();
 
         if ($breakGlassTtlMinutes < 1) {
             $breakGlassTtlMinutes = 1;
@@ -192,6 +184,41 @@ $buildAdminContext = function (string $adminTab): array {
         }
     }
 
+    // SSOT-driven overview visibility:
+    // - superadmin: all available modules
+    // - admin/moderator: overview always + explicitly allowed module keys from staff_permissions
+    $staffAllowedSections = ['overview'];
+    if ($roleNormalized === AdminSectionAccess::ROLE_SUPERADMIN) {
+        $staffAllowedSections = [];
+        foreach ($adminNavItems as $item) {
+            $k = mb_strtolower(trim((string) ($item['key'] ?? '')));
+            if ($k !== '') {
+                $staffAllowedSections[] = $k;
+            }
+        }
+        if (!in_array('overview', $staffAllowedSections, true)) {
+            $staffAllowedSections[] = 'overview';
+        }
+    } elseif (in_array($roleNormalized, [AdminSectionAccess::ROLE_ADMIN, AdminSectionAccess::ROLE_MODERATOR], true)) {
+        if (Schema::hasTable('staff_permissions')) {
+            try {
+                $extraAllowed = DB::table('staff_permissions')
+                    ->where('user_id', (int) (auth()->user()?->id ?? 0))
+                    ->where('allowed', true)
+                    ->pluck('module_key')
+                    ->map(static fn ($key) => mb_strtolower(trim((string) $key)))
+                    ->filter(static fn ($key) => $key !== '')
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $staffAllowedSections = array_values(array_unique(array_merge($staffAllowedSections, $extraAllowed)));
+            } catch (\Throwable $e) {
+                $staffAllowedSections = ['overview'];
+            }
+        }
+    }
+
     $localRouteDebug = null;
     if (app()->isLocal()) {
         $current = Route::current();
@@ -248,6 +275,7 @@ $buildAdminContext = function (string $adminTab): array {
         'adminShowDebugTab' => ($isSuperadminRole ? true : false),
 
         'adminNavItems' => $adminNavItems,
+        'staffAllowedSections' => $staffAllowedSections,
 
         // LOCAL only: debugability for admin header (route name/url/middleware)
         'localRouteDebug' => $localRouteDebug,

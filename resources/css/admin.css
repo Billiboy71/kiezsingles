@@ -1,8 +1,8 @@
 /* ============================================================================
 File: C:\laragon\www\kiezsingles\resources\css\admin.css
 Purpose: Admin-only Tailwind entry + shared admin component styles (ks-*)
-Changed: 23-02-2026 20:52 (Europe/Berlin)
-Version: 0.4
+Changed: 27-02-2026 14:33 (Europe/Berlin)
+Version: 0.5
 ============================================================================ */
 
 @tailwind base;
@@ -96,6 +96,22 @@ Version: 0.4
 
     .ks-status-card--maintenance { border-color:#fecaca; background:#fff5f5; }
     .ks-status-card--live { border-color:#bbf7d0; background:#f0fff4; }
+
+    /* =========================================================================
+       Admin Ticket Detail – small alignment fixes (scoped)
+       ========================================================================= */
+
+    /* Top meta boxes (Typ/Kategorie/Priorität/Ersteller/Gemeldet/Bearbeiter):
+       - label ("Typ" etc.) left-aligned (not centered)
+       - value line normalized to block + consistent line-height (fixes "Ersteller" appearing lower) */
+    .ks-admin-ticket-show .ks-card .flex.gap-2\.5.items-stretch.flex-wrap.mb-2\.5 > div > b {
+        text-align: left;
+    }
+    .ks-admin-ticket-show .ks-card .flex.gap-2\.5.items-stretch.flex-wrap.mb-2\.5 > div > a,
+    .ks-admin-ticket-show .ks-card .flex.gap-2\.5.items-stretch.flex-wrap.mb-2\.5 > div > span {
+        display: block;
+        line-height: 1.15;
+    }
 
     /* =========================================================================
        Admin Tickets Index – extracted from admin/tickets/index.blade.php

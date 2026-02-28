@@ -1,9 +1,9 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureSectionAccess.php
-// Purpose: Enforce backend section access server-side (admin full; moderator via DB whitelist; fail-closed)
-// Changed: 25-02-2026 12:27 (Europe/Berlin)
-// Version: 1.7
+// Purpose: Enforce backend section access server-side via staff_permissions SSOT (fail-closed for staff)
+// Changed: 27-02-2026 00:39 (Europe/Berlin)
+// Version: 2.0
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -38,32 +38,41 @@ class EnsureSectionAccess
         // SSOT: auth is enforced via route middleware stack. If missing, fail-closed here.
         abort_unless(auth()->check(), 403);
 
-        // Fail-closed: if autoload/namespace is broken, do not allow access.
-        if (!class_exists(\App\Support\Admin\AdminSectionAccess::class)) {
-            abort(503);
-        }
+        $user = auth()->user();
 
-        $role = (string) (auth()->user()->role ?? 'user');
-        $role = \App\Support\Admin\AdminSectionAccess::normalizeRole($role);
+        $role = mb_strtolower(trim((string) ($user->role ?? 'user')));
+        if (!in_array($role, ['admin', 'superadmin', 'moderator'], true)) {
+            abort(403);
+        }
 
         $originalSectionKey = $sectionKey;
-
-        $sectionKey = \App\Support\Admin\AdminSectionAccess::normalizeSectionKey($sectionKey);
-
-        $maintenanceEnabled = false;
-
-        try {
-            if (Schema::hasTable('app_settings')) {
-                $row = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-                $maintenanceEnabled = $row ? (bool) ($row->maintenance_enabled ?? false) : false;
-            }
-        } catch (\Throwable $e) {
-            // fail-closed
-            $maintenanceEnabled = false;
+        $sectionKey = mb_strtolower(trim((string) $sectionKey));
+        if ($sectionKey === '') {
+            $sectionKey = 'overview';
         }
 
         try {
-            \App\Support\Admin\AdminSectionAccess::requireSection($role, $sectionKey, $maintenanceEnabled, auth()->user());
+            // Failsafe: superadmin must never be locked out by module rows.
+            if ($role !== 'superadmin') {
+                // Overview stays reachable for staff and is not module-managed.
+                if ($sectionKey === 'overview') {
+                    return $next($request);
+                }
+
+                // Fail-closed for staff if permission source is missing/unreadable.
+                if (!Schema::hasTable('staff_permissions')) {
+                    abort(403);
+                }
+
+                $isAllowed = DB::table('staff_permissions')
+                    ->where('user_id', (int) $user->id)
+                    ->where('module_key', $sectionKey)
+                    ->where('allowed', true)
+                    ->exists();
+
+                // Fail-closed for staff: no row means no access.
+                abort_unless($isAllowed, 403);
+            }
         } catch (HttpException $e) {
             // LOCAL diagnostics: expose why we 403'd via headers (no behavior change in prod).
             // IMPORTANT: Do NOT return a plain "Forbidden" response here, otherwise the global 403 rendering
@@ -74,6 +83,7 @@ class EnsureSectionAccess
                     'X-KS-Section' => (string) $sectionKey,
                     'X-KS-Section-Original' => (string) $originalSectionKey,
                     'X-KS-Path' => (string) $request->path(),
+                    'X-KS-Access-SSOT' => 'staff_permissions',
                 ];
 
                 throw new HttpException(403, $e->getMessage() ?: 'Forbidden', $e, $headers, $e->getCode());

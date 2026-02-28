@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\header.blade.php
 Purpose: Admin header (top area: title/status/actions + admin navigation include)
-Changed: 26-02-2026 00:12 (Europe/Berlin)
-Version: 1.8
+Changed: 27-02-2026 21:31 (Europe/Berlin)
+Version: 2.3
 ============================================================================ --}}
 
 @php
@@ -17,6 +17,7 @@ Version: 1.8
     $adminDebugUrl = \Illuminate\Support\Facades\Route::has('admin.debug') ? route('admin.debug') : '';
 
     $adminStatusUrl = \Illuminate\Support\Facades\Route::has('admin.status') ? route('admin.status') : url('/admin/status');
+    $breakGlassRouteEnabled = \Illuminate\Support\Facades\Route::has('noteinstieg.show');
 
     $adminTab = $adminTab ?? 'overview';
     $adminNavItems = $adminNavItems ?? [];
@@ -44,6 +45,10 @@ Version: 1.8
 
     $adminTopNavItems = [];
     foreach ($adminTopNavKeys as $key) {
+        if (!$maintenanceEnabledFlag && ($key === 'debug' || $key === 'develop')) {
+            continue;
+        }
+
         $allowed = false;
         if (class_exists(\App\Support\Admin\AdminSectionAccess::class)) {
             $allowed = \App\Support\Admin\AdminSectionAccess::canAccessSection(
@@ -81,9 +86,9 @@ Version: 1.8
     }
     $adminTopNavOrder = [
         'maintenance' => 10,
-        'moderation' => 20,
-        'debug' => 30,
-        'develop' => 40,
+        'debug' => 20,
+        'develop' => 30,
+        'moderation' => 40,
     ];
     usort($adminTopNavItems, function ($a, $b) use ($adminTopNavOrder) {
         $ka = (string) ($a['key'] ?? '');
@@ -138,17 +143,66 @@ Version: 1.8
 
 <header class="bg-white border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div class="{{ $showAdminOutlines ? 'relative border-2 border-dashed border-cyan-400' : '' }}">
+        <div class="{{ $showAdminOutlines ? 'relative border-2 border-dashed border-lime-400' : '' }}">
+            @if($showAdminOutlines)
+                <div class="absolute -top-3 left-2 bg-lime-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-STATUSHEADER</div>
+            @endif
+
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold text-gray-900">
+                        {{ $ksRoleLabel }}
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 flex-wrap ml-auto">
+                    @if($currentRoleNormalized === 'superadmin')
+                        {{-- BREAK-GLASS --}}
+                        <span
+                            id="ks_admin_badge_break_glass"
+                            class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-amber-500 {{ ($breakGlassActiveFlag && $breakGlassRouteEnabled) ? '' : 'hidden' }}"
+                            data-active="{{ ($breakGlassActiveFlag && $breakGlassRouteEnabled) ? '1' : '0' }}"
+                        >
+                            BREAK-GLASS
+                        </span>
+
+                        {{-- ENV (u.a. PROD-SIM) --}}
+                        <span
+                            id="ks_admin_badge_env"
+                            class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white {{ $envBadgeClass }}"
+                            data-env="{{ $envMode }}"
+                        >
+                            {{ $envLabel }}
+                        </span>
+
+                        {{-- DEBUG --}}
+                        <span
+                            id="ks_admin_badge_debug"
+                            class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '' : 'hidden' }}"
+                            data-active="{{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '1' : '0' }}"
+                        >
+                            DEBUG
+                        </span>
+                    @endif
+
+                    {{-- WARTUNG --}}
+                    <span
+                        id="ks_admin_badge_maintenance"
+                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ $maintenanceEnabledFlag ? '' : 'hidden' }}"
+                    >
+                        WARTUNG
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3 {{ $showAdminOutlines ? 'relative border-2 border-dashed border-cyan-400' : '' }}">
             @if($showAdminOutlines)
                 <div class="absolute -top-3 left-2 bg-cyan-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-TOPHEADER</div>
             @endif
 
             <div class="flex items-center justify-between gap-4 flex-wrap">
                 <div class="min-w-0 flex items-center gap-3 flex-wrap">
-                    <div class="text-sm font-semibold text-gray-900">
-                        {{ $ksRoleLabel }}
-                    </div>
-
                     @if(count($adminTopNavItems) > 0)
                         <div class="flex gap-2 flex-wrap">
                             @foreach($adminTopNavItems as $item)
@@ -179,41 +233,6 @@ Version: 1.8
                 </div>
 
                 <div class="flex items-center gap-2 flex-wrap justify-end">
-                    {{-- WARTUNG --}}
-                    <span
-                        id="ks_admin_badge_maintenance"
-                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ $maintenanceEnabledFlag ? '' : 'hidden' }}"
-                    >
-                        WARTUNG
-                    </span>
-
-                    {{-- DEBUG --}}
-                    <span
-                        id="ks_admin_badge_debug"
-                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-red-500 {{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '' : 'hidden' }}"
-                        data-active="{{ ($debugBadgeActiveFlag && $maintenanceEnabledFlag) ? '1' : '0' }}"
-                    >
-                        DEBUG
-                    </span>
-
-                    {{-- BREAK-GLASS --}}
-                    <span
-                        id="ks_admin_badge_break_glass"
-                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white bg-amber-500 {{ $breakGlassActiveFlag ? '' : 'hidden' }}"
-                        data-active="{{ $breakGlassActiveFlag ? '1' : '0' }}"
-                    >
-                        BREAK-GLASS
-                    </span>
-
-                    {{-- ENV --}}
-                    <span
-                        id="ks_admin_badge_env"
-                        class="inline-flex items-center justify-center px-4 py-1 rounded-full text-xs font-extrabold text-white {{ $envBadgeClass }}"
-                        data-env="{{ $envMode }}"
-                    >
-                        {{ $envLabel }}
-                    </span>
-
                     <a
                         href="{{ $backToAppUrl }}"
                         class="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
@@ -238,7 +257,7 @@ Version: 1.8
 
         <div class="mt-3 {{ $showAdminOutlines ? 'relative border-2 border-dashed border-amber-400' : '' }}" id="ks_admin_nav" data-ks-admin-status-url="{{ $adminStatusUrl }}">
             @if($showAdminOutlines)
-                <div class="absolute -top-3 left-2 bg-amber-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-NAV</div>
+                <div class="absolute -top-3 left-2 bg-amber-500 text-white text-[10px] leading-none px-2 py-1 rounded">ADMIN-NAVHEADER</div>
             @endif
 
             @include('admin.layouts.navigation', [

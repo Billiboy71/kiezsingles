@@ -1,3 +1,7 @@
+
+
+
+
 <?php
     $adminTab = 'develop';
     $hasSystemSettingsTable = $hasSystemSettingsTable ?? true;
@@ -23,7 +27,7 @@
 
         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(!$hasSystemSettingsTable): ?>
             <p class="m-0 text-sm text-red-700 mb-3">
-                Hinweis: Tabelle <code>system_settings</code> fehlt. Speichern nicht möglich.
+                Hinweis: Tabelle <code>debug_settings</code> fehlt. Speichern nicht möglich.
             </p>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
@@ -50,6 +54,9 @@
                         >
                         <span class="ks-slider"></span>
                     </label>
+                    <noscript>
+                        <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900" <?php if(!$hasSystemSettingsTable): echo 'disabled'; endif; ?>>Speichern</button>
+                    </noscript>
                 </form>
             </div>
 
@@ -75,6 +82,9 @@
                         >
                         <span class="ks-slider"></span>
                     </label>
+                    <noscript>
+                        <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900" <?php if(!$hasSystemSettingsTable): echo 'disabled'; endif; ?>>Speichern</button>
+                    </noscript>
                 </form>
             </div>
 
@@ -100,9 +110,13 @@
                         >
                         <span class="ks-slider"></span>
                     </label>
+                    <noscript>
+                        <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900" <?php if(!$hasSystemSettingsTable || !$maintenanceEnabled): echo 'disabled'; endif; ?>>Speichern</button>
+                    </noscript>
                 </form>
             </div>
         </div>
     </div>
 <?php $__env->stopSection(); ?>
+
 <?php echo $__env->make('admin.layouts.admin', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/develop.blade.php ENDPATH**/ ?>

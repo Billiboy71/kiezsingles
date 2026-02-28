@@ -2,12 +2,13 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\debug_system.php
 // Purpose: Debug + Noteinstieg + Wartungs-preview + maintenance-notify routes
-// Changed: 22-02-2026 15:02 (Europe/Berlin)
-// Version: 0.8
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 1.1
 // ============================================================================
 
 use App\Support\Admin\AdminSectionAccess;
 use App\Mail\MaintenanceEndedMail;
+use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,8 +22,8 @@ use Illuminate\Support\Facades\Schema;
 |--------------------------------------------------------------------------
 | Aktiv nur wenn:
 | - SystemSettingHelper::debugUiAllowed() == true
-|   (env gate + app_settings.maintenance_enabled + system_settings.debug.ui_enabled)
-| - system_settings.debug.routes_enabled == true
+|   (env gate + maintenance_settings.enabled + debug_settings.debug.ui_enabled)
+| - debug_settings.debug.routes_enabled == true
 */
 $debugRoutesEnabled = SystemSettingHelper::debugUiAllowed()
     && (
@@ -81,8 +82,8 @@ if ($debugRoutesEnabled) {
 | Noteinstieg (Ebene 3) – separat vom Admin-Backend
 |--------------------------------------------------------------------------
 | Zugriff nur wenn:
-| - app_settings.maintenance_enabled == true
-| - system_settings.debug.break_glass == true
+| - maintenance_settings.enabled == true
+| - debug_settings.debug.break_glass == true
 | - NUR Production ODER simulate_production == true
 | Kein Login nötig
 */
@@ -94,12 +95,7 @@ Route::get('/noteinstieg', function (Request $request) {
         abort(404);
     }
 
-    if (!Schema::hasTable('app_settings')) {
-        abort(404);
-    }
-
-    $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-    if (!$settings || !(bool) $settings->maintenance_enabled) {
+    if (!KsMaintenance::enabled()) {
         abort(404);
     }
 
@@ -129,12 +125,7 @@ Route::post('/noteinstieg', function (Request $request) {
         abort(404);
     }
 
-    if (!Schema::hasTable('app_settings')) {
-        abort(404);
-    }
-
-    $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-    if (!$settings || !(bool) $settings->maintenance_enabled) {
+    if (!KsMaintenance::enabled()) {
         abort(404);
     }
 
@@ -322,8 +313,8 @@ Route::post('/noteinstieg', function (Request $request) {
 | Noteinstieg Entry (Ebene 3) – Einstieg/Hub
 |--------------------------------------------------------------------------
 | Zugriff nur wenn:
-| - app_settings.maintenance_enabled == true
-| - system_settings.debug.break_glass == true
+| - maintenance_settings.enabled == true
+| - debug_settings.debug.break_glass == true
 | - NUR Production ODER simulate_production == true
 | - Cookie kiez_break_glass existiert und ist nicht abgelaufen
 | Sonst: 404
@@ -336,12 +327,7 @@ Route::get('/noteinstieg-einstieg', function (Request $request) {
         abort(404);
     }
 
-    if (!Schema::hasTable('app_settings')) {
-        abort(404);
-    }
-
-    $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-    if (!$settings || !(bool) $settings->maintenance_enabled) {
+    if (!KsMaintenance::enabled()) {
         abort(404);
     }
 
@@ -388,12 +374,7 @@ Route::get('/noteinstieg-wartung', function (Request $request) {
         abort(404);
     }
 
-    if (!Schema::hasTable('app_settings')) {
-        abort(404);
-    }
-
-    $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-    if (!$settings || !(bool) $settings->maintenance_enabled) {
+    if (!KsMaintenance::enabled()) {
         abort(404);
     }
 
@@ -430,35 +411,14 @@ Route::get('/noteinstieg-wartung', function (Request $request) {
 */
 Route::post('/maintenance-notify', function (Request $request) {
     try {
-        if (!Schema::hasTable('app_settings')) {
-            return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
-        }
-
-        $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-        if (!$settings || !(bool) $settings->maintenance_enabled) {
+        if (!KsMaintenance::enabled()) {
             return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
         }
     } catch (\Throwable $e) {
         return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');
     }
 
-    $notifyEnabled = false;
-
-    try {
-        if (Schema::hasTable('system_settings')) {
-            $row = DB::table('system_settings')
-                ->select(['value'])
-                ->where('key', 'maintenance.notify_enabled')
-                ->first();
-
-            $val = $row ? (string) ($row->value ?? '') : '';
-            $val = trim($val);
-
-            $notifyEnabled = ($val === '1' || strtolower($val) === 'true');
-        }
-    } catch (\Throwable $e) {
-        $notifyEnabled = false;
-    }
+    $notifyEnabled = KsMaintenance::notifyEnabled();
 
     if (!$notifyEnabled) {
         return redirect('/')->with('maintenance_notify_error', 'Nicht verfügbar.');

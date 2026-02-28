@@ -2,11 +2,12 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\debug.php
 // Purpose: Admin Debug & Bugs (DB/SystemSettings toggles + diagnostics)
-// Changed: 23-02-2026 16:06 (Europe/Berlin)
-// Version: 2.0
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 2.2
 // ============================================================================
 
 use App\Support\Admin\AdminSectionAccess;
+use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
@@ -31,26 +32,8 @@ use Illuminate\Support\Facades\Schema;
 |
 */
 
-$getMaintenanceEnabledTriState = function (): ?bool {
-    try {
-        if (!Schema::hasTable('app_settings')) {
-            return null;
-        }
-
-        $row = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-        if (!$row) {
-            return null;
-        }
-
-        return (bool) ($row->maintenance_enabled ?? false);
-    } catch (\Throwable $e) {
-        return null;
-    }
-};
-
-$enforceMaintenanceCoupling = function () use ($getMaintenanceEnabledTriState) {
-    // Fail-closed nur, wenn Wartungsstatus sicher "aus" ist.
-    $maintenanceEnabled = $getMaintenanceEnabledTriState();
+$enforceMaintenanceCoupling = function () {
+    $maintenanceEnabled = KsMaintenance::enabled();
 
     if ($maintenanceEnabled === false) {
         return redirect('/admin/maintenance');
@@ -65,24 +48,14 @@ Route::get('/debug', function (Request $request) use ($enforceMaintenanceCouplin
         return $gate;
     }
 
-    $maintenanceEnabled = null;
-    try {
-        if (Schema::hasTable('app_settings')) {
-            $row = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-            if ($row) {
-                $maintenanceEnabled = (bool) ($row->maintenance_enabled ?? false);
-            }
-        }
-    } catch (\Throwable $e) {
-        $maintenanceEnabled = null;
-    }
+    $maintenanceEnabled = KsMaintenance::enabled();
 
     $getBool = function (string $key, bool $default = false): bool {
         try {
-            if (!Schema::hasTable('system_settings')) {
+            if (!Schema::hasTable('debug_settings')) {
                 return $default;
             }
-            $row = DB::table('system_settings')->select(['value'])->where('key', $key)->first();
+            $row = DB::table('debug_settings')->select(['value'])->where('key', $key)->first();
             if (!$row) {
                 return $default;
             }
@@ -249,11 +222,11 @@ Route::post('/debug/toggle', function (Request $request) use ($enforceMaintenanc
     $bool = ($val === '1' || strtolower($val) === 'true');
 
     try {
-        if (!Schema::hasTable('system_settings')) {
+        if (!Schema::hasTable('debug_settings')) {
             return redirect('/admin/debug');
         }
 
-        DB::table('system_settings')->updateOrInsert(
+        DB::table('debug_settings')->updateOrInsert(
             ['key' => $key],
             [
                 'value' => $bool ? '1' : '0',
@@ -265,7 +238,7 @@ Route::post('/debug/toggle', function (Request $request) use ($enforceMaintenanc
 
         // Keep legacy aliases in sync to avoid key drift in DB diagnostics.
         if ($key === 'debug.routes_enabled') {
-            DB::table('system_settings')->updateOrInsert(
+            DB::table('debug_settings')->updateOrInsert(
                 ['key' => 'debug.routes'],
                 [
                     'value' => $bool ? '1' : '0',
@@ -277,7 +250,7 @@ Route::post('/debug/toggle', function (Request $request) use ($enforceMaintenanc
         }
 
         if ($key === 'debug.turnstile_enabled') {
-            DB::table('system_settings')->updateOrInsert(
+            DB::table('debug_settings')->updateOrInsert(
                 ['key' => 'debug.turnstile'],
                 [
                     'value' => $bool ? '1' : '0',

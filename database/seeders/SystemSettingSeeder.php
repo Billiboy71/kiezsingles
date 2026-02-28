@@ -1,9 +1,9 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\database\seeders\SystemSettingsSeeder.php
-// Purpose: Ensure required system_settings keys exist with safe defaults (fail-closed)
-// Changed: 16-02-2026 22:07 (Europe/Berlin)
-// Version: 0.1
+// Purpose: Ensure required debug_settings keys exist with safe defaults (fail-closed)
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 namespace Database\Seeders;
@@ -16,20 +16,16 @@ class SystemSettingsSeeder extends Seeder
 {
     public function run(): void
     {
-        if (!Schema::hasTable('system_settings')) {
+        if (!Schema::hasTable('debug_settings')) {
             return;
         }
 
-        $hasCreatedAt = Schema::hasColumn('system_settings', 'created_at');
-        $hasUpdatedAt = Schema::hasColumn('system_settings', 'updated_at');
+        $hasCreatedAt = Schema::hasColumn('debug_settings', 'created_at');
+        $hasUpdatedAt = Schema::hasColumn('debug_settings', 'updated_at');
 
         $now = now();
 
-        $defaults = [
-            // Wartungsmodus-Whitelist (fail-closed defaults)
-            'maintenance.allow_admins' => '0',
-            'maintenance.allow_moderators' => '0',
-        ];
+        $defaults = [];
 
         foreach ($defaults as $key => $value) {
             $insert = [
@@ -52,7 +48,7 @@ class SystemSettingsSeeder extends Seeder
                 $update['updated_at'] = $now;
             }
 
-            DB::table('system_settings')->updateOrInsert(
+            DB::table('debug_settings')->updateOrInsert(
                 ['key' => (string) $key],
                 array_merge($insert, $update)
             );

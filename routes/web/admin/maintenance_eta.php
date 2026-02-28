@@ -2,10 +2,11 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\maintenance_eta.php
 // Purpose: Admin maintenance (GET /admin/maintenance) + ETA routes (AJAX + form)
-// Changed: 25-02-2026 15:30 (Europe/Berlin)
-// Version: 1.5
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 1.8
 // ============================================================================
 
+use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -15,20 +16,11 @@ $buildMaintenanceContext = function (): array {
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
     // (Keine versteckten abort_unless/auth-Guards in Context-Buildern.)
 
-    $hasSettingsTable = Schema::hasTable('app_settings');
-    $settings = null;
+    $hasSettingsTable = Schema::hasTable('maintenance_settings');
 
-    if ($hasSettingsTable) {
-        $settings = DB::table('app_settings')->select([
-            'maintenance_enabled',
-            'maintenance_show_eta',
-            'maintenance_eta_at',
-        ])->first();
-    }
-
-    $maintenanceEnabled  = $settings ? (bool) $settings->maintenance_enabled : false;
-    $maintenanceShowEta  = $settings ? (bool) $settings->maintenance_show_eta : false;
-    $maintenanceEtaAt    = (string) ($settings->maintenance_eta_at ?? '');
+    $maintenanceEnabled  = KsMaintenance::enabled();
+    $maintenanceShowEta  = KsMaintenance::showEta();
+    $maintenanceEtaAt    = (string) (KsMaintenance::etaAt() ?? '');
 
     $etaDateValue = '';
     $etaTimeValue = '';
@@ -50,7 +42,7 @@ $buildMaintenanceContext = function (): array {
         }
     }
 
-    $hasSystemSettingsTable = Schema::hasTable('system_settings');
+    $hasSystemSettingsTable = Schema::hasTable('debug_settings');
 
     $debugUiEnabled = false;
     $debugRoutesEnabled = false;
@@ -75,10 +67,9 @@ $buildMaintenanceContext = function (): array {
 
         $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
 
-        $maintenanceNotifyEnabled = (bool) SystemSettingHelper::get('maintenance.notify_enabled', false);
-
-        $maintenanceAllowAdmins = (bool) SystemSettingHelper::get('maintenance.allow_admins', false);
-        $maintenanceAllowModerators = (bool) SystemSettingHelper::get('maintenance.allow_moderators', false);
+        $maintenanceNotifyEnabled = KsMaintenance::notifyEnabled();
+        $maintenanceAllowAdmins = KsMaintenance::allowAdmins();
+        $maintenanceAllowModerators = KsMaintenance::allowModerators();
 
         if ($breakGlassTtlMinutes < 1) {
             $breakGlassTtlMinutes = 1;
@@ -252,43 +243,42 @@ Route::get('/maintenance', function () use ($buildMaintenanceContext) {
 Route::post('/maintenance/eta-ajax', function (\Illuminate\Http\Request $request) {
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
 
-    if (!Schema::hasTable('app_settings')) {
-        return response()->json(['ok' => false, 'message' => 'app_settings fehlt'], 422);
+    if (!Schema::hasTable('maintenance_settings')) {
+        return response()->json(['ok' => false, 'message' => 'maintenance_settings fehlt'], 422);
     }
 
-    $settings = DB::table('app_settings')->select([
-        'maintenance_enabled',
-        'maintenance_show_eta',
-        'maintenance_eta_at',
+    $settings = DB::table('maintenance_settings')->select([
+        'show_eta',
+        'eta_at',
     ])->first();
 
     if (!$settings) {
         $insert = [
-            'maintenance_enabled' => 0,
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+            'enabled' => 0,
+            'show_eta' => 0,
+            'eta_at' => null,
         ];
 
         $now = \Illuminate\Support\Carbon::now();
-        if (Schema::hasColumn('app_settings', 'created_at') && !array_key_exists('created_at', $insert)) {
+        if (Schema::hasColumn('maintenance_settings', 'created_at') && !array_key_exists('created_at', $insert)) {
             $insert['created_at'] = $now;
         }
-        if (Schema::hasColumn('app_settings', 'updated_at') && !array_key_exists('updated_at', $insert)) {
+        if (Schema::hasColumn('maintenance_settings', 'updated_at') && !array_key_exists('updated_at', $insert)) {
             $insert['updated_at'] = $now;
         }
 
-        DB::table('app_settings')->insert($insert);
+        DB::table('maintenance_settings')->insert($insert);
 
         $settings = (object) [
-            'maintenance_enabled' => 0,
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+            'enabled' => 0,
+            'show_eta' => 0,
+            'eta_at' => null,
         ];
     }
 
-    $maintenanceEnabled = (bool) ($settings->maintenance_enabled ?? false);
+    $maintenanceEnabled = KsMaintenance::enabled();
 
-    $showEta = (bool) $request->input('maintenance_show_eta', false);
+    $showEta = (bool) $request->input('show_eta', false);
 
     $etaDate = (string) $request->input('maintenance_eta_date', '');
     $etaDate = trim($etaDate);
@@ -298,9 +288,9 @@ Route::post('/maintenance/eta-ajax', function (\Illuminate\Http\Request $request
 
     // Wenn Wartung aus: ETA immer hart aus (UI sollte das zwar verhindern, aber serverseitig stabilisieren)
     if (!$maintenanceEnabled) {
-        DB::table('app_settings')->update([
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+        DB::table('maintenance_settings')->update([
+            'show_eta' => 0,
+            'eta_at' => null,
         ]);
 
         return response()->json(['ok' => true]);
@@ -314,9 +304,9 @@ Route::post('/maintenance/eta-ajax', function (\Illuminate\Http\Request $request
 
     // Wenn Anzeige aus: ETA hart löschen
     if (!$showEta) {
-        DB::table('app_settings')->update([
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+        DB::table('maintenance_settings')->update([
+            'show_eta' => 0,
+            'eta_at' => null,
         ]);
 
         return response()->json(['ok' => true]);
@@ -350,9 +340,9 @@ Route::post('/maintenance/eta-ajax', function (\Illuminate\Http\Request $request
         return response()->json(['ok' => false, 'message' => 'Bitte ein Datum setzen.'], 422);
     }
 
-    DB::table('app_settings')->update([
-        'maintenance_show_eta' => 1,
-        'maintenance_eta_at' => $etaDbValue,
+    DB::table('maintenance_settings')->update([
+        'show_eta' => 1,
+        'eta_at' => $etaDbValue,
     ]);
 
     return response()->json(['ok' => true]);
@@ -368,43 +358,42 @@ Route::post('/maintenance/eta-ajax', function (\Illuminate\Http\Request $request
 Route::post('/maintenance/eta', function (\Illuminate\Http\Request $request) {
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
 
-    if (!Schema::hasTable('app_settings')) {
-        return redirect()->route('admin.maintenance')->with('admin_notice', 'app_settings fehlt – Speichern nicht möglich.');
+    if (!Schema::hasTable('maintenance_settings')) {
+        return redirect()->route('admin.maintenance')->with('admin_notice', 'maintenance_settings fehlt – Speichern nicht möglich.');
     }
 
-    $settings = DB::table('app_settings')->select([
-        'maintenance_enabled',
-        'maintenance_show_eta',
-        'maintenance_eta_at',
+    $settings = DB::table('maintenance_settings')->select([
+        'show_eta',
+        'eta_at',
     ])->first();
 
     if (!$settings) {
         $insert = [
-            'maintenance_enabled' => 0,
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+            'enabled' => 0,
+            'show_eta' => 0,
+            'eta_at' => null,
         ];
 
         $now = \Illuminate\Support\Carbon::now();
-        if (Schema::hasColumn('app_settings', 'created_at') && !array_key_exists('created_at', $insert)) {
+        if (Schema::hasColumn('maintenance_settings', 'created_at') && !array_key_exists('created_at', $insert)) {
             $insert['created_at'] = $now;
         }
-        if (Schema::hasColumn('app_settings', 'updated_at') && !array_key_exists('updated_at', $insert)) {
+        if (Schema::hasColumn('maintenance_settings', 'updated_at') && !array_key_exists('updated_at', $insert)) {
             $insert['updated_at'] = $now;
         }
 
-        DB::table('app_settings')->insert($insert);
+        DB::table('maintenance_settings')->insert($insert);
 
         $settings = (object) [
-            'maintenance_enabled' => 0,
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+            'enabled' => 0,
+            'show_eta' => 0,
+            'eta_at' => null,
         ];
     }
 
-    $maintenanceEnabled = (bool) ($settings->maintenance_enabled ?? false);
+    $maintenanceEnabled = KsMaintenance::enabled();
 
-    $showEta = (bool) $request->boolean('maintenance_show_eta');
+    $showEta = (bool) $request->boolean('show_eta');
 
     $etaDate = (string) $request->input('maintenance_eta_date', '');
     $etaDate = trim($etaDate);
@@ -414,9 +403,9 @@ Route::post('/maintenance/eta', function (\Illuminate\Http\Request $request) {
 
     // Wenn Wartung aus: ETA hart löschen und zurück
     if (!$maintenanceEnabled) {
-        DB::table('app_settings')->update([
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+        DB::table('maintenance_settings')->update([
+            'show_eta' => 0,
+            'eta_at' => null,
         ]);
 
         return redirect()->route('admin.maintenance')->with('admin_notice', 'Wartung ist aus – ETA wurde zurückgesetzt.');
@@ -424,9 +413,9 @@ Route::post('/maintenance/eta', function (\Illuminate\Http\Request $request) {
 
     // Wenn Anzeige aus: ETA hart löschen und zurück
     if (!$showEta) {
-        DB::table('app_settings')->update([
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+        DB::table('maintenance_settings')->update([
+            'show_eta' => 0,
+            'eta_at' => null,
         ]);
 
         return redirect()->route('admin.maintenance')->with('admin_notice', 'Wartung-ETA gelöscht.');
@@ -459,9 +448,9 @@ Route::post('/maintenance/eta', function (\Illuminate\Http\Request $request) {
         }
     }
 
-    DB::table('app_settings')->update([
-        'maintenance_show_eta' => 1,
-        'maintenance_eta_at' => $etaDbValue,
+    DB::table('maintenance_settings')->update([
+        'show_eta' => 1,
+        'eta_at' => $etaDbValue,
     ]);
 
     return redirect()->route('admin.maintenance')->with('admin_notice', 'Wartung-ETA gespeichert.');
@@ -472,42 +461,43 @@ Route::post('/maintenance/eta', function (\Illuminate\Http\Request $request) {
 Route::post('/maintenance/eta/clear', function () {
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
 
-    if (!Schema::hasTable('app_settings')) {
-        return redirect()->route('admin.maintenance')->with('admin_notice', 'app_settings fehlt – Löschen nicht möglich.');
+    if (!Schema::hasTable('maintenance_settings')) {
+        return redirect()->route('admin.maintenance')->with('admin_notice', 'maintenance_settings fehlt – Löschen nicht möglich.');
     }
 
-    $settings = DB::table('app_settings')->select([
-        'maintenance_enabled',
-        'maintenance_show_eta',
-        'maintenance_eta_at',
+    $settings = DB::table('maintenance_settings')->select([
+        'show_eta',
+        'eta_at',
     ])->first();
 
     if (!$settings) {
         $insert = [
-            'maintenance_enabled' => 0,
-            'maintenance_show_eta' => 0,
-            'maintenance_eta_at' => null,
+            'enabled' => 0,
+            'show_eta' => 0,
+            'eta_at' => null,
         ];
 
         $now = \Illuminate\Support\Carbon::now();
-        if (Schema::hasColumn('app_settings', 'created_at') && !array_key_exists('created_at', $insert)) {
+        if (Schema::hasColumn('maintenance_settings', 'created_at') && !array_key_exists('created_at', $insert)) {
             $insert['created_at'] = $now;
         }
-        if (Schema::hasColumn('app_settings', 'updated_at') && !array_key_exists('updated_at', $insert)) {
+        if (Schema::hasColumn('maintenance_settings', 'updated_at') && !array_key_exists('updated_at', $insert)) {
             $insert['updated_at'] = $now;
         }
 
-        DB::table('app_settings')->insert($insert);
+        DB::table('maintenance_settings')->insert($insert);
 
         return redirect()->route('admin.maintenance')->with('admin_notice', 'Wartung-ETA gelöscht.');
     }
 
-    DB::table('app_settings')->update([
-        'maintenance_show_eta' => 0,
-        'maintenance_eta_at' => null,
+    DB::table('maintenance_settings')->update([
+        'show_eta' => 0,
+        'eta_at' => null,
     ]);
 
     return redirect()->route('admin.maintenance')->with('admin_notice', 'Wartung-ETA gelöscht.');
 })
     ->defaults('adminTab', 'maintenance')
     ->name('maintenance.eta.clear');
+
+

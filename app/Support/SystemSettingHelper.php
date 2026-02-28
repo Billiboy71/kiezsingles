@@ -2,16 +2,14 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\SystemSettingHelper.php
 // Purpose: Central accessor for DB-backed system settings
-// Changed: 19-02-2026 17:23 (Europe/Berlin)
-// Version: 0.5
+// Changed: 26-02-2026 23:10 (Europe/Berlin)
+// Version: 0.6
 // ============================================================================
 
 namespace App\Support;
 
 use App\Models\SystemSetting;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 class SystemSettingHelper
 {
@@ -177,31 +175,7 @@ class SystemSettingHelper
             return false;
         }
 
-        try {
-            if (!Schema::hasTable('app_settings')) {
-                return false;
-            }
-
-            // Fail-closed: if maintenance column is missing, debug UI must be disabled.
-            if (!Schema::hasColumn('app_settings', 'maintenance_enabled')) {
-                return false;
-            }
-
-            $settings = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-        } catch (\Throwable $e) {
-            Log::error('SystemSettingHelper::debugUiAllowed: DB access failed (disabling debug UI).', [
-                'exception' => get_class($e),
-                'message' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
-
-        if (!$settings) {
-            return false;
-        }
-
-        if (!(bool) $settings->maintenance_enabled) {
+        if (!KsMaintenance::enabled()) {
             return false;
         }
 

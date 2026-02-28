@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminTicketController.php
 // Purpose: Admin ticket inbox + detail + actions (controller-based).
-// Changed: 20-02-2026 12:03 (Europe/Berlin)
-// Version: 3.0
+// Changed: 27-02-2026 14:37 (Europe/Berlin)
+// Version: 4.0
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
@@ -13,6 +13,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Services\TicketService;
 use App\Support\Admin\AdminModuleRegistry;
+use App\Support\KsMaintenance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -34,16 +35,7 @@ class AdminTicketController extends Controller
             $adminTab = $fallbackTab;
         }
 
-        $maintenanceEnabled = false;
-
-        try {
-            if (Schema::hasTable('app_settings')) {
-                $row = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-                $maintenanceEnabled = $row ? (bool) ($row->maintenance_enabled ?? false) : false;
-            }
-        } catch (\Throwable $e) {
-            $maintenanceEnabled = false;
-        }
+        $maintenanceEnabled = KsMaintenance::enabled();
 
         $modules = [];
 
@@ -285,6 +277,48 @@ class AdminTicketController extends Controller
         }
 
         return $userDisplayById;
+    }
+
+    private function buildUserMetaById(array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map(static fn ($v) => (int) $v, $userIds)));
+        $userIds = array_values(array_filter($userIds, static fn ($v) => $v > 0));
+
+        $out = [];
+        if (count($userIds) < 1) {
+            return $out;
+        }
+
+        $users = User::query()
+            ->whereIn('id', $userIds)
+            ->get(['id', 'public_id', 'role', 'username', 'email']);
+
+        foreach ($users as $u) {
+            $uid = isset($u->id) ? (int) $u->id : 0;
+            if ($uid < 1) {
+                continue;
+            }
+
+            $uUsername = isset($u->username) ? trim((string) ($u->username ?? '')) : '';
+            $uEmail = isset($u->email) ? trim((string) ($u->email ?? '')) : '';
+            $uPublicId = isset($u->public_id) ? trim((string) ($u->public_id ?? '')) : '';
+            $uRole = mb_strtolower(trim((string) ($u->role ?? '')));
+
+            $display = '#' . $uid;
+            if ($uUsername !== '') {
+                $display = $uUsername;
+            } elseif ($uEmail !== '') {
+                $display = $uEmail;
+            }
+
+            $out[$uid] = [
+                'display' => $display,
+                'public_id' => $uPublicId,
+                'role' => $uRole,
+            ];
+        }
+
+        return $out;
     }
 
     // =========================================================================
@@ -552,9 +586,9 @@ class AdminTicketController extends Controller
             ->get();
 
         $admins = User::query()
-            ->whereIn('role', ['admin', 'superadmin'])
+            ->whereIn('role', ['moderator', 'admin', 'superadmin'])
             ->orderBy('id', 'asc')
-            ->get(['id', 'username', 'email']);
+            ->get(['id', 'public_id', 'username', 'email', 'role']);
 
         $ticket->setRelation('messages', $messages);
 
@@ -604,11 +638,46 @@ class AdminTicketController extends Controller
             }
         }
 
-        $userDisplayById = $this->buildUserDisplayById($userIds);
+        $userMetaById = $this->buildUserMetaById($userIds);
+        $userDisplayById = [];
+        foreach ($userMetaById as $uid => $meta) {
+            $userDisplayById[(int) $uid] = (string) ($meta['display'] ?? ('#' . (int) $uid));
+        }
 
         $creatorDisplay = $this->displayForUserId($creatorIdInt, $userDisplayById);
         $reportedDisplay = $reportedIdInt > 0 ? $this->displayForUserId($reportedIdInt, $userDisplayById) : '-';
         $assignedAdminDisplay = $assignedAdminIdInt > 0 ? $this->displayForUserId($assignedAdminIdInt, $userDisplayById) : '-';
+        $assignedAdminRole = '';
+        $assignedAdminProfileUrl = '';
+
+        $creatorRole = '';
+        $reportedRole = '';
+        $creatorProfileUrl = '';
+        $reportedProfileUrl = '';
+
+        if ($creatorIdInt > 0 && isset($userMetaById[$creatorIdInt])) {
+            $creatorRole = (string) ($userMetaById[$creatorIdInt]['role'] ?? '');
+            $creatorPublicId = (string) ($userMetaById[$creatorIdInt]['public_id'] ?? '');
+            if ($creatorRole !== 'superadmin' && $creatorPublicId !== '' && Route::has('profile.show')) {
+                $creatorProfileUrl = (string) route('profile.show', ['user' => $creatorPublicId]);
+            }
+        }
+
+        if ($reportedIdInt > 0 && isset($userMetaById[$reportedIdInt])) {
+            $reportedRole = (string) ($userMetaById[$reportedIdInt]['role'] ?? '');
+            $reportedPublicId = (string) ($userMetaById[$reportedIdInt]['public_id'] ?? '');
+            if ($reportedRole !== 'superadmin' && $reportedPublicId !== '' && Route::has('profile.show')) {
+                $reportedProfileUrl = (string) route('profile.show', ['user' => $reportedPublicId]);
+            }
+        }
+
+        if ($assignedAdminIdInt > 0 && isset($userMetaById[$assignedAdminIdInt])) {
+            $assignedAdminRole = (string) ($userMetaById[$assignedAdminIdInt]['role'] ?? '');
+            $assignedPublicId = (string) ($userMetaById[$assignedAdminIdInt]['public_id'] ?? '');
+            if ($assignedAdminRole !== 'superadmin' && $assignedPublicId !== '' && Route::has('profile.show')) {
+                $assignedAdminProfileUrl = (string) route('profile.show', ['user' => $assignedPublicId]);
+            }
+        }
 
         $statusClass = $this->classForStatus($status);
         $categoryClass = $this->classForCategory($category);
@@ -617,20 +686,49 @@ class AdminTicketController extends Controller
         $notice = session('admin_ticket_notice');
 
         $adminOptions = [];
+        $seenAdminIds = [];
         $adminOptions[] = [
             'id' => null,
             'label' => '(keiner)',
+            'display' => '(keiner)',
+            'role' => '',
+            'role_label' => 'User',
+            'profile_url' => '',
             'selected' => ($assignedAdminIdInt === 0),
         ];
         foreach ($admins as $a) {
             $aid = isset($a->id) ? (int) $a->id : 0;
+            if ($aid > 0 && isset($seenAdminIds[$aid])) {
+                continue;
+            }
+            if ($aid > 0) {
+                $seenAdminIds[$aid] = true;
+            }
             $aUsername = isset($a->username) ? (string) ($a->username ?? '') : '';
             $aEmail = isset($a->email) ? (string) ($a->email ?? '') : '';
+            $aRole = mb_strtolower(trim((string) ($a->role ?? '')));
+            $aPublicId = trim((string) ($a->public_id ?? ''));
             $label = $aUsername !== '' ? $aUsername : ($aEmail !== '' ? $aEmail : ('#' . $aid));
+            $roleLabel = match ($aRole) {
+                'superadmin' => 'Superadmin',
+                'admin' => 'Admin',
+                'moderator' => 'Moderator',
+                default => 'User',
+            };
+            $labelWithRole = $label;
+            if (mb_strtolower(trim($label)) !== mb_strtolower(trim($roleLabel))) {
+                $labelWithRole = $label . ' (' . $roleLabel . ')';
+            }
 
             $adminOptions[] = [
                 'id' => $aid,
-                'label' => $label,
+                'label' => $labelWithRole,
+                'display' => $label,
+                'role' => $aRole,
+                'role_label' => $roleLabel,
+                'profile_url' => ($aRole !== 'superadmin' && $aPublicId !== '' && Route::has('profile.show'))
+                    ? (string) route('profile.show', ['user' => $aPublicId])
+                    : '',
                 'selected' => ($aid === $assignedAdminIdInt),
             ];
         }
@@ -680,34 +778,48 @@ class AdminTicketController extends Controller
             $msgText = (string) ($m->message ?? '');
             $ts = $m->created_at ? (string) $m->created_at : '';
 
-            $who = $actorTypeMsg !== '' ? ucfirst($actorTypeMsg) : '';
+            $who = '-';
             if ($actorUserIdMsgInt > 0) {
                 $disp = $this->displayForUserId($actorUserIdMsgInt, $userDisplayById);
-                if ($disp !== ('#' . $actorUserIdMsgInt)) {
-                    $who = ($who !== '' ? $who . ' – ' : '') . $disp;
-                } else {
-                    $who = ($who !== '' ? $who . ' ' : '') . ('#' . $actorUserIdMsgInt);
-                }
-            }
-            if ($who === '') {
-                $who = '-';
+                $who = ($disp !== '' ? $disp : ('#' . $actorUserIdMsgInt));
+            } elseif ($actorTypeMsg !== '') {
+                $who = ucfirst($actorTypeMsg);
             }
 
-            $pillClass = 'ks-pill';
-            if ($actorTypeMsg === 'user') {
-                $pillClass .= ' user';
+            $actorRole = '';
+            $actorRoleLabel = 'User';
+            if ($actorUserIdMsgInt > 0 && isset($userMetaById[$actorUserIdMsgInt])) {
+                $actorRole = (string) ($userMetaById[$actorUserIdMsgInt]['role'] ?? '');
+            }
+
+            $actorRoleClass = 'bg-slate-100 border-slate-200 text-slate-900';
+            if ($actorRole === 'superadmin') {
+                $actorRoleLabel = 'Superadmin';
+                $actorRoleClass = 'bg-red-100 border-red-200 text-slate-900';
+            } elseif ($actorRole === 'admin') {
+                $actorRoleLabel = 'Admin';
+                $actorRoleClass = 'bg-yellow-100 border-yellow-200 text-slate-900';
+            } elseif ($actorRole === 'moderator') {
+                $actorRoleLabel = 'Moderator';
+                $actorRoleClass = 'bg-green-100 border-green-200 text-slate-900';
             } elseif ($actorTypeMsg === 'admin') {
-                $pillClass .= ' admin';
+                $actorRoleLabel = 'Admin';
+                $actorRoleClass = 'bg-yellow-100 border-yellow-200 text-slate-900';
+            } elseif ($actorTypeMsg === 'user') {
+                $actorRoleLabel = 'User';
+                $actorRoleClass = 'bg-slate-100 border-slate-200 text-slate-900';
             }
 
             $messageRows[] = [
                 'who' => $who,
-                'pill_class' => $pillClass,
+                'pill_class' => 'ks-pill',
                 'is_internal' => $isInternal,
                 'message' => $msgText,
                 'created_at' => $ts,
                 'actor_type' => $actorTypeMsg,
                 'actor_user_id' => $actorUserIdMsgInt,
+                'actor_role_label' => $actorRoleLabel,
+                'actor_role_class' => $actorRoleClass,
             ];
         }
 
@@ -719,17 +831,33 @@ class AdminTicketController extends Controller
             $actorUserIdInt = (isset($a->actor_user_id) && $a->actor_user_id !== null && (string) $a->actor_user_id !== '') ? (int) $a->actor_user_id : 0;
             $meta = isset($a->meta) && $a->meta !== null ? (string) $a->meta : '';
 
-            $who = $actorType !== '' ? ucfirst($actorType) : '';
+            $who = '-';
             if ($actorUserIdInt > 0) {
                 $disp = $this->displayForUserId($actorUserIdInt, $userDisplayById);
-                if ($disp !== ('#' . $actorUserIdInt)) {
-                    $who = ($who !== '' ? $who . ' – ' : '') . $disp;
-                } else {
-                    $who = ($who !== '' ? $who . ' ' : '') . ('#' . $actorUserIdInt);
-                }
+                $who = ($disp !== '' ? $disp : ('#' . $actorUserIdInt));
+            } elseif ($actorType !== '') {
+                $who = ucfirst($actorType);
             }
-            if ($who === '') {
-                $who = '-';
+
+            $auditRole = '';
+            $auditRoleLabel = 'User';
+            if ($actorUserIdInt > 0 && isset($userMetaById[$actorUserIdInt])) {
+                $auditRole = (string) ($userMetaById[$actorUserIdInt]['role'] ?? '');
+            }
+
+            $auditRoleClass = 'bg-slate-100 border-slate-200 text-slate-900';
+            if ($auditRole === 'superadmin') {
+                $auditRoleLabel = 'Superadmin';
+                $auditRoleClass = 'bg-red-100 border-red-200 text-slate-900';
+            } elseif ($auditRole === 'admin') {
+                $auditRoleLabel = 'Admin';
+                $auditRoleClass = 'bg-yellow-100 border-yellow-200 text-slate-900';
+            } elseif ($auditRole === 'moderator') {
+                $auditRoleLabel = 'Moderator';
+                $auditRoleClass = 'bg-green-100 border-green-200 text-slate-900';
+            } elseif (mb_strtolower($actorType) === 'admin') {
+                $auditRoleLabel = 'Admin';
+                $auditRoleClass = 'bg-yellow-100 border-yellow-200 text-slate-900';
             }
 
             $auditRows[] = [
@@ -737,6 +865,8 @@ class AdminTicketController extends Controller
                 'event' => $ev,
                 'event_label' => $this->labelForAuditEvent($ev),
                 'who' => $who,
+                'actor_role_label' => $auditRoleLabel,
+                'actor_role_class' => $auditRoleClass,
                 'meta' => $meta,
             ];
         }
@@ -777,6 +907,12 @@ class AdminTicketController extends Controller
             'creatorDisplay' => $creatorDisplay,
             'reportedDisplay' => $reportedDisplay,
             'assignedAdminDisplay' => $assignedAdminDisplay,
+            'assignedAdminRole' => $assignedAdminRole,
+            'assignedAdminProfileUrl' => $assignedAdminProfileUrl,
+            'creatorRole' => $creatorRole,
+            'reportedRole' => $reportedRole,
+            'creatorProfileUrl' => $creatorProfileUrl,
+            'reportedProfileUrl' => $reportedProfileUrl,
 
             'createdAt' => $createdAt,
             'closedAt' => $closedAt,
@@ -806,25 +942,128 @@ class AdminTicketController extends Controller
             'internal_note' => ['nullable', 'string', 'min:2', 'required_without:reply_message'],
         ]);
 
-        $replyMessage = $request->filled('reply_message') ? (string) $request->input('reply_message') : null;
-        $internalNote = $request->filled('internal_note') ? (string) $request->input('internal_note') : null;
+        $actorUserId = (int) auth()->id();
+        if ($actorUserId < 1) {
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'message' => 'Not authenticated.'], 401);
+            }
 
-        if ($replyMessage !== null) {
-            $this->ticketService->addAdminReply(
-                $ticket,
-                (int) auth()->id(),
-                (string) $replyMessage,
-                false
-            );
+            return redirect()->route('admin.tickets.show', (int) $ticket->id)
+                ->with('admin_ticket_notice', 'Fehler: Nicht angemeldet.');
         }
 
-        if ($internalNote !== null) {
-            $this->ticketService->addAdminReply(
-                $ticket,
-                (int) auth()->id(),
-                (string) $internalNote,
-                true
-            );
+        $replyMessage = $request->filled('reply_message') ? trim((string) $request->input('reply_message')) : null;
+        $internalNote = $request->filled('internal_note') ? trim((string) $request->input('internal_note')) : null;
+
+        if ($replyMessage === '') {
+            $replyMessage = null;
+        }
+        if ($internalNote === '') {
+            $internalNote = null;
+        }
+
+        $beforeCount = null;
+        $hasMsgTable = false;
+        try {
+            $hasMsgTable = Schema::hasTable('ticket_messages');
+        } catch (\Throwable $e) {
+            $hasMsgTable = false;
+        }
+
+        if ($hasMsgTable) {
+            try {
+                $beforeCount = (int) DB::table('ticket_messages')->where('ticket_id', (int) $ticket->id)->count();
+            } catch (\Throwable $e) {
+                $beforeCount = null;
+            }
+        }
+
+        try {
+            if ($replyMessage !== null) {
+                $this->ticketService->addAdminReply(
+                    $ticket,
+                    $actorUserId,
+                    (string) $replyMessage,
+                    false
+                );
+            }
+
+            if ($internalNote !== null) {
+                $this->ticketService->addAdminReply(
+                    $ticket,
+                    $actorUserId,
+                    (string) $internalNote,
+                    true
+                );
+            }
+        } catch (\Throwable $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => false, 'message' => 'Save failed.'], 500);
+            }
+
+            return redirect()->route('admin.tickets.show', (int) $ticket->id)
+                ->with('admin_ticket_notice', 'Fehler beim Speichern.');
+        }
+
+        // Fallback: if TicketService does not persist for some reason, write directly (only if tables exist).
+        if ($hasMsgTable && $beforeCount !== null) {
+            try {
+                $afterCount = (int) DB::table('ticket_messages')->where('ticket_id', (int) $ticket->id)->count();
+
+                if ($afterCount <= $beforeCount) {
+                    $now = now();
+
+                    if ($replyMessage !== null) {
+                        DB::table('ticket_messages')->insert([
+                            'ticket_id' => (int) $ticket->id,
+                            'actor_type' => 'admin',
+                            'actor_user_id' => $actorUserId,
+                            'is_internal' => 0,
+                            'message' => (string) $replyMessage,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+
+                        if (Schema::hasTable('ticket_audit_logs')) {
+                            DB::table('ticket_audit_logs')->insert([
+                                'ticket_id' => (int) $ticket->id,
+                                'event' => 'admin_reply_added',
+                                'actor_type' => 'admin',
+                                'actor_user_id' => $actorUserId,
+                                'meta' => '',
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ]);
+                        }
+                    }
+
+                    if ($internalNote !== null) {
+                        DB::table('ticket_messages')->insert([
+                            'ticket_id' => (int) $ticket->id,
+                            'actor_type' => 'admin',
+                            'actor_user_id' => $actorUserId,
+                            'is_internal' => 1,
+                            'message' => (string) $internalNote,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+
+                        if (Schema::hasTable('ticket_audit_logs')) {
+                            DB::table('ticket_audit_logs')->insert([
+                                'ticket_id' => (int) $ticket->id,
+                                'event' => 'internal_note_added',
+                                'actor_type' => 'admin',
+                                'actor_user_id' => $actorUserId,
+                                'meta' => '',
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ]);
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
         }
 
         // Drafts must not count as replies; when sending, clear drafts.

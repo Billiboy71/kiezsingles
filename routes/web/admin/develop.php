@@ -3,18 +3,19 @@
 // File: C:\laragon\www\kiezsingles\routes\web\admin\develop.php
 // Purpose: Admin Develop page route (layout outlines controls)
 // Created: 25-02-2026 23:06 (Europe/Berlin)
-// Changed: 26-02-2026 22:12 (Europe/Berlin)
-// Version: 0.2
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
+use App\Support\KsMaintenance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
 Route::get('/develop', function () {
-    $hasSystemSettingsTable = Schema::hasTable('system_settings');
+    $hasSystemSettingsTable = Schema::hasTable('debug_settings');
 
-    $maintenanceEnabled = false;
+    $maintenanceEnabled = KsMaintenance::enabled();
 
     $layoutOutlinesFrontendEnabled = false;
     $layoutOutlinesAdminEnabled = false;
@@ -23,21 +24,7 @@ Route::get('/develop', function () {
 
     if ($hasSystemSettingsTable) {
         try {
-            $maintenanceValue = DB::table('system_settings')
-                ->where('key', 'maintenance.enabled')
-                ->value('value');
-
-            if ($maintenanceValue !== null) {
-                $maintenanceEnabled = in_array((string) $maintenanceValue, ['1', 'true', 'yes'], true);
-            } else {
-                $maintenanceEnabled = app()->isDownForMaintenance();
-            }
-        } catch (\Throwable $e) {
-            $maintenanceEnabled = false;
-        }
-
-        try {
-            $rows = DB::table('system_settings')
+            $rows = DB::table('debug_settings')
                 ->select(['key', 'value'])
                 ->whereIn('key', [
                     'debug.layout_outlines_frontend_enabled',

@@ -7,8 +7,8 @@
 
     if ($layoutOutlinesIsSuperadmin) {
         try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
-                $rows = \Illuminate\Support\Facades\DB::table('system_settings')
+            if (\Illuminate\Support\Facades\Schema::hasTable('debug_settings')) {
+                $rows = \Illuminate\Support\Facades\DB::table('debug_settings')
                     ->select(['key', 'value'])
                     ->whereIn('key', [
                         'debug.layout_outlines_allow_production',

@@ -2,11 +2,12 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\noteinstieg_recovery_ajax.php
 // Purpose: Admin noteinstieg recovery codes routes (AJAX)
-// Changed: 19-02-2026 18:45 (Europe/Berlin)
-// Version: 0.5
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 use App\Support\Admin\AdminSectionAccess;
+use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -23,8 +24,8 @@ use Illuminate\Support\Facades\Schema;
 Route::post('/noteinstieg/recovery-codes-list-ajax', function () {
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
 
-    if (!Schema::hasTable('system_settings')) {
-        return response()->json(['ok' => false, 'message' => 'system_settings fehlt'], 422);
+    if (!Schema::hasTable('debug_settings')) {
+        return response()->json(['ok' => false, 'message' => 'debug_settings fehlt'], 422);
     }
 
     if (!Schema::hasTable('noteinstieg_recovery_codes')) {
@@ -32,11 +33,8 @@ Route::post('/noteinstieg/recovery-codes-list-ajax', function () {
     }
 
     // Optional: nur sinnvoll bei Wartung an
-    if (Schema::hasTable('app_settings')) {
-        $s = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-        if (!$s || !(bool) $s->maintenance_enabled) {
-            return response()->json(['ok' => false, 'message' => 'wartung aus'], 422);
-        }
+    if (!KsMaintenance::enabled()) {
+        return response()->json(['ok' => false, 'message' => 'wartung aus'], 422);
     }
 
     if (!(bool) SystemSettingHelper::get('debug.break_glass', false)) {
@@ -93,8 +91,8 @@ Route::post('/noteinstieg/recovery-codes-list-ajax', function () {
 Route::post('/noteinstieg/recovery-codes-generate-ajax', function (\Illuminate\Http\Request $request) {
     // Erwartung: Auth/Admin/Section-Guards laufen ausschließlich über Middleware im Admin-Router-Group.
 
-    if (!Schema::hasTable('system_settings')) {
-        return response()->json(['ok' => false, 'message' => 'system_settings fehlt'], 422);
+    if (!Schema::hasTable('debug_settings')) {
+        return response()->json(['ok' => false, 'message' => 'debug_settings fehlt'], 422);
     }
 
     if (!Schema::hasTable('noteinstieg_recovery_codes')) {
@@ -102,11 +100,8 @@ Route::post('/noteinstieg/recovery-codes-generate-ajax', function (\Illuminate\H
     }
 
     // Optional: nur sinnvoll bei Wartung an
-    if (Schema::hasTable('app_settings')) {
-        $s = DB::table('app_settings')->select(['maintenance_enabled'])->first();
-        if (!$s || !(bool) $s->maintenance_enabled) {
-            return response()->json(['ok' => false, 'message' => 'wartung aus'], 422);
-        }
+    if (!KsMaintenance::enabled()) {
+        return response()->json(['ok' => false, 'message' => 'wartung aus'], 422);
     }
 
     if (!(bool) SystemSettingHelper::get('debug.break_glass', false)) {

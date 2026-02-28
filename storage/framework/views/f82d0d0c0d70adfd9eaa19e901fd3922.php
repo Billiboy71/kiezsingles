@@ -77,7 +77,12 @@
         'moderation'   => 'moderation',
     ];
 
-    $canAccessSection = function (string $sectionKey) use ($adminModules, $sectionToModuleKey, $currentRoleNormalized, $maintenanceActive): bool {
+    $staffAllowedSections = array_values(array_unique(array_filter(array_map(
+        static fn ($key) => mb_strtolower(trim((string) $key)),
+        (array) ($staffAllowedSections ?? [])
+    ), static fn ($key) => $key !== '')));
+
+    $canAccessSection = function (string $sectionKey) use ($adminModules, $sectionToModuleKey, $maintenanceActive, $staffAllowedSections): bool {
         if (!isset($sectionToModuleKey[$sectionKey])) {
             return false;
         }
@@ -93,15 +98,7 @@
             return false;
         }
 
-        if (class_exists(\App\Support\Admin\AdminSectionAccess::class)) {
-            return \App\Support\Admin\AdminSectionAccess::canAccessSection(
-                (string) $currentRoleNormalized,
-                (string) $sectionKey,
-                (bool) $maintenanceActive
-            );
-        }
-
-        return true;
+        return in_array($sectionKey, $staffAllowedSections, true);
     };
 
     // Layout/Navigation-Context

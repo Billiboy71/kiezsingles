@@ -1,7 +1,6 @@
 
 
 
-
 <?php $__env->startSection('content'); ?>
 
     <div>
@@ -29,9 +28,9 @@
             </div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
-        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(!$hasSystemSettingsTable): ?>
+        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(!$hasStaffPermissionsTable): ?>
             <div class="px-[14px] py-[12px] rounded-[10px] border border-red-200 bg-red-50 mb-4">
-                <b>Hinweis:</b> Tabelle <code>system_settings</code> existiert nicht. Speichern ist nicht möglich.
+                <b>Hinweis:</b> Tabelle <code>staff_permissions</code> existiert nicht. Speichern ist nicht möglich.
             </div>
         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
@@ -106,7 +105,7 @@
                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $options; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $label): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <?php
                         $checked = in_array((string) $key, (array) $current, true);
-                        $disabled = (!$hasSystemSettingsTable || $selectedUserId === null);
+                        $disabled = (!$hasStaffPermissionsTable || $selectedUserId === null);
                     ?>
 
                     <label class="flex items-center gap-[10px] px-[12px] py-[10px] border border-gray-200 rounded-[10px] mb-[10px]">
@@ -124,17 +123,20 @@
                     Zur Übersicht
                 </a>
 
-                <button
-                    type="submit"
-                    class="px-[12px] py-[10px] rounded-[10px] border border-gray-900 bg-gray-900 text-white cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
-                    <?php if(!$hasSystemSettingsTable || $selectedUserId === null): echo 'disabled'; endif; ?>
-                >
-                    Speichern
-                </button>
+                <noscript>
+                    <button
+                        type="submit"
+                        class="px-[12px] py-[10px] rounded-[10px] border border-gray-900 bg-gray-900 text-white cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                        <?php if(!$hasStaffPermissionsTable || $selectedUserId === null): echo 'disabled'; endif; ?>
+                    >
+                        Speichern
+                    </button>
+                </noscript>
             </div>
         </form>
 
     </div>
 
 <?php $__env->stopSection(); ?>
+
 <?php echo $__env->make('admin.layouts.admin', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/moderation.blade.php ENDPATH**/ ?>

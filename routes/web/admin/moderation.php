@@ -1,15 +1,14 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\moderation.php
-// Purpose: Admin moderation routes (configure moderator/admin section whitelist in DB)
-// Changed: 25-02-2026 10:15 (Europe/Berlin)
-// Version: 1.9
+// Purpose: Admin moderation routes (configure per-user staff_permissions SSOT in DB)
+// Changed: 27-02-2026 18:44 (Europe/Berlin)
+// Version: 2.2
 // ============================================================================
 
-use App\Models\SystemSetting;
+use App\Support\KsMaintenance;
+use App\Models\StaffPermission;
 use App\Models\User;
-use App\Support\Admin\AdminSectionAccess;
-use App\Support\SystemSettingHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -19,12 +18,8 @@ use Illuminate\Support\Facades\Schema;
 | Admin: Moderation (Rechteverwaltung)
 |--------------------------------------------------------------------------
 | - Zugriff wird über routes/web/admin.php erzwungen (auth + superadmin + section:moderation).
-| - Pro User speichern (SystemSetting-Key pro User):
-|     moderation.moderator_sections.user_{id}
-|     moderation.admin_sections.user_{id}
-| - Backward-Compat Read:
-|     moderation.moderator_sections (global) wird gelesen, falls per-user key leer ist (moderator).
-|     moderation.admin_sections (global) wird gelesen, falls per-user key leer ist (admin).
+| - Pro User speichern in staff_permissions (SSOT):
+|     user_id + module_key + allowed
 |
 | Erwartung:
 | - Datei wird innerhalb von routes/web/admin.php in einem
@@ -34,18 +29,11 @@ use Illuminate\Support\Facades\Schema;
 
 Route::get('/moderation', function (Request $request) {
 
-    $hasSystemSettingsTable = Schema::hasTable('system_settings');
+    $hasStaffPermissionsTable = Schema::hasTable('staff_permissions');
     $hasUsersTable = Schema::hasTable('users');
     $maintenanceEnabled = false;
 
-    try {
-        if (Schema::hasTable('app_settings')) {
-            $row = \Illuminate\Support\Facades\DB::table('app_settings')->select(['maintenance_enabled'])->first();
-            $maintenanceEnabled = $row ? (bool) ($row->maintenance_enabled ?? false) : false;
-        }
-    } catch (\Throwable $e) {
-        $maintenanceEnabled = false;
-    }
+    $maintenanceEnabled = KsMaintenance::enabled();
 
     $hasUserNameColumn = false;
     $hasUserUsernameColumn = false;
@@ -64,7 +52,6 @@ Route::get('/moderation', function (Request $request) {
         }
     }
 
-    $defaultStaffManaged = AdminSectionAccess::defaultStaffManagedSections();
     $notice = session('admin_notice');
 
     $targetRole = $request->query('role', 'moderator');
@@ -81,19 +68,9 @@ Route::get('/moderation', function (Request $request) {
 
     // Only sections that can ever be granted for the selected role.
     // Server-side enforcement happens exclusively via middleware (auth + staff/superadmin + section:*).
-    if ($targetRole === 'admin') {
-        $options = [
-            AdminSectionAccess::SECTION_TICKETS => 'Tickets',
-        ];
-        $default = $defaultStaffManaged;
-    } else {
-        $options = [
-            AdminSectionAccess::SECTION_TICKETS => 'Tickets',
-            // admin-only (absichtlich NICHT auswählbar für Moderatoren):
-            // maintenance, debug, moderation
-        ];
-        $default = $defaultStaffManaged;
-    }
+    $options = [
+        'tickets' => 'Tickets',
+    ];
 
     $users = [];
     $selectedUserId = null;
@@ -151,85 +128,20 @@ Route::get('/moderation', function (Request $request) {
         }
     }
 
-    $current = $default;
+    $current = [];
 
-    if ($hasSystemSettingsTable) {
-        $rawValue = null;
-
-        if ($selectedUserId !== null) {
-            if ($targetRole === 'admin') {
-                $perUserKey = 'moderation.admin_sections.user_' . (string) $selectedUserId;
-            } else {
-                $perUserKey = 'moderation.moderator_sections.user_' . (string) $selectedUserId;
-            }
-            $rawValue = SystemSettingHelper::get($perUserKey, '');
-        }
-
-        // Backward-compat: fall back to old global key if per-user key missing
-        // or explicitly an empty string. An explicit empty array is a legitimate
-        // value and must not trigger the legacy fallback, so we avoid treating
-        // arrays with count()<1 as "empty".
-        $shouldFallback = $rawValue === null || $rawValue === '';
-
-        if ($shouldFallback) {
-            if ($targetRole === 'admin') {
-                $rawValue = SystemSettingHelper::get('moderation.admin_sections', '');
-            } else {
-                $rawValue = SystemSettingHelper::get('moderation.moderator_sections', '');
-            }
-        }
-
-        // SystemSettingHelper::get kann je nach "cast" bereits ein Array liefern.
-        $decoded = null;
-
-        if (is_array($rawValue)) {
-            $decoded = $rawValue;
-        } elseif (is_string($rawValue)) {
-            $raw = trim($rawValue);
-            if ($raw !== '') {
-                $tmp = json_decode($raw, true);
-                if (is_array($tmp)) {
-                    $decoded = $tmp;
-                }
-            }
-        } elseif ($rawValue !== null) {
-            $raw = trim((string) $rawValue);
-            if ($raw !== '') {
-                $tmp = json_decode($raw, true);
-                if (is_array($tmp)) {
-                    $decoded = $tmp;
-                }
-            }
-        }
-
-        if (is_array($decoded)) {
-            $tmp = [];
-            $allowedKeys = array_values(array_unique(array_keys($options)));
-
-            foreach ($decoded as $s) {
-                if (!is_string($s)) {
-                    continue;
-                }
-                $s = trim($s);
-                if ($s === '' || strlen($s) > 64) {
-                    continue;
-                }
-                if (!preg_match('/^[a-z0-9_]+$/', $s)) {
-                    continue;
-                }
-
-                if (!in_array($s, $allowedKeys, true)) {
-                    continue;
-                }
-
-                $tmp[] = $s;
-            }
-
-            $tmp = array_values(array_unique($tmp));
-            // honour an explicit empty list instead of silently reverting to
-            // the default set of sections
-            $current = $tmp;
-        }
+    if ($hasStaffPermissionsTable && $selectedUserId !== null) {
+        $allowedKeys = array_values(array_unique(array_keys($options)));
+        $current = StaffPermission::query()
+            ->where('user_id', (int) $selectedUserId)
+            ->where('allowed', true)
+            ->whereIn('module_key', $allowedKeys)
+            ->pluck('module_key')
+            ->map(static fn ($key) => mb_strtolower(trim((string) $key)))
+            ->filter(static fn ($key) => $key !== '')
+            ->unique()
+            ->values()
+            ->all();
     }
 
     $localRouteDebug = null;
@@ -248,7 +160,7 @@ Route::get('/moderation', function (Request $request) {
         'maintenanceEnabled' => $maintenanceEnabled,
         'adminShowDebugTab' => (bool) $maintenanceEnabled,
         'notice' => $notice,
-        'hasSystemSettingsTable' => $hasSystemSettingsTable,
+        'hasStaffPermissionsTable' => $hasStaffPermissionsTable,
         'hasUsersTable' => $hasUsersTable,
         'hasUserNameColumn' => $hasUserNameColumn,
         'hasUserUsernameColumn' => $hasUserUsernameColumn,
@@ -270,8 +182,8 @@ Route::get('/moderation', function (Request $request) {
 
 Route::post('/moderation/save', function (Request $request) {
 
-    if (!Schema::hasTable('system_settings')) {
-        return redirect()->route('admin.moderation')->with('admin_notice', 'system_settings fehlt – Speichern nicht möglich.');
+    if (!Schema::hasTable('staff_permissions')) {
+        return redirect()->route('admin.moderation')->with('admin_notice', 'staff_permissions fehlt – Speichern nicht möglich.');
     }
 
     if (!Schema::hasTable('users')) {
@@ -313,16 +225,9 @@ Route::post('/moderation/save', function (Request $request) {
 
     // Only sections that can ever be granted for the selected role.
     // Server-side enforcement happens exclusively via middleware (auth + staff/superadmin + section:*).
-    // Current server rules allow admin/moderator DB-managed section only: tickets.
-    if ($role === 'admin') {
-        $allowedKeys = [
-            AdminSectionAccess::SECTION_TICKETS,
-        ];
-    } else {
-        $allowedKeys = [
-            AdminSectionAccess::SECTION_TICKETS,
-        ];
-    }
+    $allowedKeys = [
+        'tickets',
+    ];
 
     $out = [];
 
@@ -357,22 +262,20 @@ Route::post('/moderation/save', function (Request $request) {
         }
     }
 
-    $json = json_encode($out);
+    \Illuminate\Support\Facades\DB::transaction(function () use ($userId, $allowedKeys, $out) {
+        StaffPermission::query()
+            ->where('user_id', $userId)
+            ->whereIn('module_key', $allowedKeys)
+            ->delete();
 
-    if ($role === 'admin') {
-        $key = 'moderation.admin_sections.user_' . (string) $userId;
-        $group = 'moderation';
-        $cast = 'json';
-    } else {
-        $key = 'moderation.moderator_sections.user_' . (string) $userId;
-        $group = 'moderation';
-        $cast = 'json';
-    }
-
-    SystemSetting::updateOrCreate(
-        ['key' => $key],
-        ['value' => (string) $json, 'group' => (string) $group, 'cast' => (string) $cast]
-    );
+        foreach ($out as $moduleKey) {
+            StaffPermission::query()->create([
+                'user_id' => $userId,
+                'module_key' => (string) $moduleKey,
+                'allowed' => true,
+            ]);
+        }
+    });
 
     return redirect()->route('admin.moderation', ['role' => $role, 'user_id' => $userId])->with('admin_notice', 'Rechte gespeichert.');
 })

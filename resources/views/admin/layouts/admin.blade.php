@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\admin.blade.php
 Purpose: Admin root layout (separate from app layout; dedicated admin header + admin navigation + content)
-Changed: 25-02-2026 20:39 (Europe/Berlin)
-Version: 5.9
+Changed: 27-02-2026 19:15 (Europe/Berlin)
+Version: 6.0
 ============================================================================ --}}
 
 @php
@@ -60,8 +60,8 @@ Version: 5.9
     // NEW: DB-gesteuerter LOCAL-Banner-Schalter (Default: true)
     $localBannerEnabled = true;
     try {
-        if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
-            $row = \Illuminate\Support\Facades\DB::table('system_settings')
+        if (\Illuminate\Support\Facades\Schema::hasTable('debug_settings')) {
+            $row = \Illuminate\Support\Facades\DB::table('debug_settings')
                 ->select(['value'])
                 ->where('key', 'debug.local_banner_enabled')
                 ->first();
@@ -86,8 +86,8 @@ Version: 5.9
 
     if ($layoutOutlinesIsSuperadmin) {
         try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
-                $rows = \Illuminate\Support\Facades\DB::table('system_settings')
+            if (\Illuminate\Support\Facades\Schema::hasTable('debug_settings')) {
+                $rows = \Illuminate\Support\Facades\DB::table('debug_settings')
                     ->select(['key', 'value'])
                     ->whereIn('key', [
                         'debug.layout_outlines_allow_production',

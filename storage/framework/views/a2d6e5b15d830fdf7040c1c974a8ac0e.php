@@ -1,7 +1,6 @@
 
 
 
-
 <?php $__env->startSection('content'); ?>
 
     <div class="ks-card mb-4">
@@ -28,6 +27,9 @@
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -54,6 +56,9 @@
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -80,6 +85,9 @@
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -106,6 +114,9 @@
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -132,6 +143,9 @@
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
 
@@ -158,6 +172,9 @@
                     >
                     <span class="ks-slider"></span>
                 </label>
+                <noscript>
+                    <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900">Speichern</button>
+                </noscript>
             </form>
         </div>
     </div>
@@ -180,4 +197,5 @@
     </div>
 
 <?php $__env->stopSection(); ?>
+
 <?php echo $__env->make('admin.layouts.admin', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\kiezsingles\resources\views/admin/debug.blade.php ENDPATH**/ ?>

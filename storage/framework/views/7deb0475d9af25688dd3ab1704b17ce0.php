@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\landing.blade.php
 // Purpose: Public landing page with maintenance mode indicator + legal links
-// Changed: 25-02-2026 16:23 (Europe/Berlin)
-// Version: 1.2
+// Changed: 27-02-2026 18:44 (Europe/Berlin)
+// Version: 1.4
 // ============================================================================
 ?>
 <!doctype html>
@@ -17,56 +17,29 @@
 <body class="font-sans m-10">
 
 <?php
-    // Minimal, direkte DB-Abfrage – bewusst ohne Helper/Magie
-    $maintenance = null;
-
-    try {
-        if (\Illuminate\Support\Facades\Schema::hasTable('app_settings')) {
-            $maintenance = \Illuminate\Support\Facades\DB::table('app_settings')->first();
-        }
-    } catch (\Throwable $e) {
-        $maintenance = null;
-    }
-
-    $maintenanceEnabled = $maintenance && (bool) $maintenance->maintenance_enabled;
-    $showEta = $maintenanceEnabled
-        && (bool) ($maintenance->maintenance_show_eta ?? false)
-        && !empty($maintenance->maintenance_eta_at);
-
-    $notifyEnabled = false;
-
-    try {
-        if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
-            $row = \Illuminate\Support\Facades\DB::table('system_settings')
-                ->select(['value'])
-                ->where('key', 'maintenance.notify_enabled')
-                ->first();
-
-            $val = $row ? (string) ($row->value ?? '') : '';
-            $val = trim($val);
-
-            $notifyEnabled = ($val === '1' || strtolower($val) === 'true');
-        }
-    } catch (\Throwable $e) {
-        $notifyEnabled = false;
-    }
+    $maintenanceEnabled = \App\Support\KsMaintenance::enabled();
+    $notifyEnabled = \App\Support\KsMaintenance::notifyEnabled();
 
     $notifyOk = (bool) session('maintenance_notify_ok', false);
     $notifyErr = (string) session('maintenance_notify_error', '');
 
+    $maintenanceShowEta = (bool) ($maintenanceShowEta ?? false);
+    $etaDateValue = (string) ($etaDateValue ?? '');
+    $etaTimeValue = (string) ($etaTimeValue ?? '');
+
+    $showEta = $maintenanceEnabled && $maintenanceShowEta && $etaDateValue !== '';
+
     $etaText = '';
     if ($showEta) {
-        try {
-            $dt = \Illuminate\Support\Carbon::parse($maintenance->maintenance_eta_at)->timezone('Europe/Berlin');
-
-            // Wenn Uhrzeit 00:00 -> nur Datum anzeigen (kein "00:00")
-            if ($dt->format('H:i') === '00:00') {
-                $etaText = $dt->format('d.m.Y');
-            } else {
-                $etaText = $dt->format('d.m.Y H:i') . ' Uhr';
+        if ($etaTimeValue === '') {
+            try {
+                $etaText = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $etaDateValue)
+                    ->format('d.m.Y');
+            } catch (\Throwable $e) {
+                $etaText = '';
             }
-        } catch (\Throwable $e) {
-            $etaText = '';
+        } else {
+            $etaText = $etaDateValue . ' ' . $etaTimeValue . ' Uhr';
         }
     }
 ?>
@@ -139,4 +112,5 @@
 </p>
 
 </body>
-</html><?php /**PATH C:\laragon\www\kiezsingles\resources\views/landing.blade.php ENDPATH**/ ?>
+</html>
+<?php /**PATH C:\laragon\www\kiezsingles\resources\views/landing.blade.php ENDPATH**/ ?>

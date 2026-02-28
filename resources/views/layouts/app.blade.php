@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\layouts\app.blade.php
 Purpose: Base application layout (navigation + optional leader/header/footer + slot)
-Changed: 25-02-2026 21:29 (Europe/Berlin)
-Version: 0.8
+Changed: 27-02-2026 19:15 (Europe/Berlin)
+Version: 0.9
 ============================================================================ --}}
 
 @php
@@ -12,8 +12,8 @@ Version: 0.8
 
     if ($layoutOutlinesIsSuperadmin) {
         try {
-            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
-                $rows = \Illuminate\Support\Facades\DB::table('system_settings')
+            if (\Illuminate\Support\Facades\Schema::hasTable('debug_settings')) {
+                $rows = \Illuminate\Support\Facades\DB::table('debug_settings')
                     ->select(['key', 'value'])
                     ->whereIn('key', [
                         'debug.layout_outlines_allow_production',

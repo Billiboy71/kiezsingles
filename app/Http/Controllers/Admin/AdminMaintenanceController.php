@@ -2,17 +2,17 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminMaintenanceController.php
 // Purpose: Admin – Wartungsmodus UI (aus routes/web.php ausgelagert, Logik unverändert)
-// Changed: 20-02-2026 12:02 (Europe/Berlin)
-// Version: 0.5
+// Changed: 27-02-2026 19:15 (Europe/Berlin)
+// Version: 0.8
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
@@ -20,20 +20,11 @@ class AdminMaintenanceController extends Controller
 {
     public function home(Request $request)
     {
-        $hasSettingsTable = Schema::hasTable('app_settings');
-        $settings = null;
+        $hasSettingsTable = Schema::hasTable('maintenance_settings');
 
-        if ($hasSettingsTable) {
-            $settings = DB::table('app_settings')->select([
-                'maintenance_enabled',
-                'maintenance_show_eta',
-                'maintenance_eta_at',
-            ])->first();
-        }
-
-        $maintenanceEnabled  = $settings ? (bool) $settings->maintenance_enabled : false;
-        $maintenanceShowEta  = $settings ? (bool) $settings->maintenance_show_eta : false;
-        $maintenanceEtaAt    = (string) ($settings->maintenance_eta_at ?? '');
+        $maintenanceEnabled  = KsMaintenance::enabled();
+        $maintenanceShowEta  = KsMaintenance::showEta();
+        $maintenanceEtaAt    = (string) (KsMaintenance::etaAt() ?? '');
 
         $etaDateValue = '';
         $etaTimeValue = '';
@@ -49,7 +40,7 @@ class AdminMaintenanceController extends Controller
             }
         }
 
-        $hasSystemSettingsTable = Schema::hasTable('system_settings');
+        $hasSystemSettingsTable = Schema::hasTable('debug_settings');
 
         $debugUiEnabled = false;
         $debugRoutesEnabled = false;
@@ -75,7 +66,7 @@ class AdminMaintenanceController extends Controller
 
             $simulateProd = (bool) SystemSettingHelper::get('debug.simulate_production', false);
 
-            $maintenanceNotifyEnabled = (bool) SystemSettingHelper::get('maintenance.notify_enabled', false);
+            $maintenanceNotifyEnabled = KsMaintenance::notifyEnabled();
 
             if ($breakGlassTtlMinutes < 1) {
                 $breakGlassTtlMinutes = 1;

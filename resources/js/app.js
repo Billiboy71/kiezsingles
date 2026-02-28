@@ -1,8 +1,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\js\app.js
 // Purpose: Frontend JS entry (public/site) – keep admin-only logic out
-// Changed: 23-02-2026 22:08 (Europe/Berlin)
-// Version: 0.9
+// Changed: 27-02-2026 23:35 (Europe/Berlin)
+// Version: 1.1
 // ============================================================================
 
 import './bootstrap';
@@ -551,6 +551,61 @@ function initNoteinstiegShowOtp() {
     inputs[0].select();
 }
 
+function initPasswordToggleButtons() {
+    // Delegated handler to support different markups (login/register/profile/etc.)
+    // Supported patterns (any of these on the clickable element):
+    // - data-ks-lock-unlock="1" + data-input-id="password"
+    // - data-ks-toggle-password="1" + data-input-id="password"
+    // - aria-controls="password"
+    // Fallback: toggle the nearest password/text input inside the same parent/wrapper.
+    document.addEventListener('click', (e) => {
+        const el = e.target instanceof Element ? e.target : null;
+        if (!el) return;
+
+        const btn = el.closest('[data-ks-lock-unlock], [data-ks-toggle-password], [data-input-id], [aria-controls]');
+        if (!btn) return;
+
+        const hasToggleIntent =
+            (btn instanceof HTMLElement) && (
+                (btn.dataset && (btn.dataset.ksLockUnlock === '1' || btn.dataset.ksTogglePassword === '1' || typeof btn.dataset.inputId === 'string'))
+                || btn.hasAttribute('aria-controls')
+            );
+
+        if (!hasToggleIntent) return;
+
+        // Prevent form submit or navigation when icon is inside a <button> or <a>
+        e.preventDefault();
+
+        let input = null;
+
+        const inputId = (btn.dataset && btn.dataset.inputId) ? btn.dataset.inputId : '';
+        if (inputId) {
+            input = document.getElementById(inputId);
+        }
+
+        if (!input) {
+            const aria = btn.getAttribute('aria-controls') || '';
+            if (aria) input = document.getElementById(aria);
+        }
+
+        if (!input) {
+            // Try common wrapper patterns
+            const scope = btn.parentElement || btn.closest('div') || null;
+            if (scope) {
+                const candidate = scope.querySelector('input[type="password"], input[type="text"]');
+                if (candidate instanceof HTMLInputElement) input = candidate;
+            }
+        }
+
+        if (!input || !(input instanceof HTMLInputElement)) return;
+
+        // Only toggle password/text inputs
+        if (input.type !== 'password' && input.type !== 'text') return;
+
+        window.togglePassword(input.id || '', btn);
+    });
+}
+
 /**
  * Kept global to preserve existing markup usage (onclick="togglePassword(...)").
  */
@@ -562,10 +617,7 @@ window.togglePassword = function togglePassword(inputId, btn) {
     input.type = isHidden ? 'text' : 'password';
 
     if (btn) {
-        const lockUnlock = (btn.dataset && btn.dataset.ksLockUnlock === '1') || false;
-        btn.textContent = lockUnlock
-            ? (isHidden ? '🔓' : '🔒')
-            : (isHidden ? '👁️' : '🔒');
+        btn.textContent = isHidden ? '🔓' : '🔒';
     }
 
     if (typeof window.__updateResetBtn === 'function') {
@@ -621,4 +673,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initProfileDeleteUserModal();
     initNoteinstiegEntryCountdown();
     initNoteinstiegShowOtp();
+    initPasswordToggleButtons();
 });

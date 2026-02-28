@@ -2,11 +2,12 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin.php
 // Purpose: Admin routes (single backend; admin-only access; single source of truth)
-// Changed: 26-02-2026 21:52 (Europe/Berlin)
-// Version: 5.3
+// Changed: 27-02-2026 19:41 (Europe/Berlin)
+// Version: 5.6
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Support\KsMaintenance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -123,50 +124,42 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'superadmin'])->grou
     });
 
     Route::post('settings/layout-outlines', function (\Illuminate\Http\Request $request) {
-        if (!Schema::hasTable('system_settings')) {
-            abort(503, 'system_settings fehlt');
+        if (!Schema::hasTable('debug_settings')) {
+            abort(503, 'debug_settings fehlt');
         }
 
-        $maintenanceEnabled = false;
+        $maintenanceEnabled = KsMaintenance::enabled();
 
-        try {
-            $maintenanceValue = DB::table('system_settings')
-                ->where('key', 'maintenance.enabled')
-                ->value('value');
+        if ($request->has('layout_outlines_frontend_enabled')) {
+            $frontendEnabled = $request->boolean('layout_outlines_frontend_enabled') ? '1' : '0';
 
-            if ($maintenanceValue !== null) {
-                $maintenanceEnabled = in_array((string) $maintenanceValue, ['1', 'true', 'yes'], true);
-            } else {
-                $maintenanceEnabled = app()->isDownForMaintenance();
+            DB::table('debug_settings')->updateOrInsert(
+                ['key' => 'debug.layout_outlines_frontend_enabled'],
+                ['value' => $frontendEnabled, 'group' => 'debug', 'cast' => 'bool']
+            );
+        }
+
+        if ($request->has('layout_outlines_admin_enabled')) {
+            $adminEnabled = $request->boolean('layout_outlines_admin_enabled') ? '1' : '0';
+
+            DB::table('debug_settings')->updateOrInsert(
+                ['key' => 'debug.layout_outlines_admin_enabled'],
+                ['value' => $adminEnabled, 'group' => 'debug', 'cast' => 'bool']
+            );
+        }
+
+        if ($request->has('layout_outlines_allow_production')) {
+            // fail-closed: AllowProduction kann nur im Wartungsmodus aktiv sein
+            $allowProduction = '0';
+            if ($maintenanceEnabled) {
+                $allowProduction = $request->boolean('layout_outlines_allow_production') ? '1' : '0';
             }
-        } catch (\Throwable $e) {
-            // fail-closed
-            $maintenanceEnabled = false;
+
+            DB::table('debug_settings')->updateOrInsert(
+                ['key' => 'debug.layout_outlines_allow_production'],
+                ['value' => $allowProduction, 'group' => 'debug', 'cast' => 'bool']
+            );
         }
-
-        $frontendEnabled = $request->boolean('layout_outlines_frontend_enabled') ? '1' : '0';
-        $adminEnabled = $request->boolean('layout_outlines_admin_enabled') ? '1' : '0';
-
-        // fail-closed: AllowProduction kann nur im Wartungsmodus aktiv sein
-        $allowProduction = '0';
-        if ($maintenanceEnabled) {
-            $allowProduction = $request->boolean('layout_outlines_allow_production') ? '1' : '0';
-        }
-
-        DB::table('system_settings')->updateOrInsert(
-            ['key' => 'debug.layout_outlines_frontend_enabled'],
-            ['value' => $frontendEnabled, 'group' => 'debug', 'cast' => 'bool']
-        );
-
-        DB::table('system_settings')->updateOrInsert(
-            ['key' => 'debug.layout_outlines_admin_enabled'],
-            ['value' => $adminEnabled, 'group' => 'debug', 'cast' => 'bool']
-        );
-
-        DB::table('system_settings')->updateOrInsert(
-            ['key' => 'debug.layout_outlines_allow_production'],
-            ['value' => $allowProduction, 'group' => 'debug', 'cast' => 'bool']
-        );
 
         return back();
     })->name('settings.layout_outlines');

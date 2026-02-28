@@ -2,13 +2,13 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\Admin\AdminSectionAccess.php
 // Purpose: Server-side backend section access (superadmin full; admin/moderator via DB whitelist; fail-closed)
-// Changed: 25-02-2026 23:06 (Europe/Berlin)
-// Version: 1.9
+// Changed: 27-02-2026 00:58 (Europe/Berlin)
+// Version: 2.0
 // ============================================================================
 
 namespace App\Support\Admin;
 
-use App\Support\SystemSettingHelper;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 final class AdminSectionAccess
@@ -126,10 +126,7 @@ final class AdminSectionAccess
      */
     public static function allowedModeratorSectionKeys(): array
     {
-        return [
-            self::SECTION_OVERVIEW,
-            self::SECTION_TICKETS,
-        ];
+        return self::allowedStaffManagedSectionKeys();
     }
 
     /**
@@ -145,10 +142,7 @@ final class AdminSectionAccess
      */
     public static function defaultModeratorSections(): array
     {
-        return [
-            self::SECTION_OVERVIEW,
-            self::SECTION_TICKETS,
-        ];
+        return self::defaultStaffManagedSections();
     }
 
     /**
@@ -160,21 +154,17 @@ final class AdminSectionAccess
     private static function permissionSourceAvailableFailClosed(): bool
     {
         try {
-            return Schema::hasTable('system_settings');
+            return Schema::hasTable('staff_permissions');
         } catch (\Throwable $e) {
             return false;
         }
     }
 
     /**
-     * Read per-user section whitelist from system_settings as configured by admin/moderation UI.
-     *
-     * Source of truth:
-     * - moderation.{role}_sections.user_{id} (preferred)
-     * - fallback: moderation.{role}_sections (legacy/global)
+     * Read per-user section whitelist from staff_permissions (SSOT).
      *
      * Fail-closed:
-     * - If system_settings missing/unreadable OR decoded invalid -> defaultStaffManagedSections()
+     * - If staff_permissions missing/unreadable -> defaultStaffManagedSections()
      */
     public static function staffManagedSectionsForUserFailClosed(string $role, $user): array
     {
@@ -186,7 +176,7 @@ final class AdminSectionAccess
         $allowed = self::allowedStaffManagedSectionKeys();
 
         try {
-            if (!Schema::hasTable('system_settings')) {
+            if (!Schema::hasTable('staff_permissions')) {
                 return self::defaultStaffManagedSections();
             }
         } catch (\Throwable $e) {
@@ -205,80 +195,25 @@ final class AdminSectionAccess
             $userId = null;
         }
 
-        $rawValue = null;
-
-        // Per-user key first
-        if ($userId !== null && $userId > 0) {
-            $perUserKey = ($role === self::ROLE_ADMIN)
-                ? ('moderation.admin_sections.user_' . (string) $userId)
-                : ('moderation.moderator_sections.user_' . (string) $userId);
-            $rawValue = SystemSettingHelper::get($perUserKey, '');
-        }
-
-        // Backward-compat: fall back to old global key if per-user key
-        // missing or an empty string. we do *not* treat an explicit empty array
-        // as a signal to fall back, because an administrator might deliberately
-        // revoke all sections and that choice must be respected.
-        $shouldFallback = $rawValue === null || $rawValue === '';
-
-        if ($shouldFallback) {
-            $rawValue = ($role === self::ROLE_ADMIN)
-                ? SystemSettingHelper::get('moderation.admin_sections', '')
-                : SystemSettingHelper::get('moderation.moderator_sections', '');
-        }
-
-        // SystemSettingHelper::get can return array for cast=json
-        $decoded = null;
-
-        if (is_array($rawValue)) {
-            $decoded = $rawValue;
-        } elseif (is_string($rawValue)) {
-            $raw = trim($rawValue);
-            if ($raw !== '') {
-                $tmp = json_decode($raw, true);
-                if (is_array($tmp)) {
-                    $decoded = $tmp;
-                }
-            }
-        } elseif ($rawValue !== null) {
-            $raw = trim((string) $rawValue);
-            if ($raw !== '') {
-                $tmp = json_decode($raw, true);
-                if (is_array($tmp)) {
-                    $decoded = $tmp;
-                }
-            }
-        }
-
-        if (!is_array($decoded)) {
+        if ($userId === null || $userId < 1) {
             return self::defaultStaffManagedSections();
         }
 
-        $out = [];
-        foreach ($decoded as $s) {
-            if (!is_string($s)) {
-                continue;
-            }
-
-            $s = trim($s);
-            if ($s === '' || strlen($s) > 64) {
-                continue;
-            }
-            if (!preg_match('/^[a-z0-9_]+$/', $s)) {
-                continue;
-            }
-
-            // Moderator darf ausschließlich die explizit erlaubten Keys erhalten.
-            if (!in_array($s, $allowed, true)) {
-                continue;
-            }
-
-            $out[] = $s;
+        try {
+            $out = DB::table('staff_permissions')
+                ->where('user_id', $userId)
+                ->where('allowed', true)
+                ->whereIn('module_key', $allowed)
+                ->pluck('module_key')
+                ->map(static fn ($s) => mb_strtolower(trim((string) $s)))
+                ->filter(static fn ($s) => $s !== '' && strlen($s) <= 64 && preg_match('/^[a-z0-9_]+$/', $s))
+                ->unique()
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            return self::defaultStaffManagedSections();
         }
 
-        $out = array_values(array_unique($out));
-
-        // honor explicit emptiness; caller will treat empty array as no access
         return $out;
     }
 

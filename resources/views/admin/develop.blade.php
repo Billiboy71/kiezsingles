@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\develop.blade.php
 Purpose: Admin develop page (layout outlines controls)
-Changed: 26-02-2026 21:39 (Europe/Berlin)
-Version: 0.3
+Changed: 27-02-2026 19:15 (Europe/Berlin)
+Version: 0.5
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -31,7 +31,7 @@ Version: 0.3
 
         @if(!$hasSystemSettingsTable)
             <p class="m-0 text-sm text-red-700 mb-3">
-                Hinweis: Tabelle <code>system_settings</code> fehlt. Speichern nicht möglich.
+                Hinweis: Tabelle <code>debug_settings</code> fehlt. Speichern nicht möglich.
             </p>
         @endif
 
@@ -58,6 +58,9 @@ Version: 0.3
                         >
                         <span class="ks-slider"></span>
                     </label>
+                    <noscript>
+                        <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900" @disabled(!$hasSystemSettingsTable)>Speichern</button>
+                    </noscript>
                 </form>
             </div>
 
@@ -83,6 +86,9 @@ Version: 0.3
                         >
                         <span class="ks-slider"></span>
                     </label>
+                    <noscript>
+                        <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900" @disabled(!$hasSystemSettingsTable)>Speichern</button>
+                    </noscript>
                 </form>
             </div>
 
@@ -108,6 +114,9 @@ Version: 0.3
                         >
                         <span class="ks-slider"></span>
                     </label>
+                    <noscript>
+                        <button type="submit" class="ml-2 px-3 py-1 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-gray-900" @disabled(!$hasSystemSettingsTable || !$maintenanceEnabled)>Speichern</button>
+                    </noscript>
                 </form>
             </div>
         </div>

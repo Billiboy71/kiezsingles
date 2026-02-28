@@ -2,8 +2,8 @@
 // File: C:\laragon\www\kiezsingles\resources\js\admin.js
 // Purpose: Admin-only JS (centralized handlers for admin views; no inline scripts)
 // Created: 23-02-2026 17:52 (Europe/Berlin)
-// Changed: 25-02-2026 23:51 (Europe/Berlin)
-// Version: 1.5
+// Changed: 27-02-2026 21:22 (Europe/Berlin)
+// Version: 2.9
 // ============================================================================
 
 (function () {
@@ -148,11 +148,11 @@
         var urlRecoveryList = statusWrap.getAttribute('data-ks-url-recovery-list-ajax') || '';
         var urlRecoveryGenerate = statusWrap.getAttribute('data-ks-url-recovery-generate-ajax') || '';
 
-        var m = document.getElementById('maintenance_enabled');
+        var m = document.getElementById('enabled');
         var allowAdmins = document.getElementById('maintenance_allow_admins');
         var allowMods = document.getElementById('maintenance_allow_moderators');
 
-        var etaShow = document.getElementById('maintenance_show_eta');
+        var etaShow = document.getElementById('show_eta');
         var etaDate = document.getElementById('maintenance_eta_date');
         var etaTime = document.getElementById('maintenance_eta_time');
         var etaClear = document.getElementById('maintenance_eta_clear');
@@ -461,16 +461,16 @@
             var payloadSettings = {
                 simulate_production: sim ? !!sim.checked : false,
 
-                maintenance_enabled: !!m.checked,
+                enabled: !!m.checked,
                 maintenance_notify_enabled: !!notify.checked,
 
                 maintenance_allow_admins: !!allowAdmins.checked,
                 maintenance_allow_moderators: !!allowMods.checked,
 
                 // IMPORTANT:
-                // Some backends treat missing keys as default(0). Keep maintenance_show_eta stable across
+                // Some backends treat missing keys as default(0). Keep show_eta stable across
                 // settings saves by always sending the current value as well.
-                maintenance_show_eta: !!etaShow.checked,
+                show_eta: !!etaShow.checked,
 
                 break_glass_enabled: !!bg.checked,
                 break_glass_totp_secret: (bgSecret.value || ''),
@@ -488,7 +488,7 @@
             }
 
             var payloadEta = {
-                maintenance_show_eta: !!etaShow.checked,
+                show_eta: !!etaShow.checked,
                 maintenance_eta_date: (etaDate.value || ''),
                 maintenance_eta_time: (etaTime.value || '')
             };
@@ -510,6 +510,11 @@
                 })
                 .then(function () {
                     showToast('Gespeichert.', false);
+                    try {
+                        if (window.KSAdminUI && typeof window.KSAdminUI.refreshStatusOnce === 'function') {
+                            window.KSAdminUI.refreshStatusOnce();
+                        }
+                    } catch (e) {}
                     if (reloadAfterSave) {
                         reloadAfterSave = false;
                         window.setTimeout(function () {
@@ -568,10 +573,8 @@
                 localDebugBanner.classList.toggle('hidden', !(maintenanceOn && localBannerEnabled));
             }
 
-            // Statusfarben: rot wenn Wartungsmodus aktiv, sonst grün.
             setStatusBox(maintenanceOn);
 
-            // Wenn system_settings fehlt: alles außer Wartung/ETA blockieren.
             if (!hasSystemSettingsTable) {
                 allowAdmins.disabled = true;
                 allowMods.disabled = true;
@@ -595,7 +598,6 @@
                 clearCodes();
             }
 
-            // Wenn Wartung AUS: alles deaktivieren + zurücksetzen (UI-State).
             if (!maintenanceOn) {
                 etaShow.checked = false;
                 etaDate.value = '';
@@ -643,13 +645,11 @@
                 return;
             }
 
-            // Wartung AN: ETA aktivierbar.
             etaShow.disabled = (!hasSettingsTable);
             etaDate.disabled = (!hasSettingsTable) || (!etaShow.checked);
             etaTime.disabled = (!hasSettingsTable) || (!etaShow.checked);
             etaClear.disabled = (!hasSettingsTable);
 
-            // Wartung AN: Allowlist bedienbar (nur wenn system_settings existiert).
             if (hasSystemSettingsTable) {
                 allowAdmins.disabled = false;
                 allowMods.disabled = false;
@@ -658,7 +658,6 @@
                 allowMods.disabled = true;
             }
 
-            // Wartung AN: Notify erst jetzt bedienbar.
             if (hasSystemSettingsTable) {
                 notify.disabled = false;
                 if (sim) sim.disabled = false;
@@ -666,7 +665,6 @@
                 notify.disabled = true;
             }
 
-            // Break-Glass UI: nur im Wartungsmodus und nur in PROD (oder lokal mit Live-Simulation).
             var prodEffective = isProd || (!!(sim ? sim.checked : false));
             var breakGlassUiAllowed = hasSystemSettingsTable && maintenanceOn && prodEffective;
 
@@ -688,6 +686,11 @@
 
                 genBtn.disabled = true;
                 clearCodes();
+                try {
+                    if (window.KSAdminUI && typeof window.KSAdminUI.setStatus === 'function') {
+                        window.KSAdminUI.setStatus({ break_glass: false });
+                    }
+                } catch (e) {}
                 return;
             }
 
@@ -716,6 +719,12 @@
             if (secretWasGeneratedOrNormalized) {
                 scheduleSave('settings');
             }
+
+            try {
+                if (window.KSAdminUI && typeof window.KSAdminUI.setStatus === 'function') {
+                    window.KSAdminUI.setStatus({ break_glass: linkAllowed });
+                }
+            } catch (e) {}
         }
 
         bgQrBtn.addEventListener('click', function () {
@@ -845,7 +854,6 @@
         allowAdmins.addEventListener('change', function () { apply(); scheduleSave('settings'); });
         allowMods.addEventListener('change', function () { apply(); scheduleSave('settings'); });
 
-        // When ETA display is toggled OFF: clear date/time immediately and persist via eta-ajax.
         etaShow.addEventListener('change', function () {
             if (!etaShow.checked) {
                 etaDate.value = '';
@@ -893,7 +901,428 @@
     })();
 
     // ------------------------------------------------------------------------
-    // 6) Admin tickets: clickable table rows (tr[data-href]) without inline scripts
+    // 6) Ticket detail autosave (meta + drafts) with manual fallback buttons
+    // ------------------------------------------------------------------------
+    (function initAdminTicketDetailAutosave() {
+        var page = document.getElementById('ks_ticket_page');
+        if (!page) return;
+
+        var metaForm = document.getElementById('js-meta-form');
+        var metaStatus = document.getElementById('js-meta-status');
+        var metaFallbackBtn = document.getElementById('js-meta-save-fallback');
+        var statusBadge = document.getElementById('js-status-badge');
+        var categoryBadge = document.getElementById('js-head-category-badge');
+        var priorityBadge = document.getElementById('js-head-priority-badge');
+        var categoryBox = document.getElementById('js-box-category');
+        var priorityBox = document.getElementById('js-box-priority');
+        var assignedBox = document.getElementById('js-box-assigned');
+        var assignedHeadLink = document.getElementById('js-head-assigned-link');
+        var assignedHeadText = document.getElementById('js-head-assigned-text');
+        var assignedHeadRole = document.getElementById('js-head-assigned-role');
+        var assignedSelect = document.getElementById('js-assigned-admin-select');
+        var categorySelect = document.getElementById('js-category-select');
+        var prioritySelect = document.getElementById('js-priority-select');
+        var statusSelect = document.getElementById('js-status-select');
+
+        var replyForm = document.getElementById('js-reply-form');
+        var replyField = document.getElementById('js-reply-message');
+        var noteField = document.getElementById('js-internal-note');
+        var draftStatus = document.getElementById('js-draft-status');
+        var draftFallbackBtn = document.getElementById('js-draft-save-fallback');
+
+        var draftSaveUrl = (page.getAttribute('data-draft-save-url') || '').trim();
+
+        function csrfFromForm(form) {
+            if (!form) return '';
+            var token = form.querySelector('input[name=\"_token\"]');
+            return token ? (token.value || '') : '';
+        }
+
+        function postFormAsJson(url, formData, csrfToken, abortSignal) {
+            var body = new URLSearchParams();
+            formData.forEach(function (v, k) {
+                body.append(k, (v == null ? '' : String(v)));
+            });
+
+            var fetchOpts = {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken || ''
+                },
+                body: body.toString()
+            };
+
+            if (abortSignal) {
+                fetchOpts.signal = abortSignal;
+            }
+
+            return fetch(url, fetchOpts).then(function (res) {
+                if (!res.ok) {
+                    return res.text().then(function (txt) {
+                        throw new Error('HTTP ' + res.status + (txt ? (': ' + txt) : ''));
+                    });
+                }
+                return res.json();
+            });
+        }
+
+        function setBadgeClasses(el, tokenClassMap, key, fallbackClasses) {
+            if (!el) return;
+
+            var allTokens = [];
+            Object.keys(tokenClassMap).forEach(function (k) {
+                var cls = tokenClassMap[k] || '';
+                cls.split(/\s+/).forEach(function (t) {
+                    if (t) allTokens.push(t);
+                });
+            });
+            (fallbackClasses || '').split(/\s+/).forEach(function (t) {
+                if (t) allTokens.push(t);
+            });
+
+            allTokens.forEach(function (t) { el.classList.remove(t); });
+
+            var next = tokenClassMap[key] || fallbackClasses || '';
+            next.split(/\s+/).forEach(function (t) {
+                if (t) el.classList.add(t);
+            });
+        }
+
+        var statusBadgeClasses = {
+            open: 'bg-yellow-100 border-yellow-200',
+            in_progress: 'bg-sky-100 border-sky-200',
+            closed: 'bg-emerald-100 border-emerald-200',
+            rejected: 'bg-slate-100 border-slate-200',
+            escalated: 'bg-red-100 border-red-200'
+        };
+        var categoryBadgeClasses = {
+            none: 'bg-slate-100 border-slate-200',
+            support: 'bg-sky-100 border-sky-200',
+            abuse: 'bg-red-100 border-red-200',
+            spam: 'bg-orange-100 border-orange-200',
+            billing: 'bg-violet-100 border-violet-200',
+            bug: 'bg-teal-100 border-teal-200'
+        };
+        var priorityBadgeClasses = {
+            none: 'bg-emerald-100 border-emerald-200',
+            low: 'bg-lime-100 border-lime-200',
+            normal: 'bg-yellow-100 border-yellow-200',
+            high: 'bg-orange-100 border-orange-200',
+            critical: 'bg-red-100 border-red-200'
+        };
+
+        var selectGradients = {
+            assignee: {
+                superadmin: 'linear-gradient(135deg,#fee2e2 0%,#fecaca 100%)',
+                admin: 'linear-gradient(135deg,#fef9c3 0%,#fde68a 100%)',
+                moderator: 'linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)',
+                _default: 'linear-gradient(135deg,#ffffff 0%,#f8fafc 100%)'
+            },
+            status: {
+                open: 'linear-gradient(135deg,#fffbe6 0%,#fff3bf 100%)',
+                in_progress: 'linear-gradient(135deg,#e0f2fe 0%,#bae6fd 100%)',
+                closed: 'linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)',
+                rejected: 'linear-gradient(135deg,#f1f5f9 0%,#e2e8f0 100%)',
+                escalated: 'linear-gradient(135deg,#fee2e2 0%,#fecaca 100%)',
+                _default: 'linear-gradient(135deg,#ffffff 0%,#f8fafc 100%)'
+            },
+            category: {
+                none: 'linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%)',
+                support: 'linear-gradient(135deg,#e0f2fe 0%,#bae6fd 100%)',
+                abuse: 'linear-gradient(135deg,#fee2e2 0%,#fecaca 100%)',
+                spam: 'linear-gradient(135deg,#ffedd5 0%,#fed7aa 100%)',
+                billing: 'linear-gradient(135deg,#ede9fe 0%,#ddd6fe 100%)',
+                bug: 'linear-gradient(135deg,#ccfbf1 0%,#99f6e4 100%)',
+                _default: 'linear-gradient(135deg,#ffffff 0%,#f8fafc 100%)'
+            },
+            priority: {
+                none: 'linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)',
+                low: 'linear-gradient(135deg,#ecfccb 0%,#d9f99d 100%)',
+                normal: 'linear-gradient(135deg,#fef9c3 0%,#fde68a 100%)',
+                high: 'linear-gradient(135deg,#ffedd5 0%,#fed7aa 100%)',
+                critical: 'linear-gradient(135deg,#fee2e2 0%,#fecaca 100%)',
+                _default: 'linear-gradient(135deg,#ffffff 0%,#f8fafc 100%)'
+            }
+        };
+
+        function normalizeEmpty(v) {
+            var s = (v || '').toString().trim();
+            return s === '' ? 'none' : s;
+        }
+
+        function applySelectGradient(el, paletteName, explicitKey) {
+            if (!el) return;
+            var palette = selectGradients[paletteName] || null;
+            if (!palette) return;
+            var key = normalizeEmpty((typeof explicitKey === 'string' && explicitKey !== '') ? explicitKey : el.value);
+            var g = palette[key] || palette._default;
+            el.style.background = g;
+            el.style.backgroundImage = g;
+            el.style.borderColor = '#cbd5e1';
+            el.style.color = '#0f172a';
+        }
+
+        function applyBoxGradient(el, paletteName, key) {
+            if (!el) return;
+            var palette = selectGradients[paletteName] || null;
+            if (!palette) return;
+            var normalizedKey = normalizeEmpty(key);
+            var g = palette[normalizedKey] || palette._default;
+            el.style.background = g;
+            el.style.backgroundImage = g;
+            el.style.borderColor = '#cbd5e1';
+        }
+
+        function isStaffRole(role) {
+            var r = (role || '').toString().trim().toLowerCase();
+            return (r === 'superadmin' || r === 'admin' || r === 'moderator');
+        }
+
+        function updateTicketHeadFromMeta() {
+            if ((assignedHeadLink || assignedHeadText) && assignedSelect && assignedSelect.selectedIndex >= 0) {
+                var opt = assignedSelect.options[assignedSelect.selectedIndex];
+                var txt = (opt.getAttribute('data-display') || opt.text || '').trim();
+                var role = (opt.getAttribute('data-role') || '').trim().toLowerCase();
+                var roleLabel = (opt.getAttribute('data-role-label') || 'User').trim();
+                var profileUrl = (opt.getAttribute('data-profile-url') || '').trim();
+
+                if (assignedHeadLink) assignedHeadLink.textContent = txt !== '' ? txt : '-';
+                if (assignedHeadText) assignedHeadText.textContent = txt !== '' ? txt : '-';
+                if (assignedHeadRole) {
+                    assignedHeadRole.textContent = roleLabel;
+                }
+
+                if (assignedHeadLink && assignedHeadText) {
+                    var userLinkable = (profileUrl !== '' && !isStaffRole(role) && txt !== '-' && txt !== '(keiner)');
+
+                    if (userLinkable) {
+                        assignedHeadLink.setAttribute('href', profileUrl);
+
+                        assignedHeadLink.classList.remove('hidden');
+                        assignedHeadLink.removeAttribute('style');
+
+                        assignedHeadText.classList.add('hidden');
+                    } else {
+                        assignedHeadLink.setAttribute('href', '#');
+
+                        assignedHeadLink.classList.add('hidden');
+                        assignedHeadLink.setAttribute('style', 'display:none !important;');
+
+                        assignedHeadText.classList.remove('hidden');
+                    }
+                }
+
+                applySelectGradient(assignedSelect, 'assignee', role);
+                applyBoxGradient(assignedBox, 'assignee', role);
+            }
+
+            if (categoryBadge && categorySelect && categorySelect.selectedIndex >= 0) {
+                var catValue = normalizeEmpty(categorySelect.value);
+                var catText = (categorySelect.options[categorySelect.selectedIndex].text || '').trim();
+                categoryBadge.textContent = catText !== '' ? catText : '-';
+                applySelectGradient(categorySelect, 'category');
+                applyBoxGradient(categoryBox, 'category', catValue);
+            }
+
+            if (priorityBadge && prioritySelect && prioritySelect.selectedIndex >= 0) {
+                var prioValue = normalizeEmpty(prioritySelect.value);
+                var prioText = (prioritySelect.options[prioritySelect.selectedIndex].text || '').trim();
+                priorityBadge.textContent = prioText !== '' ? prioText : '-';
+                applySelectGradient(prioritySelect, 'priority');
+                applyBoxGradient(priorityBox, 'priority', prioValue);
+            }
+
+            if (statusBadge && statusSelect && statusSelect.selectedIndex >= 0) {
+                var statusValue = normalizeEmpty(statusSelect.value);
+                var statusText = (statusSelect.options[statusSelect.selectedIndex].text || '').trim();
+                statusBadge.textContent = statusText !== '' ? statusText : '-';
+                setBadgeClasses(statusBadge, statusBadgeClasses, statusValue, 'bg-slate-200 border-slate-200');
+                applySelectGradient(statusSelect, 'status');
+            }
+        }
+
+        // Meta autosave
+        if (metaForm) {
+            var metaTimer = null;
+            var metaSaving = false;
+            var metaQueued = false;
+            var metaFields = metaForm.querySelectorAll('.js-meta-field');
+            var metaCsrf = csrfFromForm(metaForm);
+
+            function runMetaSave() {
+                if (metaSaving) {
+                    metaQueued = true;
+                    return;
+                }
+                metaSaving = true;
+                if (metaStatus) metaStatus.textContent = 'speichert…';
+
+                postFormAsJson(metaForm.getAttribute('action') || window.location.href, new FormData(metaForm), metaCsrf)
+                    .then(function () {
+                        if (metaStatus) metaStatus.textContent = 'gespeichert';
+                        window.setTimeout(function () {
+                            if (metaStatus && metaStatus.textContent === 'gespeichert') metaStatus.textContent = '';
+                        }, 1200);
+                    })
+                    .catch(function () {
+                        if (metaStatus) metaStatus.textContent = 'Autosave fehlgeschlagen';
+                        if (metaFallbackBtn) metaFallbackBtn.style.display = '';
+                    })
+                    .finally(function () {
+                        metaSaving = false;
+                        if (metaQueued) {
+                            metaQueued = false;
+                            runMetaSave();
+                        }
+                    });
+            }
+
+            function scheduleMetaSave() {
+                if (metaTimer) window.clearTimeout(metaTimer);
+                metaTimer = window.setTimeout(runMetaSave, 350);
+            }
+
+            for (var i = 0; i < metaFields.length; i++) {
+                metaFields[i].addEventListener('change', function () {
+                    updateTicketHeadFromMeta();
+                    scheduleMetaSave();
+                });
+            }
+            updateTicketHeadFromMeta();
+            if (metaFallbackBtn) metaFallbackBtn.style.display = 'none';
+        }
+
+        // Draft autosave
+        if (replyForm && replyField && noteField && draftSaveUrl !== '') {
+            var draftTimer = null;
+            var draftSaving = false;
+            var draftQueued = false;
+            var draftCsrf = csrfFromForm(replyForm);
+            var draftSubmitting = false;
+
+            var draftAbortCtrl = null;
+
+            function abortDraftRequest() {
+                if (draftAbortCtrl) {
+                    try { draftAbortCtrl.abort(); } catch (e) {}
+                    draftAbortCtrl = null;
+                }
+            }
+
+            function runDraftSave() {
+                if (draftSubmitting) return;
+
+                if (draftSaving) {
+                    draftQueued = true;
+                    return;
+                }
+                draftSaving = true;
+                if (draftStatus) draftStatus.textContent = 'Entwurf wird gespeichert…';
+
+                abortDraftRequest();
+                try { draftAbortCtrl = new AbortController(); } catch (e) { draftAbortCtrl = null; }
+
+                var payload = new FormData();
+                payload.append('_token', draftCsrf);
+                payload.append('reply_message', replyField.value || '');
+                payload.append('internal_note', noteField.value || '');
+
+                postFormAsJson(draftSaveUrl, payload, draftCsrf, draftAbortCtrl ? draftAbortCtrl.signal : null)
+                    .then(function (json) {
+                        if (json && json.ok === true) {
+                            if (draftStatus) draftStatus.textContent = 'Entwurf gespeichert';
+                            window.setTimeout(function () {
+                                if (draftStatus && draftStatus.textContent === 'Entwurf gespeichert') draftStatus.textContent = '';
+                            }, 1200);
+                            return;
+                        }
+                        throw new Error('Draft save failed');
+                    })
+                    .catch(function (err) {
+                        if (err && err.name === 'AbortError') {
+                            return;
+                        }
+                        if (draftStatus) draftStatus.textContent = 'Draft-Autosave fehlgeschlagen';
+                        if (draftFallbackBtn) draftFallbackBtn.style.display = '';
+                    })
+                    .finally(function () {
+                        draftSaving = false;
+                        draftAbortCtrl = null;
+                        if (draftQueued) {
+                            draftQueued = false;
+                            runDraftSave();
+                        }
+                    });
+            }
+
+            function scheduleDraftSave() {
+                if (draftSubmitting) return;
+                if (draftTimer) window.clearTimeout(draftTimer);
+                draftTimer = window.setTimeout(runDraftSave, 700);
+            }
+
+            replyField.addEventListener('input', scheduleDraftSave);
+            noteField.addEventListener('input', scheduleDraftSave);
+            if (draftFallbackBtn) draftFallbackBtn.style.display = 'none';
+
+            // Deterministic submit routing:
+            // - Use clicked submitter's formaction/formmethod if provided
+            // - Otherwise use form's default action/method
+            // This fixes cases where "Absenden" does not hit the intended endpoint.
+            replyForm.addEventListener('submit', function (ev) {
+                draftSubmitting = true;
+
+                if (draftTimer) {
+                    window.clearTimeout(draftTimer);
+                    draftTimer = null;
+                }
+
+                abortDraftRequest();
+
+                try {
+                    var submitter = (ev && ev.submitter) ? ev.submitter : document.activeElement;
+                    var submitAction = '';
+                    var submitMethod = '';
+
+                    if (submitter && submitter.getAttribute) {
+                        submitAction = (submitter.getAttribute('formaction') || '').trim();
+                        submitMethod = (submitter.getAttribute('formmethod') || '').trim();
+                    }
+
+                    if (submitAction === '') {
+                        submitAction = (replyForm.getAttribute('action') || '').trim();
+                    }
+                    if (submitMethod === '') {
+                        submitMethod = (replyForm.getAttribute('method') || 'POST').trim();
+                    }
+
+                    if (submitAction !== '') {
+                        replyForm.setAttribute('action', submitAction);
+                    }
+                    if (submitMethod !== '') {
+                        replyForm.setAttribute('method', submitMethod);
+                    }
+                } catch (e) {}
+
+                // If submit is blocked by another handler, do not permanently disable autosave.
+                window.setTimeout(function () {
+                    try {
+                        if (document.body && replyForm && document.body.contains(replyForm)) {
+                            draftSubmitting = false;
+                        }
+                    } catch (e) {}
+                }, 2000);
+            }, true);
+        } else if (draftFallbackBtn) {
+            draftFallbackBtn.style.display = '';
+        }
+    })();
+
+    // ------------------------------------------------------------------------
+    // 7) Admin tickets: clickable table rows (tr[data-href]) without inline scripts
     // Re-implements behavior from resources/views/admin/tickets/index.blade.php
     // ------------------------------------------------------------------------
     (function initAdminTicketsRowNavigation() {
