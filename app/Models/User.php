@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Models\User.php
 // Purpose: User model (enables Laravel email verification)
-// Changed: 14-02-2026 15:07 (Europe/Berlin)
-// Version: 0.3
+// Changed: 28-02-2026 13:51 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 namespace App\Models;
 
@@ -34,6 +34,9 @@ class User extends Authenticatable implements MustVerifyEmail
         // Role
         'role',
 
+        // Protected admin (DB-only flag; no UI toggle)
+        'is_protected_admin',
+
         // B4 – Moderation
         'moderation_warned_at',
         'moderation_warn_count',
@@ -53,6 +56,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'birthdate'                    => 'date',
         'privacy_accepted_at'          => 'datetime',
 
+        // Protected admin (DB-only flag; no UI toggle)
+        'is_protected_admin'           => 'boolean',
+
         // B4 – Moderation
         'moderation_warned_at'         => 'datetime',
         'moderation_warn_count'        => 'integer',
@@ -60,6 +66,26 @@ class User extends Authenticatable implements MustVerifyEmail
         'moderation_blocked_until'     => 'datetime',
         'moderation_blocked_permanent' => 'boolean',
     ];
+
+    public function isSuperadmin(): bool
+    {
+        return $this->role === 'superadmin';
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isModerator(): bool
+    {
+        return $this->role === 'moderator';
+    }
+
+    public function isProtectedAdmin(): bool
+    {
+        return (bool) $this->is_protected_admin;
+    }
 
     /**
      * Use public_id for route-model binding instead of numeric id.

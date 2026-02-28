@@ -2,6 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Providers\AppServiceProvider.php
 // Purpose: App service provider (password defaults + user observer)
+// Changed: 28-02-2026 14:12 (Europe/Berlin)
+// Version: 0.1
 // ============================================================================
 
 namespace App\Providers;
