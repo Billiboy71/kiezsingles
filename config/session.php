@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\config\session.php
 // Purpose: Session configuration
-// Changed: 11-02-2026 00:00
-// Version: 0.1
+// Changed: 28-02-2026 20:01 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 use Illuminate\Support\Str;
@@ -135,10 +135,7 @@ return [
     |
     */
 
-    'cookie' => env(
-        'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'laravel')).'-session'
-    ),
+    'cookie' => env('SESSION_COOKIE', 'laravel_session'),
 
     /*
     |--------------------------------------------------------------------------

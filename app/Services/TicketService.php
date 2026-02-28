@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\TicketService.php
 // Purpose: Central domain/service layer for Ticket workflows (create/reply/close).
-// Changed: 27-02-2026 14:27 (Europe/Berlin)
-// Version: 1.0
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 1.1
 // ============================================================================
 
 namespace App\Services;
@@ -591,8 +591,7 @@ class TicketService
     {
         $user = User::query()->findOrFail((int) $userId);
 
-        $role = mb_strtolower(trim((string) ($user->role ?? '')));
-        if (!in_array($role, ['moderator', 'admin', 'superadmin'], true)) {
+        if (!$user->hasAnyRole(['moderator', 'admin', 'superadmin'])) {
             throw new RuntimeException('Staff privileges required.');
         }
 
@@ -603,8 +602,7 @@ class TicketService
     {
         $user = User::query()->findOrFail((int) $userId);
 
-        $role = mb_strtolower(trim((string) ($user->role ?? '')));
-        if (!in_array($role, ['moderator', 'admin', 'superadmin'], true)) {
+        if (!$user->hasAnyRole(['moderator', 'admin', 'superadmin'])) {
             throw new RuntimeException('Staff privileges required.');
         }
 

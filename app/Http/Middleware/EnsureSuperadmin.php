@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureSuperadmin.php
 // Purpose: Allow access only for superadmin users (server-side enforcement)
 // Created: 19-02-2026 19:02 (Europe/Berlin)
-// Changed: 20-02-2026 00:24 (Europe/Berlin)
-// Version: 0.4
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -33,9 +33,8 @@ class EnsureSuperadmin
         }
 
         $user = auth()->user();
-        $role = mb_strtolower(trim((string) ($user->role ?? 'user')));
 
-        if ($role !== 'superadmin') {
+        if (!$user || !$user->hasRole('superadmin')) {
             abort(403);
         }
 

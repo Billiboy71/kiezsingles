@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\admin.blade.php
 Purpose: Admin root layout (separate from app layout; dedicated admin header + admin navigation + content)
-Changed: 27-02-2026 19:15 (Europe/Berlin)
-Version: 6.0
+Changed: 28-02-2026 14:49 (Europe/Berlin)
+Version: 6.1
 ============================================================================ --}}
 
 @php
@@ -177,6 +177,12 @@ Version: 6.0
                 $modules['moderation'] = [
                     'label' => 'Moderation',
                     'route' => 'admin.moderation',
+                    'access' => 'superadmin',
+                ];
+
+                $modules['roles'] = [
+                    'label' => 'Rollen',
+                    'route' => 'admin.users.index',
                     'access' => 'superadmin',
                 ];
             }

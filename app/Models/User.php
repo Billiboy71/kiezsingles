@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Models\User.php
 // Purpose: User model (enables Laravel email verification)
-// Changed: 28-02-2026 13:51 (Europe/Berlin)
-// Version: 0.4
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 namespace App\Models;
 
@@ -12,10 +12,11 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasFactory, Notifiable, MustVerifyEmailTrait;
+    use HasFactory, Notifiable, MustVerifyEmailTrait, HasRoles;
 
     protected $fillable = [
         'public_id',          // ← Public User Identifier (extern)
@@ -30,9 +31,6 @@ class User extends Authenticatable implements MustVerifyEmail
         'district',
         'postcode',
         'privacy_accepted_at',
-
-        // Role
-        'role',
 
         // Protected admin (DB-only flag; no UI toggle)
         'is_protected_admin',
@@ -69,22 +67,44 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function isSuperadmin(): bool
     {
-        return $this->role === 'superadmin';
+        return $this->hasRole('superadmin');
     }
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->hasRole('admin');
     }
 
     public function isModerator(): bool
     {
-        return $this->role === 'moderator';
+        return $this->hasRole('moderator');
     }
 
     public function isProtectedAdmin(): bool
     {
         return (bool) $this->is_protected_admin;
+    }
+
+    public function primaryRoleName(): string
+    {
+        if ($this->hasRole('superadmin')) {
+            return 'superadmin';
+        }
+
+        if ($this->hasRole('admin')) {
+            return 'admin';
+        }
+
+        if ($this->hasRole('moderator')) {
+            return 'moderator';
+        }
+
+        return 'user';
+    }
+
+    public function getRoleAttribute(): string
+    {
+        return $this->primaryRoleName();
     }
 
     /**

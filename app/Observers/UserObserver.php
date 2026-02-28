@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Observers\UserObserver.php
 // Purpose: User observer (registration IP + protected/superadmin fail-safe)
-// Changed: 28-02-2026 14:18 (Europe/Berlin)
-// Version: 0.2
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 namespace App\Observers;
@@ -41,42 +41,6 @@ class UserObserver
     }
 
     /**
-     * Global guardrail before updating a user.
-     */
-    public function updating(User $user): void
-    {
-        // 1) Protected admin darf nicht von superadmin heruntergestuft werden
-        if ($user->isDirty('role')) {
-            $originalRole = $user->getOriginal('role');
-            $newRole      = $user->role;
-
-            // Protected + versucht von superadmin wegzugehen
-            if (
-                $user->is_protected_admin &&
-                $originalRole === 'superadmin' &&
-                $newRole !== 'superadmin'
-            ) {
-                throw ValidationException::withMessages([
-                    'role' => 'Protected superadmin cannot be downgraded.',
-                ]);
-            }
-
-            // 2) Mindestens 1 Superadmin muss existieren
-            if ($originalRole === 'superadmin' && $newRole !== 'superadmin') {
-                $superadminCount = User::where('role', 'superadmin')->count();
-
-                // Wenn dieser User aktuell noch superadmin ist,
-                // würde die Änderung die Anzahl um 1 reduzieren.
-                if ($superadminCount <= 1) {
-                    throw ValidationException::withMessages([
-                        'role' => 'At least one superadmin must exist.',
-                    ]);
-                }
-            }
-        }
-    }
-
-    /**
      * Global guardrail before deleting a user.
      */
     public function deleting(User $user): void
@@ -89,8 +53,8 @@ class UserObserver
         }
 
         // 2) Letzter Superadmin darf nicht gelöscht werden
-        if ($user->role === 'superadmin') {
-            $superadminCount = User::where('role', 'superadmin')->count();
+        if ($user->hasRole('superadmin')) {
+            $superadminCount = User::query()->role('superadmin')->count();
 
             if ($superadminCount <= 1) {
                 throw ValidationException::withMessages([

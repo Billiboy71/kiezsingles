@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Support\Admin\AdminModuleRegistry.php
 // Purpose: Central admin module registry (structure-only; role filter; no DB toggles)
-// Changed: 27-02-2026 19:59 (Europe/Berlin)
-// Version: 1.1
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 namespace App\Support\Admin;
@@ -23,10 +23,6 @@ final class AdminModuleRegistry
 
     /**
      * Central registry definition.
-     *
-     * IMPORTANT:
-     * - SECTION_ROLES is intentionally NOT registered here unless a matching GET route exists.
-     * - Governance endpoints can exist without a navigation module.
      *
      * Access semantics:
      * - staff: moderator/admin/superadmin
@@ -63,6 +59,11 @@ final class AdminModuleRegistry
             self::SECTION_MODERATION => [
                 'label' => 'Moderation',
                 'route' => 'admin.moderation',
+                'access' => 'superadmin',
+            ],
+            self::SECTION_ROLES => [
+                'label' => 'Rollen',
+                'route' => 'admin.users.index',
                 'access' => 'superadmin',
             ],
         ];

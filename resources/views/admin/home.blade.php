@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\home.blade.php
 Purpose: Admin landing (overview) – section-based navigation (no maintenance content)
-Changed: 28-02-2026 13:03 (Europe/Berlin)
-Version: 2.7
+Changed: 28-02-2026 14:49 (Europe/Berlin)
+Version: 2.8
 ============================================================================ --}}
 
 @extends('admin.layouts.admin')
@@ -77,6 +77,12 @@ Version: 2.7
                 'route' => 'admin.moderation',
                 'access' => 'superadmin',
             ];
+
+            $adminModules['roles'] = [
+                'label' => 'Rollen',
+                'route' => 'admin.users.index',
+                'access' => 'superadmin',
+            ];
         }
     }
 
@@ -88,6 +94,7 @@ Version: 2.7
         'develop'      => 'develop',
         'debug'        => 'debug',
         'moderation'   => 'moderation',
+        'roles'        => 'roles',
     ];
 
     $staffAllowedSections = array_values(array_unique(array_filter(array_map(
@@ -149,6 +156,10 @@ Version: 2.7
         ? route((string) $adminModules['moderation']['route'])
         : url('/admin/moderation');
 
+    $adminUsersUrl = (isset($adminModules['roles']['route']) && \Illuminate\Support\Facades\Route::has((string) $adminModules['roles']['route']))
+        ? route((string) $adminModules['roles']['route'])
+        : url('/admin/users');
+
 @endphp
 
 @section('content')
@@ -190,6 +201,10 @@ Version: 2.7
 
                 @if($canAccessSection('moderation'))
                     <a class="ks-btn" href="{{ $adminModerationUrl }}" target="_self">Moderation</a>
+                @endif
+
+                @if($canAccessSection('roles'))
+                    <a class="ks-btn" href="{{ $adminUsersUrl }}" target="_self">Rollen</a>
                 @endif
             </div>
         </div>
@@ -233,6 +248,14 @@ Version: 2.7
                 <h3>Moderation</h3>
                 <p>Moderator-Rechteverwaltung (Sections an/aus).</p>
                 <a href="{{ $adminModerationUrl }}" target="_self">Öffnen</a>
+            </div>
+        @endif
+
+        @if($canAccessSection('roles'))
+            <div class="ks-card">
+                <h3>Rollen</h3>
+                <p>User-Liste und Rollenverwaltung.</p>
+                <a href="{{ $adminUsersUrl }}" target="_self">Öffnen</a>
             </div>
         @endif
     </div>

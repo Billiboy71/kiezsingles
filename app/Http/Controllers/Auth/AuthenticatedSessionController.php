@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
 // Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
 //          + supports login via email OR username (entered in the same "email" field)
-// Changed: 28-02-2026 02:53 (Europe/Berlin)
-// Version: 0.1
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -68,12 +68,10 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         if ($user && KsMaintenance::enabled()) {
-            $role = mb_strtolower(trim((string) ($user->role ?? 'user')));
-
             $allowed =
-                ($role === 'superadmin')
-                || ($role === 'admin' && KsMaintenance::allowAdmins())
-                || ($role === 'moderator' && KsMaintenance::allowModerators());
+                $user->hasRole('superadmin')
+                || ($user->hasRole('admin') && KsMaintenance::allowAdmins())
+                || ($user->hasRole('moderator') && KsMaintenance::allowModerators());
 
             if (!$allowed) {
                 Auth::guard('web')->logout();

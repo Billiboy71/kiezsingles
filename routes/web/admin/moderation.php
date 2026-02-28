@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\moderation.php
 // Purpose: Admin moderation routes (configure per-user staff_permissions SSOT in DB)
-// Changed: 27-02-2026 18:44 (Europe/Berlin)
-// Version: 2.2
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 2.3
 // ============================================================================
 
 use App\Support\KsMaintenance;
@@ -76,7 +76,7 @@ Route::get('/moderation', function (Request $request) {
     $selectedUserId = null;
 
     if ($hasUsersTable) {
-        $selectCols = ['id', 'email', 'role'];
+        $selectCols = ['id', 'email'];
         if ($hasUserNameColumn) {
             $selectCols[] = 'name';
         }
@@ -85,7 +85,7 @@ Route::get('/moderation', function (Request $request) {
         }
 
         $query = User::query()
-            ->whereRaw('LOWER(TRIM(COALESCE(role, ""))) = ?', [$targetRole]);
+            ->role($targetRole);
 
         if ($hasUserNameColumn) {
             $query->orderBy('name');
@@ -211,7 +211,7 @@ Route::post('/moderation/save', function (Request $request) {
 
     $user = User::query()
         ->where('id', $userId)
-        ->whereRaw('LOWER(TRIM(COALESCE(role, ""))) = ?', [$role])
+        ->role($role)
         ->first(['id']);
 
     if (!$user) {

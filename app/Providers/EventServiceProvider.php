@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Providers\EventServiceProvider.php
 // Purpose: Register event listeners (incl. optional IP logging)
-// Changed: 12-02-2026 23:56 (Europe/Berlin)
-// Version: 0.3
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
 namespace App\Providers;
@@ -83,6 +83,10 @@ class EventServiceProvider extends ServiceProvider
 
         \App\Events\TicketReportMarkedUnfounded::class => [
             \App\Listeners\HandleTicketReportMarkedUnfounded::class,
+        ],
+
+        \App\Events\Admin\AdminAuditEvent::class => [
+            \App\Listeners\Admin\WriteAdminAuditLog::class,
         ],
     ];
 

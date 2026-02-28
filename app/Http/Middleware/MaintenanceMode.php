@@ -2,17 +2,18 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\MaintenanceMode.php
 // Purpose: App maintenance gate (DB-driven).
-// Changed: 28-02-2026 02:33 (Europe/Berlin)
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
 //          Superadmin is ALWAYS allowed (no toggle).
 //          Admin allowed only if maintenance_settings.allow_admins = true.
 //          Moderator allowed only if maintenance_settings.allow_moderators = true.
 //          Non-allowed users are blocked during maintenance (no forced logout).
 //          Registration and verification flows are blocked.
-// Version: 2.7
+// Version: 2.8
 // ============================================================================
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use App\Support\KsMaintenance;
 use App\Support\SystemSettingHelper;
 use Closure;
@@ -45,18 +46,20 @@ class MaintenanceMode
         $allowAdmins = KsMaintenance::allowAdmins();
         $allowModerators = KsMaintenance::allowModerators();
 
-        $isAllowedDuringMaintenance = function (?string $role) use ($allowAdmins, $allowModerators): bool {
-            $role = mb_strtolower(trim((string) ($role ?? '')));
+        $isAllowedDuringMaintenance = function ($user) use ($allowAdmins, $allowModerators): bool {
+            if (!$user instanceof User) {
+                return false;
+            }
 
-            if ($role === 'superadmin') {
+            if ($user->hasRole('superadmin')) {
                 return true;
             }
 
-            if ($role === 'admin') {
+            if ($user->hasRole('admin')) {
                 return $allowAdmins;
             }
 
-            if ($role === 'moderator') {
+            if ($user->hasRole('moderator')) {
                 return $allowModerators;
             }
 
@@ -64,7 +67,7 @@ class MaintenanceMode
         };
 
         // Role whitelist during maintenance (server-side, fail-closed).
-        if (auth()->check() && $isAllowedDuringMaintenance((string) auth()->user()->role)) {
+        if (auth()->check() && $isAllowedDuringMaintenance(auth()->user())) {
             return $next($request);
         }
 
@@ -140,7 +143,7 @@ class MaintenanceMode
             // Ausnahme: Noteinstieg muss auch dann erreichbar sein (Browser mit bestehender Session).
             // Ausnahme: Logout muss erreichbar sein.
             // Ausnahme: Maintenance Landing darf NICHT auf sich selbst redirecten (sonst 302-loop).
-            if (auth()->check() && !$isAllowedDuringMaintenance((string) auth()->user()->role) && !$isNoteinstieg && !$isLogout && !$isMaintenanceLanding) {
+            if (auth()->check() && !$isAllowedDuringMaintenance(auth()->user()) && !$isNoteinstieg && !$isLogout && !$isMaintenanceLanding) {
                 return redirect($maintenanceRedirectUrl);
             }
 

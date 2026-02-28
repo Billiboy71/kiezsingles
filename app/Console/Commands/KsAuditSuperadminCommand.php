@@ -4,8 +4,8 @@
 // File: C:\laragon\www\kiezsingles\app\Console\Commands\KsAuditSuperadminCommand.php
 // Purpose: Deterministic audit command: superadmin/admin/moderator counts (JSON) for admin-audit tool
 // Created: 21-02-2026 00:35 (Europe/Berlin)
-// Changed: 22-02-2026 01:12 (Europe/Berlin)
-// Version: 0.3
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
 namespace App\Console\Commands;
@@ -34,15 +34,15 @@ class KsAuditSuperadminCommand extends Command
     {
         try {
             $superadmins = (int) User::query()
-                ->where('role', 'superadmin')
+                ->role('superadmin')
                 ->count();
 
             $admins = (int) User::query()
-                ->where('role', 'admin')
+                ->role('admin')
                 ->count();
 
             $moderators = (int) User::query()
-                ->where('role', 'moderator')
+                ->role('moderator')
                 ->count();
 
             $payload = [

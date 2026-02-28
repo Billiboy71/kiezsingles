@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminTicketController.php
 // Purpose: Admin ticket inbox + detail + actions (controller-based).
-// Changed: 27-02-2026 14:37 (Europe/Berlin)
-// Version: 4.0
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 4.1
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
@@ -290,8 +290,9 @@ class AdminTicketController extends Controller
         }
 
         $users = User::query()
+            ->with('roles:id,name')
             ->whereIn('id', $userIds)
-            ->get(['id', 'public_id', 'role', 'username', 'email']);
+            ->get(['id', 'public_id', 'username', 'email']);
 
         foreach ($users as $u) {
             $uid = isset($u->id) ? (int) $u->id : 0;
@@ -586,9 +587,10 @@ class AdminTicketController extends Controller
             ->get();
 
         $admins = User::query()
-            ->whereIn('role', ['moderator', 'admin', 'superadmin'])
+            ->with('roles:id,name')
+            ->role(['moderator', 'admin', 'superadmin'])
             ->orderBy('id', 'asc')
-            ->get(['id', 'public_id', 'username', 'email', 'role']);
+            ->get(['id', 'public_id', 'username', 'email']);
 
         $ticket->setRelation('messages', $messages);
 

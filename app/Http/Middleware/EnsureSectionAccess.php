@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureSectionAccess.php
 // Purpose: Enforce backend section access server-side via staff_permissions SSOT (fail-closed for staff)
-// Changed: 27-02-2026 00:39 (Europe/Berlin)
-// Version: 2.0
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 2.1
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -40,10 +40,12 @@ class EnsureSectionAccess
 
         $user = auth()->user();
 
-        $role = mb_strtolower(trim((string) ($user->role ?? 'user')));
-        if (!in_array($role, ['admin', 'superadmin', 'moderator'], true)) {
+        $isStaff = $user && $user->hasAnyRole(['admin', 'superadmin', 'moderator']);
+        if (!$isStaff) {
             abort(403);
         }
+
+        $role = mb_strtolower(trim((string) ($user?->role ?? 'user')));
 
         $originalSectionKey = $sectionKey;
         $sectionKey = mb_strtolower(trim((string) $sectionKey));

@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\home.php
 // Purpose: Admin landing routes (GET /admin) – overview only (maintenance moved to its own section routes)
-// Changed: 27-02-2026 19:15 (Europe/Berlin)
-// Version: 5.1
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 5.2
 // ============================================================================
 
 use App\Support\Admin\AdminSectionAccess;
@@ -106,6 +106,7 @@ $buildAdminContext = function (string $adminTab): array {
     $adminDebugUrl = url('/admin/debug');
     $adminTicketsUrl = url('/admin/tickets');
     $adminModerationUrl = url('/admin/moderation');
+    $adminUsersUrl = url('/admin/users');
 
     $adminModuleFallbackUrls = [
         'admin.home' => $adminHomeUrl,
@@ -113,6 +114,7 @@ $buildAdminContext = function (string $adminTab): array {
         'admin.debug' => $adminDebugUrl,
         'admin.tickets.index' => $adminTicketsUrl,
         'admin.moderation' => $adminModerationUrl,
+        'admin.users.index' => $adminUsersUrl,
     ];
 
     // Navigation generiert sich aus zentraler Registry (routes/web/admin.php) + Rollenfilter
@@ -180,6 +182,12 @@ $buildAdminContext = function (string $adminTab): array {
                 'key' => 'debug',
                 'label' => 'Debug',
                 'url' => $adminDebugUrl,
+            ];
+
+            $adminNavItems[] = [
+                'key' => 'roles',
+                'label' => 'Rollen',
+                'url' => $adminUsersUrl,
             ];
         }
     }
@@ -270,6 +278,7 @@ $buildAdminContext = function (string $adminTab): array {
         'adminDebugUrl' => $adminDebugUrl,
         'adminTicketsUrl' => $adminTicketsUrl,
         'adminModerationUrl' => $adminModerationUrl,
+        'adminUsersUrl' => $adminUsersUrl,
 
         // explizit fürs Layout (Debug-Sichtbarkeit wird durch /admin/status autoritativ gesteuert)
         'adminShowDebugTab' => ($isSuperadminRole ? true : false),

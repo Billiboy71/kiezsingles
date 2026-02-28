@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\header.blade.php
 Purpose: Admin header (top area: title/status/actions + admin navigation include)
-Changed: 28-02-2026 13:03 (Europe/Berlin)
-Version: 2.4
+Changed: 28-02-2026 15:07 (Europe/Berlin)
+Version: 2.5
 ============================================================================ --}}
 
 @php
@@ -21,7 +21,7 @@ Version: 2.4
 
     $adminTab = $adminTab ?? 'overview';
     $adminNavItems = $adminNavItems ?? [];
-    $adminTopNavKeys = ['maintenance', 'develop', 'debug', 'moderation'];
+    $adminTopNavKeys = ['maintenance', 'develop', 'roles', 'debug', 'moderation'];
     $adminNavItemsByKey = [];
     foreach ($adminNavItems as $item) {
         $key = (string) ($item['key'] ?? '');
@@ -39,6 +39,7 @@ Version: 2.4
     $adminTopNavFallback = [
         'maintenance' => ['label' => 'Wartung', 'route' => 'admin.maintenance', 'url' => url('/admin/maintenance')],
         'develop' => ['label' => 'Develop', 'route' => 'admin.develop', 'url' => url('/admin/develop')],
+        'roles' => ['label' => 'Rollen', 'route' => 'admin.users.index', 'url' => url('/admin/users')],
         'debug' => ['label' => 'Debug', 'route' => 'admin.debug', 'url' => url('/admin/debug')],
         'moderation' => ['label' => 'Moderation', 'route' => 'admin.moderation', 'url' => url('/admin/moderation')],
     ];
@@ -86,9 +87,10 @@ Version: 2.4
     }
     $adminTopNavOrder = [
         'maintenance' => 10,
-        'debug' => 20,
-        'develop' => 30,
-        'moderation' => 40,
+        'develop' => 20,
+        'roles' => 30,
+        'debug' => 40,
+        'moderation' => 50,
     ];
     usort($adminTopNavItems, function ($a, $b) use ($adminTopNavOrder) {
         $ka = (string) ($a['key'] ?? '');

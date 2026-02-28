@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin.php
 // Purpose: Admin routes (single backend; admin-only access; single source of truth)
-// Changed: 27-02-2026 19:41 (Europe/Berlin)
-// Version: 5.6
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+// Version: 5.7
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminUserController;
@@ -170,6 +170,18 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'superadmin'])->grou
      |--------------------------------------------------------------
      */
     Route::middleware(['section:roles'])->group(function () {
+        Route::get('users', [AdminUserController::class, 'index'])
+            ->name('users.index');
+
+        Route::get('users/{user}', [AdminUserController::class, 'show'])
+            ->name('users.show');
+
+        Route::patch('users/{user}/roles', [AdminUserController::class, 'updateRoles'])
+            ->name('users.roles.update');
+
+        Route::delete('users/{user}', [AdminUserController::class, 'destroy'])
+            ->name('users.destroy');
+
         Route::post('roles/set-role', [AdminUserController::class, 'setRole'])
             ->name('roles.set_role');
 

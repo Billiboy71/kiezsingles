@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\navigation.blade.php
 Purpose: Admin navigation bar (admin layout only; uses adminNavItems/adminTab + optional badges/header)
-// Changed: 25-02-2026 11:05 (Europe/Berlin)
-Version: 2.4
+// Changed: 28-02-2026 14:49 (Europe/Berlin)
+Version: 2.5
 ============================================================================ --}}
 
 @php
@@ -74,6 +74,7 @@ Version: 2.4
         'debug' => 30,
         'tickets' => 40,
         'moderation' => 50,
+        'roles' => 60,
     ];
 
     usort($adminNavItems, function ($a, $b) use ($orderMap) {
