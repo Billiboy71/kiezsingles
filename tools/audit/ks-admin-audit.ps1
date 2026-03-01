@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 18:45 (Europe/Berlin)
-# Version: 3.8
+# Changed: 01-03-2026 20:02 (Europe/Berlin)
+# Version: 3.9
 # =============================================================================
 
 [CmdletBinding()]
@@ -1225,10 +1225,41 @@ function Get-DetailsForOutput($Res) {
 
 function Get-LaravelLogPath([string]$Root) {
     try {
-        return (Join-Path $Root "storage\logs\laravel.log")
+        $logsDir = Join-Path $Root "storage\logs"
+        if (-not (Test-Path -LiteralPath $logsDir -PathType Container)) { return "" }
+
+        $single = Join-Path $logsDir "laravel.log"
+        if (Test-Path -LiteralPath $single -PathType Leaf) { return $single }
+
+        $daily = @()
+        try {
+            $daily = @(Get-ChildItem -LiteralPath $logsDir -File -Filter "laravel-*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
+        } catch { $daily = @() }
+        if ($daily.Count -gt 0) { return ("" + $daily[0].FullName) }
+
+        return ""
     } catch {
         return ""
     }
+}
+
+function Test-IsIgnoredAuditNoiseLogLine([string]$Line) {
+    if ($null -eq $Line) { return $false }
+    $l = ""
+    try { $l = ("" + $Line).ToLowerInvariant() } catch { $l = "" }
+    if ($l -eq "") { return $false }
+
+    if ($l -match 'vendor/psy/psysh') { return $true }
+    if ($l -match 'psy\\exception') { return $true }
+    if ($l -match 'psy/shell') { return $true }
+    if ($l -match 'laravel/tinker') { return $true }
+    if ($l -match 'parseerrorexception') { return $true }
+    if ($l -match 'codecleaner\.php') { return $true }
+    if ($l -match '=config\(') { return $true }
+    if ($l -match 'psy\\codecleaner') { return $true }
+    if ($l -match 'psy/shell->') { return $true }
+
+    return $false
 }
 
 function Convert-ToBooleanSafe([object]$Value, [bool]$Default = $false) {
@@ -1317,8 +1348,17 @@ function Get-ResultLogSlice {
     $evidence = New-Object System.Collections.Generic.List[string]
     $slice = New-Object System.Collections.Generic.List[string]
 
+    if ($LogPath -eq "") {
+        $evidence.Add("No Laravel log file found.") | Out-Null
+        return [pscustomobject]@{
+            lines = @()
+            evidence = @($evidence.ToArray())
+            mode = "missing"
+        }
+    }
+
     if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) {
-        $evidence.Add("LogSlice: laravel.log not found at '$LogPath'.") | Out-Null
+        $evidence.Add("No Laravel log file found.") | Out-Null
         return [pscustomobject]@{
             lines = @()
             evidence = @($evidence.ToArray())
@@ -1328,7 +1368,7 @@ function Get-ResultLogSlice {
 
     $all = @()
     try { $all = @(Get-Content -LiteralPath $LogPath -ErrorAction Stop) } catch {
-        $evidence.Add("LogSlice: failed to read laravel.log ($($_.Exception.Message)).") | Out-Null
+        $evidence.Add("LogSlice: failed to read log file ($($_.Exception.Message)).") | Out-Null
         return [pscustomobject]@{
             lines = @()
             evidence = @($evidence.ToArray())
@@ -1337,7 +1377,7 @@ function Get-ResultLogSlice {
     }
 
     if ($all.Count -le 0) {
-        $evidence.Add("LogSlice: laravel.log is empty.") | Out-Null
+        $evidence.Add("Log file contains no entries during this run.") | Out-Null
         return [pscustomobject]@{
             lines = @()
             evidence = @($evidence.ToArray())
@@ -1354,8 +1394,25 @@ function Get-ResultLogSlice {
         if ($null -ne $corrRaw) { $corr = ("" + $corrRaw).Trim() }
     }
 
+    $nonNoise = New-Object System.Collections.Generic.List[string]
+    foreach ($line in $all) {
+        $text = "" + $line
+        if (Test-IsIgnoredAuditNoiseLogLine $text) { continue }
+        $nonNoise.Add($text) | Out-Null
+    }
+    $allFiltered = @($nonNoise.ToArray())
+
+    if ($allFiltered.Count -le 0) {
+        $evidence.Add("Log file contains no entries during this run.") | Out-Null
+        return [pscustomobject]@{
+            lines = @()
+            evidence = @($evidence.ToArray())
+            mode = "empty_filtered"
+        }
+    }
+
     if ($corr -ne "") {
-        foreach ($line in $all) {
+        foreach ($line in $allFiltered) {
             $text = "" + $line
             if ($text -like ("*" + $corr + "*")) { $slice.Add($text) | Out-Null }
         }
@@ -1375,10 +1432,12 @@ function Get-ResultLogSlice {
     if ($to -lt $from) { $to = $from }
     $to = $to.AddSeconds(2)
 
-    foreach ($line in $all) {
+    $hasParseableTimestamp = $false
+    foreach ($line in $allFiltered) {
         $text = "" + $line
         $ts = Try-ParseLaravelLogTimestamp $text
         if ($null -eq $ts) { continue }
+        $hasParseableTimestamp = $true
         if ($ts -ge $from -and $ts -le $to) { $slice.Add($text) | Out-Null }
     }
 
@@ -1392,8 +1451,17 @@ function Get-ResultLogSlice {
         }
     }
 
-    $tail = @($all | Select-Object -Last $MaxLines)
+    if ($hasParseableTimestamp) {
+        $evidence.Add("Log file contains no entries during this run.") | Out-Null
+        return [pscustomobject]@{
+            lines = @()
+            evidence = @($evidence.ToArray())
+            mode = "time_window_empty"
+        }
+    }
+
     $evidence.Add("LogSlice mode: fallback tail ($MaxLines lines).") | Out-Null
+    $tail = @($allFiltered | Select-Object -Last $MaxLines)
     return [pscustomobject]@{
         lines = @($tail)
         evidence = @($evidence.ToArray())
@@ -1490,6 +1558,7 @@ $effectiveExportLogsLines = Convert-ToIntSafe $ExportLogsLines 200
 if ($effectiveExportLogsLines -lt 1) { $effectiveExportLogsLines = 200 }
 $effectiveExportFolder = Resolve-AuditExportFolder -ProjectRoot $projectRoot -FolderValue $ExportFolder
 $effectiveAutoOpenExportFolder = Convert-ToBooleanSafe $AutoOpenExportFolder $false
+$effectiveLogFilePath = Get-LaravelLogPath $projectRoot
 
 # Resolve TailLogMode for checks (prefer env var)
 $tailMode = "history"
@@ -2001,6 +2070,7 @@ Write-Host ("ExportLogs: " + [bool]$effectiveExportLogs)
 Write-Host ("ExportLogsLines: " + [int]$effectiveExportLogsLines)
 Write-Host ("ExportFolder: " + $effectiveExportFolder)
 Write-Host ("AutoOpenExportFolder: " + [bool]$effectiveAutoOpenExportFolder)
+Write-Host ("LogFile: " + $(if ($effectiveLogFilePath -and $effectiveLogFilePath.Trim() -ne "") { $effectiveLogFilePath } else { "(none)" }))
 Write-Host ("ChecksSource: " + $checksSourceLabel + " (" + $checksRoot + ")")
 
 $results = New-Object System.Collections.Generic.List[object]
@@ -2026,70 +2096,75 @@ foreach ($step in $plan) {
     $checkFinishedAt = Get-Date
 
     if ($null -ne $res) {
+        $isSecurityCheck = $false
+        try { $isSecurityCheck = ((("" + $res.id).Trim().ToLowerInvariant()) -eq "security_abuse") } catch { $isSecurityCheck = $false }
+
         if ($null -eq $res.data) { $res.data = @{} }
         try { $res.data["check_started_at"] = $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
         try { $res.data["check_finished_at"] = $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
 
-        $computedDetailsText = ""
-        try { $computedDetailsText = ("" + $res.details_text) } catch { $computedDetailsText = "" }
-        if ($computedDetailsText.Trim() -eq "") {
-            try {
-                $detailsRaw = ConvertTo-SafeStringArray $res.details
-                if ((Get-SafeCount $detailsRaw) -gt 0) { $computedDetailsText = (($detailsRaw | ForEach-Object { "" + $_ }) -join "`n") }
-            } catch { $computedDetailsText = "" }
-        }
-        try { $res.details_text = $computedDetailsText } catch { }
-
-        $logSliceArr = @()
-        $sliceEvidenceArr = @()
-        try {
-            $sliceObj = Get-ResultLogSlice -LogPath (Get-LaravelLogPath $projectRoot) -Res $res -CheckStartedAt $checkStartedAt -CheckFinishedAt $checkFinishedAt -MaxLines $effectiveExportLogsLines
-            if ($null -ne $sliceObj) {
-                try { $logSliceArr = @(ConvertTo-SafeStringArray $sliceObj.lines) } catch { $logSliceArr = @() }
-                try { $sliceEvidenceArr = @(ConvertTo-SafeStringArray $sliceObj.evidence) } catch { $sliceEvidenceArr = @() }
-                try { $res.data["log_slice_mode"] = ("" + $sliceObj.mode) } catch { }
+        if ($isSecurityCheck) {
+            $computedDetailsText = ""
+            try { $computedDetailsText = ("" + $res.details_text) } catch { $computedDetailsText = "" }
+            if ($computedDetailsText.Trim() -eq "") {
+                try {
+                    $detailsRaw = ConvertTo-SafeStringArray $res.details
+                    if ((Get-SafeCount $detailsRaw) -gt 0) { $computedDetailsText = (($detailsRaw | ForEach-Object { "" + $_ }) -join "`n") }
+                } catch { $computedDetailsText = "" }
             }
-        } catch {
-            $sliceEvidenceArr = @("LogSlice: generation failed (" + $_.Exception.Message + ").")
+            try { $res.details_text = $computedDetailsText } catch { }
+
             $logSliceArr = @()
-        }
-        try { $res.log_slice = @($logSliceArr) } catch { }
-
-        $resEvidence = @()
-        try { $resEvidence = @(ConvertTo-SafeStringArray $res.evidence) } catch { $resEvidence = @() }
-        $evidenceCombined = New-Object System.Collections.Generic.List[string]
-        foreach ($e in $resEvidence) { $evidenceCombined.Add(("" + $e)) | Out-Null }
-        foreach ($e in $sliceEvidenceArr) { $evidenceCombined.Add(("" + $e)) | Out-Null }
-        try { $res.evidence = @($evidenceCombined.ToArray()) } catch { }
-
-        if ($effectiveExportLogs) {
+            $sliceEvidenceArr = @()
             try {
-                $runStamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
-                $checkNameSource = ""
-                try { $checkNameSource = ("" + $res.title).Trim() } catch { $checkNameSource = "" }
-                if ($checkNameSource -eq "") {
-                    try { $checkNameSource = ("" + $res.id).Trim() } catch { $checkNameSource = "check" }
+                $sliceObj = Get-ResultLogSlice -LogPath $effectiveLogFilePath -Res $res -CheckStartedAt $checkStartedAt -CheckFinishedAt $checkFinishedAt -MaxLines $effectiveExportLogsLines
+                if ($null -ne $sliceObj) {
+                    try { $logSliceArr = @(ConvertTo-SafeStringArray $sliceObj.lines) } catch { $logSliceArr = @() }
+                    try { $sliceEvidenceArr = @(ConvertTo-SafeStringArray $sliceObj.evidence) } catch { $sliceEvidenceArr = @() }
+                    try { $res.data["log_slice_mode"] = ("" + $sliceObj.mode) } catch { }
                 }
-                # Remove common numbering prefixes like "1) ", "2a) ", "X) ".
-                $checkNameSource = ($checkNameSource -replace '^(?i:\s*[0-9x]+[a-z]?\)\s*)', '')
-                $checkName = Convert-ToSafeFileSegment $checkNameSource
-                $exportName = ("{0}_security-abuse_{1}.log" -f $runStamp, $checkName)
-                $exportPath = Join-Path $effectiveExportFolder $exportName
-                $exportLines = @($logSliceArr)
-                if ($exportLines.Count -le 0) {
-                    $exportLines = @(
-                        "# No log lines matched for this check.",
-                        "# Check: " + ("" + $res.id),
-                        "# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                        "# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")
-                    )
-                }
-                [System.IO.File]::WriteAllLines($exportPath, @($exportLines), [System.Text.UTF8Encoding]::new($false))
-                $exports.Add($exportPath) | Out-Null
-                try { $res.log_export_path = $exportPath } catch { }
-                try { $res.data["log_export_path"] = $exportPath } catch { }
             } catch {
-                try { $res.data["log_export_error"] = ("" + $_.Exception.Message) } catch { }
+                $sliceEvidenceArr = @("LogSlice: generation failed (" + $_.Exception.Message + ").")
+                $logSliceArr = @()
+            }
+            try { $res.log_slice = @($logSliceArr) } catch { }
+
+            $resEvidence = @()
+            try { $resEvidence = @(ConvertTo-SafeStringArray $res.evidence) } catch { $resEvidence = @() }
+            $evidenceCombined = New-Object System.Collections.Generic.List[string]
+            foreach ($e in $resEvidence) { $evidenceCombined.Add(("" + $e)) | Out-Null }
+            foreach ($e in $sliceEvidenceArr) { $evidenceCombined.Add(("" + $e)) | Out-Null }
+            try { $res.evidence = @($evidenceCombined.ToArray()) } catch { }
+
+            if ($effectiveExportLogs) {
+                try {
+                    $runStamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
+                    $checkNameSource = ""
+                    try { $checkNameSource = ("" + $res.title).Trim() } catch { $checkNameSource = "" }
+                    if ($checkNameSource -eq "") {
+                        try { $checkNameSource = ("" + $res.id).Trim() } catch { $checkNameSource = "check" }
+                    }
+                    # Remove common numbering prefixes like "1) ", "2a) ", "X) ".
+                    $checkNameSource = ($checkNameSource -replace '^(?i:\s*[0-9x]+[a-z]?\)\s*)', '')
+                    $checkName = Convert-ToSafeFileSegment $checkNameSource
+                    $exportName = ("{0}_security-abuse_{1}.log" -f $runStamp, $checkName)
+                    $exportPath = Join-Path $effectiveExportFolder $exportName
+                    $exportLines = @($logSliceArr)
+                    if ($exportLines.Count -le 0) {
+                        $exportLines = @(
+                            "# No log lines matched for this check.",
+                            "# Check: " + ("" + $res.id),
+                            "# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                            "# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                        )
+                    }
+                    [System.IO.File]::WriteAllLines($exportPath, @($exportLines), [System.Text.UTF8Encoding]::new($false))
+                    $exports.Add($exportPath) | Out-Null
+                    try { $res.log_export_path = $exportPath } catch { }
+                    try { $res.data["log_export_path"] = $exportPath } catch { }
+                } catch {
+                    try { $res.data["log_export_error"] = ("" + $_.Exception.Message) } catch { }
+                }
             }
         }
 
@@ -2100,7 +2175,7 @@ foreach ($step in $plan) {
         Write-Host ""
         Write-Host ((Format-StatusTag $res.status) + " " + $res.title + " - " + $res.summary + " (" + $res.duration_ms + "ms)")
 
-        if ($effectiveShowCheckDetails) {
+        if ($effectiveShowCheckDetails -and $isSecurityCheck) {
             $detailsToPrint = Get-DetailsForOutput $res
             $detailsToPrintArr = ConvertTo-SafeStringArray $detailsToPrint
             $evToPrint = @()
