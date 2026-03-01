@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 20:02 (Europe/Berlin)
-# Version: 3.9
+# Changed: 01-03-2026 20:11 (Europe/Berlin)
+# Version: 4.0
 # =============================================================================
 
 [CmdletBinding()]
@@ -1403,7 +1403,7 @@ function Get-ResultLogSlice {
     $allFiltered = @($nonNoise.ToArray())
 
     if ($allFiltered.Count -le 0) {
-        $evidence.Add("Log file contains no entries during this run.") | Out-Null
+        $evidence.Add("Log file contains only Tinker/PsySH noise (ignored).") | Out-Null
         return [pscustomobject]@{
             lines = @()
             evidence = @($evidence.ToArray())
