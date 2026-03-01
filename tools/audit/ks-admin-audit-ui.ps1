@@ -70,6 +70,24 @@ param(
     # If set, clears/rotates laravel.log after running the core audit (handled by CLI core).
     [switch]$LogClearAfter,
 
+    # If set, enables active security abuse probes in the CLI core.
+    [switch]$SecurityProbe,
+
+    # Failed login attempts used by security lockout probe.
+    [int]$SecurityLoginAttempts = 8,
+
+    # If set, runs optional IP ban enforcement probe.
+    [switch]$SecurityCheckIpBan,
+
+    # If set, runs optional registration abuse probe.
+    [switch]$SecurityCheckRegister,
+
+    # If set, security lockout probe expects explicit 429 status.
+    [switch]$SecurityExpect429,
+
+    # Lockout keywords used by security probes.
+    [string[]]$SecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout"),
+
     # If set, writes the whole audit output to clipboard at the end (wrapper-only).
     # NOTE: Console mode only. In GUI use the "Copy Output" button.
     [switch]$CopyToClipboard,
@@ -1537,6 +1555,19 @@ function Show-AuditGui() {
         if ($chkLoginCsrfProbe.Checked) { $argsList.Add("-LoginCsrfProbe") | Out-Null }
         if ($chkRoleSmokeTest.Checked) { $argsList.Add("-RoleSmokeTest") | Out-Null }
         if ($chkSessionCsrfBaseline.Checked) { $argsList.Add("-SessionCsrfBaseline") | Out-Null }
+        if ($SecurityProbe) { $argsList.Add("-SecurityProbe") | Out-Null }
+        if ($SecurityCheckIpBan) { $argsList.Add("-SecurityCheckIpBan") | Out-Null }
+        if ($SecurityCheckRegister) { $argsList.Add("-SecurityCheckRegister") | Out-Null }
+        if ($SecurityExpect429) { $argsList.Add("-SecurityExpect429") | Out-Null }
+        if ($SecurityLoginAttempts -gt 0) {
+            $argsList.Add("-SecurityLoginAttempts") | Out-Null
+            $argsList.Add(("" + $SecurityLoginAttempts)) | Out-Null
+        }
+        $lockoutKw = @($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+        if ($lockoutKw.Count -gt 0) {
+            $argsList.Add("-SecurityLockoutKeywords") | Out-Null
+            foreach ($kw in $lockoutKw) { $argsList.Add($kw) | Out-Null }
+        }
 
         if ($chkRoleSmokeTest.Checked) {
             $rsLines = @()
@@ -1872,6 +1903,21 @@ if ($SuperadminCount) { $argList.Add("-SuperadminCount") | Out-Null }
 if ($LoginCsrfProbe) { $argList.Add("-LoginCsrfProbe") | Out-Null }
 if ($RoleSmokeTest) { $argList.Add("-RoleSmokeTest") | Out-Null }
 if ($SessionCsrfBaseline) { $argList.Add("-SessionCsrfBaseline") | Out-Null }
+if ($SecurityProbe) { $argList.Add("-SecurityProbe") | Out-Null }
+if ($SecurityCheckIpBan) { $argList.Add("-SecurityCheckIpBan") | Out-Null }
+if ($SecurityCheckRegister) { $argList.Add("-SecurityCheckRegister") | Out-Null }
+if ($SecurityExpect429) { $argList.Add("-SecurityExpect429") | Out-Null }
+if ($SecurityLoginAttempts -gt 0) {
+    $argList.Add("-SecurityLoginAttempts") | Out-Null
+    $argList.Add(("" + $SecurityLoginAttempts)) | Out-Null
+}
+if ($SecurityLockoutKeywords -and $SecurityLockoutKeywords.Count -gt 0) {
+    $kw = @($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+    if ($kw.Count -gt 0) {
+        $argList.Add("-SecurityLockoutKeywords") | Out-Null
+        foreach ($k in $kw) { $argList.Add($k) | Out-Null }
+    }
+}
 if ($LogSnapshot) {
     $argList.Add("-LogSnapshot") | Out-Null
     $snapLines = 200

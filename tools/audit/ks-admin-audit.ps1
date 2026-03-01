@@ -65,6 +65,24 @@ param(
     # (still excludes tools/audit/* and large dirs like vendor/node_modules/storage/bootstrap/cache)
     [switch]$RouteListOptionScanFullProject,
 
+    # If set, enables active security abuse probes (login/register/IP behavior checks)
+    [switch]$SecurityProbe,
+
+    # Failed login attempts used by security lockout probe
+    [int]$SecurityLoginAttempts = 8,
+
+    # If set, runs optional IP ban enforcement probe
+    [switch]$SecurityCheckIpBan,
+
+    # If set, runs optional registration abuse probe
+    [switch]$SecurityCheckRegister,
+
+    # If set, security lockout probe expects explicit 429 status
+    [switch]$SecurityExpect429,
+
+    # Lockout keywords used by security probes
+    [string[]]$SecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout"),
+
     # If set, core will NOT call 'exit'. Instead it returns the exit code as an integer.
     # This is required for running the core in-process from the GUI without terminating the GUI host.
     [switch]$NoExit,
@@ -178,6 +196,10 @@ function Test-KnownSwitch([string]$name) {
         "-LogClearBefore" { return $true }
         "-LogClearAfter" { return $true }
         "-RouteListOptionScanFullProject" { return $true }
+        "-SecurityProbe" { return $true }
+        "-SecurityCheckIpBan" { return $true }
+        "-SecurityCheckRegister" { return $true }
+        "-SecurityExpect429" { return $true }
         "-NoExit" { return $true }
         default { return $false }
     }
@@ -195,6 +217,8 @@ function Test-KnownValueParam([string]$name) {
         "-ModeratorPassword" { return $true }
         "-RoleSmokePaths" { return $true }
         "-LogSnapshotLines" { return $true }
+        "-SecurityLoginAttempts" { return $true }
+        "-SecurityLockoutKeywords" { return $true }
         "-Gui" { return $true }
         default { return $false }
     }
@@ -240,6 +264,12 @@ if (Test-RecoverArgsNeeded) {
     $recLogClearBefore = $false
     $recLogClearAfter = $false
     $recRouteListOptionScanFullProject = $false
+    $recSecurityProbe = $false
+    $recSecurityLoginAttempts = 8
+    $recSecurityCheckIpBan = $false
+    $recSecurityCheckRegister = $false
+    $recSecurityExpect429 = $false
+    $recSecurityLockoutKeywords = New-Object System.Collections.Generic.List[string]
     $recNoExit = $false
     $recSuperadminEmail = ""
     $recSuperadminPassword = ""
@@ -328,6 +358,31 @@ if (Test-RecoverArgsNeeded) {
             continue
         }
 
+        if ($name -eq "-SecurityLockoutKeywords") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                $recSecurityLockoutKeywords.Add((("" + $inlineVal).Trim())) | Out-Null
+                $i++
+                continue
+            }
+
+            $i++
+            while ($i -lt $tokens.Count) {
+                $p = ("" + $tokens[$i]).Trim()
+                if ($p -eq "") { $i++; continue }
+
+                $pName = Get-ArgNameFromToken $p
+                if ($p -match '^-') {
+                    if (Test-KnownSwitch $pName -or Test-KnownValueParam $pName) { break }
+                    break
+                }
+
+                $recSecurityLockoutKeywords.Add($p) | Out-Null
+                $i++
+            }
+            continue
+        }
+
         if ($name -eq "-SuperadminEmail" -or $name -eq "-SuperadminPassword" -or $name -eq "-AdminEmail" -or $name -eq "-AdminPassword" -or $name -eq "-ModeratorEmail" -or $name -eq "-ModeratorPassword") {
             $val = Get-ArgValueFromToken $t
             if ($null -eq $val -or (("" + $val).Trim() -eq "")) {
@@ -380,6 +435,33 @@ if (Test-RecoverArgsNeeded) {
             continue
         }
 
+        if ($name -eq "-SecurityLoginAttempts") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                try {
+                    $n = [int](("" + $inlineVal).Trim())
+                    if ($n -gt 0) { $recSecurityLoginAttempts = $n }
+                } catch { }
+                $i++
+                continue
+            }
+
+            if (($i + 1) -lt $tokens.Count) {
+                $nv = ("" + $tokens[$i + 1]).Trim()
+                if ($nv -notmatch '^-') {
+                    try {
+                        $n = [int]$nv
+                        if ($n -gt 0) { $recSecurityLoginAttempts = $n }
+                    } catch { }
+                    $i += 2
+                    continue
+                }
+            }
+
+            $i++
+            continue
+        }
+
         if (Test-KnownSwitch $name) {
             switch ($name) {
                 "-HttpProbe" { $recHttpProbe = $true }
@@ -394,6 +476,10 @@ if (Test-RecoverArgsNeeded) {
                 "-LogClearBefore" { $recLogClearBefore = $true }
                 "-LogClearAfter" { $recLogClearAfter = $true }
                 "-RouteListOptionScanFullProject" { $recRouteListOptionScanFullProject = $true }
+                "-SecurityProbe" { $recSecurityProbe = $true }
+                "-SecurityCheckIpBan" { $recSecurityCheckIpBan = $true }
+                "-SecurityCheckRegister" { $recSecurityCheckRegister = $true }
+                "-SecurityExpect429" { $recSecurityExpect429 = $true }
                 "-NoExit" { $recNoExit = $true }
             }
             $i++
@@ -446,6 +532,11 @@ if (Test-RecoverArgsNeeded) {
     if ($recLogClearBefore) { $LogClearBefore = $true }
     if ($recLogClearAfter) { $LogClearAfter = $true }
     if ($recRouteListOptionScanFullProject) { $RouteListOptionScanFullProject = $true }
+    if ($recSecurityProbe) { $SecurityProbe = $true }
+    $SecurityLoginAttempts = [int]$recSecurityLoginAttempts
+    if ($recSecurityCheckIpBan) { $SecurityCheckIpBan = $true }
+    if ($recSecurityCheckRegister) { $SecurityCheckRegister = $true }
+    if ($recSecurityExpect429) { $SecurityExpect429 = $true }
     if ($recNoExit) { $NoExit = $true }
     if ($recSuperadminEmail -ne "") { $SuperadminEmail = $recSuperadminEmail }
     if ($recSuperadminPassword -ne "") { $SuperadminPassword = $recSuperadminPassword }
@@ -454,6 +545,7 @@ if (Test-RecoverArgsNeeded) {
     if ($recModeratorEmail -ne "") { $ModeratorEmail = $recModeratorEmail }
     if ($recModeratorPassword -ne "") { $ModeratorPassword = $recModeratorPassword }
     if ($recRoleSmokePaths.Count -gt 0) { $RoleSmokePaths = @($recRoleSmokePaths.ToArray()) }
+    if ($recSecurityLockoutKeywords.Count -gt 0) { $SecurityLockoutKeywords = @($recSecurityLockoutKeywords.ToArray()) }
 
     if ($null -ne $recGui) { $Gui = $recGui }
 
@@ -1036,6 +1128,10 @@ $tailOnly = [bool]$TailLog `
     -and (-not [bool]$LoginCsrfProbe) `
     -and (-not [bool]$RoleSmokeTest) `
     -and (-not [bool]$SessionCsrfBaseline) `
+    -and (-not [bool]$SecurityProbe) `
+    -and (-not [bool]$SecurityCheckIpBan) `
+    -and (-not [bool]$SecurityCheckRegister) `
+    -and (-not [bool]$SecurityExpect429) `
     -and (-not [bool]$LogSnapshot)
 
 $effectiveLogSnapshotLines = 200
@@ -1046,6 +1142,20 @@ try {
 
 $logSnapshotLinesHeader = "-"
 if ([bool]$LogSnapshot) { $logSnapshotLinesHeader = ("" + [int]$effectiveLogSnapshotLines) }
+
+$effectiveSecurityLoginAttempts = 8
+try {
+    $n = [int]$SecurityLoginAttempts
+    if ($n -gt 0) { $effectiveSecurityLoginAttempts = $n }
+} catch { $effectiveSecurityLoginAttempts = 8 }
+if ($effectiveSecurityLoginAttempts -gt 10) { $effectiveSecurityLoginAttempts = 10 }
+if ($effectiveSecurityLoginAttempts -lt 1) { $effectiveSecurityLoginAttempts = 1 }
+
+$effectiveSecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout")
+try {
+    $kw = @($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+    if ($kw.Count -gt 0) { $effectiveSecurityLockoutKeywords = @($kw) }
+} catch { }
 
 # Resolve TailLogMode for checks (prefer env var)
 $tailMode = "history"
@@ -1078,6 +1188,12 @@ $context = [pscustomobject]@{
     LogCleanupBeforeBackupCreated = $false
     LogCleanupBeforeBackupPath = "-"
     RouteListOptionScanFullProject = [bool]$RouteListOptionScanFullProject
+    SecurityProbe = [bool]$SecurityProbe
+    SecurityLoginAttempts = [int]$effectiveSecurityLoginAttempts
+    SecurityCheckIpBan = [bool]$SecurityCheckIpBan
+    SecurityCheckRegister = [bool]$SecurityCheckRegister
+    SecurityExpect429 = [bool]$SecurityExpect429
+    SecurityLockoutKeywords = @($effectiveSecurityLockoutKeywords)
     Helpers = [pscustomobject]@{
         WriteSection = ${function:Write-Section}
         RunPHPArtisan = ${function:Invoke-PHPArtisan}
@@ -1161,6 +1277,12 @@ if ($missingRequired.Count -gt 0) {
     Write-Host ("LogClearAfter: " + [bool]$LogClearAfter)
     if ([bool]$LogClearBefore -or [bool]$LogClearAfter) { Write-Host "Hinweis: laravel.log wird rotiert; .bak-* vorhanden" }
     Write-Host ("RouteListOptionScanFullProject: " + [bool]$RouteListOptionScanFullProject)
+    Write-Host ("SecurityProbe: " + [bool]$SecurityProbe)
+    Write-Host ("SecurityLoginAttempts: " + [int]$effectiveSecurityLoginAttempts)
+    Write-Host ("SecurityCheckIpBan: " + [bool]$SecurityCheckIpBan)
+    Write-Host ("SecurityCheckRegister: " + [bool]$SecurityCheckRegister)
+    Write-Host ("SecurityExpect429: " + [bool]$SecurityExpect429)
+    Write-Host ("SecurityLockoutKeywords: " + (($effectiveSecurityLockoutKeywords | ForEach-Object { "" + $_ }) -join ", "))
     Write-Host ("ChecksSource: " + $checksSourceLabel + " (" + $checksRoot + ")")
 
     Write-Host ""
@@ -1456,6 +1578,14 @@ if ($effectiveSessionCsrfBaseline) {
     }
 }
 
+if (Test-FunctionExists "Invoke-KsAuditCheck_SecurityAbuseProtection") {
+    $plan.Add({ Invoke-KsAuditCheck_SecurityAbuseProtection -Context $context }) | Out-Null
+} else {
+    $plan.Add({
+        New-AuditResult -Id "missing_check" -Title "X) Security / Abuse Protection" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_SecurityAbuseProtection" -Details @() -Data @{} -DurationMs 0
+    }) | Out-Null
+}
+
 if ($RoutesVerbose) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_RoutesVerbose") {
         $plan.Add({ Invoke-KsAuditCheck_RoutesVerbose -Context $context }) | Out-Null
@@ -1521,6 +1651,12 @@ Write-Host ("LogClearBefore: " + [bool]$LogClearBefore)
 Write-Host ("LogClearAfter: " + [bool]$LogClearAfter)
 if ([bool]$LogClearBefore -or [bool]$LogClearAfter) { Write-Host "Hinweis: laravel.log wird rotiert; .bak-* vorhanden" }
 Write-Host ("RouteListOptionScanFullProject: " + [bool]$RouteListOptionScanFullProject)
+Write-Host ("SecurityProbe: " + [bool]$SecurityProbe)
+Write-Host ("SecurityLoginAttempts: " + [int]$effectiveSecurityLoginAttempts)
+Write-Host ("SecurityCheckIpBan: " + [bool]$SecurityCheckIpBan)
+Write-Host ("SecurityCheckRegister: " + [bool]$SecurityCheckRegister)
+Write-Host ("SecurityExpect429: " + [bool]$SecurityExpect429)
+Write-Host ("SecurityLockoutKeywords: " + (($effectiveSecurityLockoutKeywords | ForEach-Object { "" + $_ }) -join ", "))
 Write-Host ("ChecksSource: " + $checksSourceLabel + " (" + $checksRoot + ")")
 
 $results = New-Object System.Collections.Generic.List[object]
