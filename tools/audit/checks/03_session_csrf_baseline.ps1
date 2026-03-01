@@ -2,7 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\03a_session_csrf_baseline.ps1
 # Purpose: Audit check - Session/CSRF baseline (read-only)
 # Created: 28-02-2026 (Europe/Berlin)
-# Version: 0.1
+# Changed: 01-03-2026 16:42 (Europe/Berlin)
+# Version: 0.3
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -84,6 +85,242 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
         return $Default
     }
 
+    function Normalize-Paths($Value) {
+        $out = New-Object System.Collections.Generic.List[string]
+        $seen = @{}
+        foreach ($v in @($Value)) {
+            $s = ("" + $v).Trim()
+            if ($s -eq "") { continue }
+            if ($s -match "\r?\n" -or $s -match "\s" -or $s -match "[,;]") {
+                $parts = @()
+                try { $parts = @($s -split "[\s,;]+") } catch { $parts = @() }
+                foreach ($p in @($parts)) {
+                    $x = ("" + $p).Trim()
+                    if ($x -eq "") { continue }
+                    if (-not $x.StartsWith("/")) { $x = "/" + $x.TrimStart("/") }
+                    if ($x -eq "/") { continue }
+                    if ($seen.ContainsKey($x)) { continue }
+                    $seen[$x] = $true
+                    $out.Add($x) | Out-Null
+                }
+                continue
+            }
+            if (-not $s.StartsWith("/")) { $s = "/" + $s.TrimStart("/") }
+            if ($s -eq "/") { continue }
+            if ($seen.ContainsKey($s)) { continue }
+            $seen[$s] = $true
+            $out.Add($s) | Out-Null
+        }
+        return @($out.ToArray())
+    }
+
+    function Get-DefaultBaselinePaths {
+        return @(
+            "/admin",
+            "/admin/status",
+            "/admin/moderation",
+            "/admin/maintenance",
+            "/admin/debug",
+            "/admin/users",
+            "/admin/tickets",
+            "/admin/develop"
+        )
+    }
+
+    function Get-HeaderValue {
+        param(
+            [Parameter(Mandatory = $false)]$Headers,
+            [Parameter(Mandatory = $true)][string]$Name
+        )
+        try {
+            if ($Headers -is [System.Collections.IDictionary]) {
+                foreach ($k in @($Headers.Keys)) {
+                    if (("" + $k).Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $v = $Headers[$k]
+                        if ($null -eq $v) { return "" }
+                        if ($v -is [string]) { return ("" + $v) }
+                        try { return ((@($v) | ForEach-Object { "" + $_ }) -join ", ") } catch { return ("" + $v) }
+                    }
+                }
+            }
+        } catch { }
+        return ""
+    }
+
+    function Get-SetCookieLinesFromHeaders {
+        param([Parameter(Mandatory = $false)]$Headers)
+        $out = New-Object System.Collections.Generic.List[string]
+        if ($null -eq $Headers) { return @() }
+        try {
+            if ($Headers -is [System.Collections.IDictionary]) {
+                foreach ($k in @($Headers.Keys)) {
+                    if (-not (("" + $k).Equals("Set-Cookie", [System.StringComparison]::OrdinalIgnoreCase))) { continue }
+                    $v = $Headers[$k]
+                    foreach ($x in @($v)) {
+                        $sx = ("" + $x).Trim()
+                        if ($sx -ne "") { $out.Add($sx) | Out-Null }
+                    }
+                }
+            } else {
+                try {
+                    $vals = $Headers.GetValues("Set-Cookie")
+                    foreach ($x in @($vals)) {
+                        $sx = ("" + $x).Trim()
+                        if ($sx -ne "") { $out.Add($sx) | Out-Null }
+                    }
+                } catch { }
+            }
+        } catch { }
+        return @($out.ToArray())
+    }
+
+    function Merge-SetCookieLines([string[]]$A, [string[]]$B) {
+        $out = New-Object System.Collections.Generic.List[string]
+        $seen = @{}
+        foreach ($v in @($A) + @($B)) {
+            $s = ("" + $v).Trim()
+            if ($s -eq "") { continue }
+            if ($seen.ContainsKey($s)) { continue }
+            $seen[$s] = $true
+            $out.Add($s) | Out-Null
+        }
+        return @($out.ToArray())
+    }
+
+    function Invoke-IwrCapture {
+        param(
+            [Parameter(Mandatory = $true)][string]$Uri,
+            [Parameter(Mandatory = $true)][string]$Method,
+            [Parameter(Mandatory = $true)]$Session,
+            [Parameter(Mandatory = $false)]$Body,
+            [Parameter(Mandatory = $false)][int]$MaxRedirection = 0
+        )
+
+        $params = @{
+            Uri = $Uri
+            Method = $Method
+            MaximumRedirection = $MaxRedirection
+            WebSession = $Session
+            TimeoutSec = 12
+            ErrorAction = "Stop"
+            Headers = @{ "Accept" = "text/html,application/xhtml+xml" }
+        }
+        try {
+            $cmd = Get-Command Invoke-WebRequest -ErrorAction Stop
+            if ($cmd -and $cmd.Parameters -and $cmd.Parameters.ContainsKey("UseBasicParsing")) { $params["UseBasicParsing"] = $true }
+        } catch { }
+
+        if ($null -ne $Body) {
+            $params["ContentType"] = "application/x-www-form-urlencoded"
+            $params["Body"] = $Body
+        }
+
+        try {
+            $resp = Invoke-WebRequest @params
+            $status = $null
+            try { $status = [int]$resp.StatusCode } catch { $status = $null }
+            $setCookieLines = @()
+            try { $setCookieLines = Get-SetCookieLinesFromHeaders -Headers $resp.Headers } catch { $setCookieLines = @() }
+            return [pscustomobject]@{
+                ok = $true
+                status = $status
+                location = (Get-HeaderValue -Headers $resp.Headers -Name "Location")
+                set_cookie_lines = @($setCookieLines)
+                content = ("" + $resp.Content)
+                error = ""
+            }
+        } catch {
+            $resp = $null
+            try { if ($_.Exception -and ($_.Exception | Get-Member -Name Response -ErrorAction SilentlyContinue)) { $resp = $_.Exception.Response } } catch { $resp = $null }
+            if ($null -eq $resp) {
+                try { if ($_ -and ($_ | Get-Member -Name Response -ErrorAction SilentlyContinue)) { $resp = $_.Response } } catch { $resp = $null }
+            }
+            if ($resp) {
+                $status = $null
+                try { $status = [int]$resp.StatusCode } catch { $status = $null }
+                $loc = ""
+                try { $loc = Get-HeaderValue -Headers $resp.Headers -Name "Location" } catch { $loc = "" }
+                $setCookieLines = @()
+                try { $setCookieLines = Get-SetCookieLinesFromHeaders -Headers $resp.Headers } catch { }
+                return [pscustomobject]@{
+                    ok = $true
+                    status = $status
+                    location = $loc
+                    set_cookie_lines = @($setCookieLines)
+                    content = ""
+                    error = ""
+                }
+            }
+            return [pscustomobject]@{
+                ok = $false
+                status = $null
+                location = ""
+                set_cookie_lines = @()
+                content = ""
+                error = ("" + $_.Exception.Message)
+            }
+        }
+    }
+
+    function Parse-SetCookieFlags([string[]]$SetCookieLines) {
+        $hasSession = $false
+        $hasXsrf = $false
+        $secure = $false
+        $httpOnly = $false
+        $sameSite = ""
+        $domain = ""
+        $path = ""
+
+        foreach ($line in @($SetCookieLines)) {
+            $s = ("" + $line)
+            if ($s -match '(?i)(^|[;,]\s*)laravel_session=') { $hasSession = $true }
+            if ($s -match '(?i)(^|[;,]\s*)XSRF-TOKEN=') { $hasXsrf = $true }
+            if ($s -match '(?i);\s*secure(?:;|$)') { $secure = $true }
+            if ($s -match '(?i);\s*httponly(?:;|$)') { $httpOnly = $true }
+            if ($sameSite -eq "" -and $s -match '(?i);\s*samesite=([^;]+)') { $sameSite = (("" + $Matches[1]).Trim()) }
+            if ($domain -eq "" -and $s -match '(?i);\s*domain=([^;]+)') { $domain = (("" + $Matches[1]).Trim()) }
+            if ($path -eq "" -and $s -match '(?i);\s*path=([^;]+)') { $path = (("" + $Matches[1]).Trim()) }
+        }
+
+        return [pscustomobject]@{
+            laravel_session = [bool]$hasSession
+            xsrf_token = [bool]$hasXsrf
+            secure = [bool]$secure
+            http_only = [bool]$httpOnly
+            same_site = $sameSite
+            domain = $domain
+            path = $path
+        }
+    }
+
+    function Login-RoleSession([string]$BaseUrl, [string]$Email, [string]$Password) {
+        if (("" + $Email).Trim() -eq "" -or ("" + $Password) -eq "") {
+            return [pscustomobject]@{ ok = $false; reason = "missing_credentials"; session = $null }
+        }
+
+        $session = $null
+        try { $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession } catch { $session = $null }
+        if ($null -eq $session) { return [pscustomobject]@{ ok = $false; reason = "session_init_failed"; session = $null } }
+
+        $loginUrl = $BaseUrl + "/login"
+        $rGet = Invoke-IwrCapture -Uri $loginUrl -Method "GET" -Session $session -MaxRedirection 20
+        if (-not $rGet.ok) { return [pscustomobject]@{ ok = $false; reason = "login_get_failed"; session = $null } }
+
+        $token = ""
+        try {
+            $m = [regex]::Match(("" + $rGet.content), 'name\s*=\s*"[_]?token"\s+value\s*=\s*"([^"]+)"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            if ($m.Success) { $token = ("" + $m.Groups[1].Value) }
+        } catch { $token = "" }
+        if ($token -eq "") { return [pscustomobject]@{ ok = $false; reason = "missing_token"; session = $null } }
+
+        $rPost = Invoke-IwrCapture -Uri $loginUrl -Method "POST" -Session $session -Body @{ _token = $token; email = $Email; password = $Password } -MaxRedirection 1
+        if (-not $rPost.ok) { return [pscustomobject]@{ ok = $false; reason = "login_post_failed"; session = $null } }
+        if ($rPost.status -eq 419) { return [pscustomobject]@{ ok = $false; reason = "csrf_419"; session = $null } }
+        if (("" + $rPost.location) -match '(?i)/login(?:$|[/?#])') { return [pscustomobject]@{ ok = $false; reason = "redirect_login"; session = $null } }
+
+        return [pscustomobject]@{ ok = $true; reason = "ok"; session = $session }
+    }
+
     $envMap = Parse-EnvFile -Path $envPath
     $cfgText = ""
     try { if (Test-Path -LiteralPath $cfgPath -PathType Leaf) { $cfgText = [string](Get-Content -LiteralPath $cfgPath -Raw -ErrorAction Stop) } } catch { $cfgText = "" }
@@ -126,14 +363,17 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
     $partitioned = Get-BoolFromText -Value $partitionedText -Default:$false
 
     $warns = @()
-    if ((("" + $sameSite).Trim().ToLower() -eq "none") -and (-not $secure)) {
+    if (("" + $appEnv).Trim().ToLower() -ne "local" -and (-not $secure)) {
+        $warns += "APP_ENV!=local and session.secure!=true"
+    }
+    if (("" + $sameSite).Trim() -eq "" -or (("" + $sameSite).Trim().ToLower() -eq "null")) {
+        $warns += "session.same_site is empty/null"
+    }
+    if (("" + $sameSite).Trim().ToLower() -eq "none" -and (-not $secure)) {
         $warns += "same_site=none but secure!=true"
     }
     if (-not $httpOnly) {
         $warns += "http_only=false"
-    }
-    if ((("" + $appEnv).Trim().ToLower() -eq "production") -and ((("" + $driver).Trim().ToLower()) -ne "file")) {
-        $warns += ("APP_ENV=production and session.driver=" + $driver + " (expected file by current baseline policy)")
     }
 
     $details = @()
@@ -147,6 +387,108 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
     $details += ("session.domain: " + $domain)
     $details += ("session.path: " + $path)
     $details += ("session.partitioned: " + $partitioned)
+
+    $pathsSource = @()
+    $pathsSourceName = ""
+    try {
+        $rsp = Normalize-Paths $Context.RoleSmokePaths
+        if (@($rsp).Count -gt 0) { $pathsSource = @($rsp); $pathsSourceName = "RoleSmokePaths" }
+    } catch { }
+    if (@($pathsSource).Count -le 0) {
+        try {
+            $pp = Normalize-Paths $Context.ProbePaths
+            if (@($pp).Count -gt 0) { $pathsSource = @($pp); $pathsSourceName = "ProbePaths" }
+        } catch { }
+    }
+    if (@($pathsSource).Count -le 0) {
+        try {
+            $def = Normalize-Paths (Get-DefaultBaselinePaths)
+            if (@($def).Count -gt 0) {
+                $pathsSource = @($def)
+                $pathsSourceName = "DefaultPaths"
+            }
+        } catch { }
+    }
+    if (@($pathsSource).Count -le 0) {
+        $pathsSource = @()
+        $pathsSourceName = "none"
+    }
+
+    $details += ""
+    $details += ("Path source: " + $pathsSourceName)
+    $details += ("Path count: " + @($pathsSource).Count)
+
+    $roles = @(
+        @{ name = "superadmin"; email = ("" + $Context.SuperadminEmail); password = ("" + $Context.SuperadminPassword) },
+        @{ name = "admin"; email = ("" + $Context.AdminEmail); password = ("" + $Context.AdminPassword) },
+        @{ name = "moderator"; email = ("" + $Context.ModeratorEmail); password = ("" + $Context.ModeratorPassword) }
+    )
+
+    $rolePathRows = New-Object System.Collections.Generic.List[object]
+    $hardFails = 0
+
+    if (@($pathsSource).Count -gt 0) {
+        foreach ($r in @($roles)) {
+            $roleName = ("" + $r.name).Trim().ToLower()
+            $login = Login-RoleSession -BaseUrl (("" + $Context.BaseUrl).TrimEnd("/")) -Email ("" + $r.email) -Password ("" + $r.password)
+
+            if (-not [bool]$login.ok) {
+                $details += ""
+                $details += ("Role: " + $roleName + " -> SKIPPED (" + $login.reason + ")")
+                continue
+            }
+
+            $details += ""
+            $details += ("Role: " + $roleName)
+
+            foreach ($p in @($pathsSource)) {
+                $url = (("" + $Context.BaseUrl).TrimEnd("/")) + ("" + $p)
+                $res = Invoke-IwrCapture -Uri $url -Method "GET" -Session $login.session -MaxRedirection 0
+                $fallbackFollow = $false
+                if (-not $res.ok) {
+                    $resRetry = Invoke-IwrCapture -Uri $url -Method "GET" -Session $login.session -MaxRedirection 1
+                    if ($resRetry.ok) {
+                        $res = $resRetry
+                        $fallbackFollow = $true
+                    }
+                }
+
+                $statusText = "n/a"
+                if ($null -ne $res.status) { $statusText = ("" + [int]$res.status) }
+                $loc = ("" + $res.location).Trim()
+
+                $flags = Parse-SetCookieFlags -SetCookieLines $res.set_cookie_lines
+                $cookieSummary = ("laravel_session=" + $flags.laravel_session + ", XSRF-TOKEN=" + $flags.xsrf_token + ", Secure=" + $flags.secure + ", HttpOnly=" + $flags.http_only + ", SameSite=" + $flags.same_site + ", Domain=" + $flags.domain + ", Path=" + $flags.path)
+
+                $result = "OK"
+                if ($null -ne $res.status -and [int]$res.status -ge 500) { $result = "FAIL" }
+                if ($result -eq "FAIL") { $hardFails++ }
+
+                $line = ("  " + $p + " -> status=" + $statusText)
+                if ($loc -ne "") { $line += (", location=" + $loc) }
+                if ($fallbackFollow) { $line += ", fallback_followed=True" }
+                if (-not $res.ok -and ("" + $res.error).Trim() -ne "") { $line += (", error=" + ("" + $res.error).Trim()) }
+                $line += (", cookies: " + $cookieSummary + ", result=" + $result)
+                $details += $line
+
+                $rolePathRows.Add([pscustomobject]@{
+                    role = $roleName
+                    path = ("" + $p)
+                    status = $res.status
+                    location = $loc
+                    laravel_session = [bool]$flags.laravel_session
+                    xsrf_token = [bool]$flags.xsrf_token
+                    secure = [bool]$flags.secure
+                    http_only = [bool]$flags.http_only
+                    same_site = ("" + $flags.same_site)
+                    domain = ("" + $flags.domain)
+                    cookie_path = ("" + $flags.path)
+                    result = $result
+                }) | Out-Null
+            }
+        }
+    }
+
     if ($warns.Count -gt 0) {
         $details += ""
         $details += "Warnings:"
@@ -166,6 +508,14 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
         path = $path
         partitioned = $partitioned
         warning_count = [int]$warns.Count
+        path_source = $pathsSourceName
+        path_count = [int](@($pathsSource).Count)
+        role_path_rows = @($rolePathRows.ToArray())
+        hard_fail_count = [int]$hardFails
+    }
+
+    if ($hardFails -gt 0) {
+        return & $new -Id "session_csrf_baseline" -Title "3a) Session/CSRF baseline (read-only)" -Status "FAIL" -Summary ("Session/CSRF baseline found " + $hardFails + " hard fail(s).") -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
     if ($warns.Count -gt 0) {

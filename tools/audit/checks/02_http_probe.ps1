@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\02_http_probe.ps1
 # Purpose: Audit check - HTTP exposure probe (deterministic interpretation)
 # Created: 21-02-2026 00:18 (Europe/Berlin)
-# Changed: 01-03-2026 14:01 (Europe/Berlin)
-# Version: 1.6
+# Changed: 01-03-2026 16:20 (Europe/Berlin)
+# Version: 1.7
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -645,6 +645,11 @@ function Invoke-KsAuditCheck_HttpProbe {
         probe_paths_skipped = @($skippedPaths.ToArray())
     }
 
+    $rawCount = [int](@($rawPaths).Count)
+    $normalizedCount = [int](@($plannedPaths).Count)
+    $rawNormalizedMismatch = ($rawCount -ne $normalizedCount)
+    $data["probe_paths_raw_normalized_mismatch"] = [bool]$rawNormalizedMismatch
+
     if (@($exposure).Count -gt 0) {
         $critDetails = @()
         $critDetails += "Exposure findings (unauthenticated):"
@@ -666,18 +671,29 @@ function Invoke-KsAuditCheck_HttpProbe {
     }
 
     if ($executedCount -ne $plannedCount) {
-        $warnDetails = @()
-        $warnDetails += "ProbePaths execution mismatch:"
-        $warnDetails += ("Planned (normalized): " + $plannedCount)
-        $warnDetails += ("Executed: " + $executedCount)
+        $failDetails = @()
+        $failDetails += "ProbePaths execution mismatch:"
+        $failDetails += ("Planned (normalized): " + $plannedCount)
+        $failDetails += ("Executed: " + $executedCount)
         if ($skippedCount -gt 0) {
-            $warnDetails += ("Skipped entries: " + $skippedCount)
-            foreach ($s in @($skippedPaths.ToArray())) { $warnDetails += ("  " + $s) }
+            $failDetails += ("Skipped entries: " + $skippedCount)
+            foreach ($s in @($skippedPaths.ToArray())) { $failDetails += ("  " + $s) }
         }
+        $failDetails += ""
+        $failDetails += @($details)
+
+        return & $new -Id "http_probe" -Title "2) HTTP exposure probe" -Status "FAIL" -Summary ("Execution mismatch: executed " + $executedCount + " of " + $plannedCount + " ProbePaths.") -Details $failDetails -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+    }
+
+    if ($rawNormalizedMismatch) {
+        $warnDetails = @()
+        $warnDetails += "ProbePaths raw/normalized mismatch detected."
+        $warnDetails += ("Raw count: " + $rawCount)
+        $warnDetails += ("Normalized count: " + $normalizedCount)
         $warnDetails += ""
         $warnDetails += @($details)
 
-        return & $new -Id "http_probe" -Title "2) HTTP exposure probe" -Status "WARN" -Summary ("No exposure detected, but only executed " + $executedCount + " of " + $plannedCount + " ProbePaths.") -Details $warnDetails -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+        return & $new -Id "http_probe" -Title "2) HTTP exposure probe" -Status "WARN" -Summary ("No exposure detected for " + $executedCount + " endpoints, but raw/normalized path count mismatch detected.") -Details $warnDetails -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
     return & $new -Id "http_probe" -Title "2) HTTP exposure probe" -Status "OK" -Summary ("No exposure detected for " + $executedCount + " endpoints.") -Details @($details) -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)

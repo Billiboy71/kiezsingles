@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\02a_login_csrf_probe.ps1
 # Purpose: Audit check - Login/CSRF probe (optional preflight)
 # Created: 28-02-2026 (Europe/Berlin)
-# Changed: 01-03-2026 14:00 (Europe/Berlin)
-# Version: 0.3
+# Changed: 01-03-2026 15:31 (Europe/Berlin)
+# Version: 0.4
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -37,6 +37,46 @@ function Invoke-KsAuditCheck_LoginCsrfProbe {
             }
         } catch { }
         return $p
+    }
+
+    function Get-HeaderValue {
+        param(
+            [Parameter(Mandatory = $false)]$Headers,
+            [Parameter(Mandatory = $true)][string]$Name
+        )
+        try {
+            if ($Headers -is [System.Collections.IDictionary]) {
+                foreach ($k in @($Headers.Keys)) {
+                    if (("" + $k).Equals($Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $v = $Headers[$k]
+                        if ($null -eq $v) { return "" }
+                        if ($v -is [string]) { return ("" + $v) }
+                        try { return ((@($v) | ForEach-Object { "" + $_ }) -join ", ") } catch { return ("" + $v) }
+                    }
+                }
+            }
+        } catch { }
+        return ""
+    }
+
+    function Test-SessionCookiePresent {
+        param(
+            [Parameter(Mandatory = $true)]$Session,
+            [Parameter(Mandatory = $true)][string]$Uri,
+            [Parameter(Mandatory = $true)][string]$CookieName
+        )
+        try {
+            $u = $null
+            $okUri = [System.Uri]::TryCreate($Uri, [System.UriKind]::Absolute, [ref]$u)
+            if (-not $okUri -or $null -eq $u) { return $false }
+            $cookies = $Session.Cookies.GetCookies($u)
+            foreach ($c in @($cookies)) {
+                if ((("" + $c.Name).Trim()).Equals($CookieName, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    return $true
+                }
+            }
+        } catch { }
+        return $false
     }
 
     function Invoke-IwrCapture {
@@ -78,6 +118,7 @@ function Invoke-KsAuditCheck_LoginCsrfProbe {
                 ok        = $true
                 status    = $status
                 final_uri = $finalUri
+                location  = (Get-HeaderValue -Headers $resp.Headers -Name "Location")
                 content   = ("" + $resp.Content)
                 error     = ""
             }
@@ -114,6 +155,7 @@ function Invoke-KsAuditCheck_LoginCsrfProbe {
                     ok        = $true
                     status    = $status
                     final_uri = $finalUri
+                    location  = (Get-HeaderValue -Headers $resp.Headers -Name "Location")
                     content   = $bodyText
                     error     = ""
                 }
@@ -123,6 +165,7 @@ function Invoke-KsAuditCheck_LoginCsrfProbe {
                 ok        = $false
                 status    = $null
                 final_uri = ""
+                location  = ""
                 content   = ""
                 error     = ("" + $_.Exception.Message)
             }
@@ -192,15 +235,18 @@ function Invoke-KsAuditCheck_LoginCsrfProbe {
 
     $postStatus = $rPost.status
     $finalUri = ("" + $rPost.final_uri).Trim()
+    $postLocation = ("" + $rPost.location).Trim()
 
     $details += ("POST /login status: " + ($(if ($null -ne $postStatus) { [int]$postStatus } else { "n/a" })))
     if ($finalUri -ne "") { $details += ("POST /login final uri: " + $finalUri) }
+    if ($postLocation -ne "") { $details += ("POST /login location: " + $postLocation) }
 
     $data = @{
         base_url            = $baseUrl
         get_status          = $rGet.status
         post_status         = $postStatus
         post_final_uri      = $finalUri
+        post_location       = $postLocation
         token_present       = $true
         token_length        = [int]$token.Length
         post_has_response   = [bool]$rPost.ok
@@ -222,6 +268,18 @@ function Invoke-KsAuditCheck_LoginCsrfProbe {
         return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "FAIL" -Summary "POST /login returned 419 (csrf_419)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
+    $sessionCookiePresent = Test-SessionCookiePresent -Session $session -Uri $baseUrl -CookieName "laravel_session"
+    $details += ("Session cookie laravel_session present: " + $sessionCookiePresent)
+    $data["session_cookie_present"] = [bool]$sessionCookiePresent
+
+    if (-not $sessionCookiePresent) {
+        $sw.Stop()
+        try {
+            $Context | Add-Member -NotePropertyName LoginCsrfProbeState -NotePropertyValue ([pscustomobject]@{ ok = $false; reason = "missing_session_cookie"; status = $postStatus }) -Force
+        } catch { }
+        return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "FAIL" -Summary "POST /login did not produce/keep laravel_session (missing_session_cookie)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+    }
+
     $finalUriNorm = $finalUri
     try { $finalUriNorm = ("" + $finalUri).TrimEnd("/") } catch { $finalUriNorm = $finalUri }
 
@@ -233,17 +291,50 @@ function Invoke-KsAuditCheck_LoginCsrfProbe {
         return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "FAIL" -Summary "POST /login ended on /login (redirect_login)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
-    if ($postStatus -eq 200 -and $finalUriNorm -match '/admin') {
+    $adminUrl = $baseUrl + "/admin"
+    $rAdmin = Invoke-IwrCapture -Uri $adminUrl -Method "GET" -Session $session -MaxRedirection 0
+    $adminStatus = $rAdmin.status
+    $adminLocation = ("" + $rAdmin.location).Trim()
+    $adminFinalUri = ("" + $rAdmin.final_uri).Trim()
+    $adminLocationNorm = ""
+    try { $adminLocationNorm = ("" + $adminLocation).ToLowerInvariant().TrimEnd("/") } catch { $adminLocationNorm = ("" + $adminLocation).ToLowerInvariant() }
+
+    $details += ("GET /admin status(no-redirect): " + ($(if ($null -ne $adminStatus) { [int]$adminStatus } else { "n/a" })))
+    if ($adminLocation -ne "") { $details += ("GET /admin location: " + $adminLocation) }
+    if ($adminFinalUri -ne "") { $details += ("GET /admin final uri: " + $adminFinalUri) }
+
+    $data["admin_probe_status"] = $adminStatus
+    $data["admin_probe_location"] = $adminLocation
+    $data["admin_probe_final_uri"] = $adminFinalUri
+    $data["admin_probe_has_response"] = [bool]$rAdmin.ok
+
+    if (-not $rAdmin.ok) {
         $sw.Stop()
         try {
-            $Context | Add-Member -NotePropertyName LoginCsrfProbeState -NotePropertyValue ([pscustomobject]@{ ok = $true; reason = "success"; status = $postStatus }) -Force
+            $Context | Add-Member -NotePropertyName LoginCsrfProbeState -NotePropertyValue ([pscustomobject]@{ ok = $false; reason = "admin_probe_no_response"; status = $null }) -Force
         } catch { }
-        return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "OK" -Summary "Login probe success (success)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+        return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "FAIL" -Summary ("GET /admin probe failed: " + $rAdmin.error + " (no response object)") -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+    }
+
+    if ($adminStatus -eq 302 -and $adminLocationNorm -match '/login$') {
+        $sw.Stop()
+        try {
+            $Context | Add-Member -NotePropertyName LoginCsrfProbeState -NotePropertyValue ([pscustomobject]@{ ok = $false; reason = "redirect_login"; status = $adminStatus }) -Force
+        } catch { }
+        return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "FAIL" -Summary "GET /admin redirected to /login (redirect_login)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+    }
+
+    if ($adminStatus -eq 200 -or ($adminStatus -eq 302 -and -not ($adminLocationNorm -match '/login$'))) {
+        $sw.Stop()
+        try {
+            $Context | Add-Member -NotePropertyName LoginCsrfProbeState -NotePropertyValue ([pscustomobject]@{ ok = $true; reason = "success"; status = $adminStatus }) -Force
+        } catch { }
+        return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "OK" -Summary ("Login probe success (POST status=" + $postStatus + ", /admin status=" + $adminStatus + ").") -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
     $sw.Stop()
     try {
-        $Context | Add-Member -NotePropertyName LoginCsrfProbeState -NotePropertyValue ([pscustomobject]@{ ok = $false; reason = "redirect_login"; status = $postStatus }) -Force
+        $Context | Add-Member -NotePropertyName LoginCsrfProbeState -NotePropertyValue ([pscustomobject]@{ ok = $false; reason = "redirect_login"; status = $adminStatus }) -Force
     } catch { }
-    return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "FAIL" -Summary "Login probe did not reach admin (redirect_login)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+    return & $new -Id "login_csrf_probe" -Title "2a) Login CSRF probe" -Status "FAIL" -Summary "Login probe failed on /admin probe (redirect_login)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
 }

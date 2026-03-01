@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 15:18 (Europe/Berlin)
-# Version: 7.2
+# Changed: 01-03-2026 16:04 (Europe/Berlin)
+# Version: 7.5
 # =============================================================================
 
 [CmdletBinding()]
@@ -539,7 +539,7 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "7.1"
+    $uiVersion = "7.5"
     $form = New-Object System.Windows.Forms.Form
     $form.Text = ("KiezSingles Admin Audit v" + $uiVersion)
     $form.Width = 1180
@@ -641,7 +641,7 @@ function Show-AuditGui() {
     # Always prefer the current $BaseUrl value for the initial dropdown selection (even if it came from defaults),
     # to keep GUI selection and Core-Command consistent.
     $initialBaseUrl = Normalize-BaseUrl ("" + $BaseUrl)
-    if ($initialBaseUrl -eq "") { $initialBaseUrl = "http://127.0.0.1:8000" }
+    if ($initialBaseUrl -eq "") { $initialBaseUrl = "http://kiezsingles.test" }
 
     $idxBase = -1
     try { $idxBase = $cmbBaseUrl.FindStringExact($initialBaseUrl) } catch { $idxBase = -1 }
@@ -1545,7 +1545,9 @@ function Show-AuditGui() {
 
             if ($rsLines.Count -gt 0) {
                 $argsList.Add("-RoleSmokePaths") | Out-Null
-                $argsList.Add((($rsLines | ForEach-Object { "" + $_ }) -join " ")) | Out-Null
+                foreach ($rp in $rsLines) {
+                    $argsList.Add(("" + $rp)) | Out-Null
+                }
             }
 
             $saEmail = ("" + $txtSuperadminEmail.Text).Trim()
@@ -1889,7 +1891,11 @@ if ($TailLog) { $argList.Add("-TailLog") | Out-Null }
 if ($RoleSmokeTest -and $RoleSmokePaths -and $RoleSmokePaths.Count -gt 0) {
     $argList.Add("-RoleSmokePaths") | Out-Null
     $rs = @($RoleSmokePaths | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
-    if ($rs.Count -gt 0) { $argList.Add(($rs -join " ")) | Out-Null }
+    if ($rs.Count -gt 0) {
+        foreach ($rp in $rs) {
+            $argList.Add(("" + $rp)) | Out-Null
+        }
+    }
 }
 
 if ($RoleSmokeTest -or $LoginCsrfProbe) {

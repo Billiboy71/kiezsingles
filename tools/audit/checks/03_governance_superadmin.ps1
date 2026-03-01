@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\03_governance_superadmin.ps1
 # Purpose: Audit check - Governance: Superadmin fail-safe (deterministic, no tinker)
 # Created: 21-02-2026 00:22 (Europe/Berlin)
-# Changed: 22-02-2026 01:24 (Europe/Berlin)
-# Version: 0.6
+# Changed: 01-03-2026 16:20 (Europe/Berlin)
+# Version: 0.7
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -183,6 +183,29 @@ function Invoke-KsAuditCheck_GovernanceSuperadmin {
         $okDetails += "INFO: Role-assignment surface should be verified via -RoleSmokeTest (GET-only)."
         $okDetails += "INFO: is_protected_admin destructive checks are intentionally not executed in default audit."
         $okDetails += "INFO: users.role backdoor checks should rely on role-system SSOT inspection (Spatie relation/API if enabled)."
+
+        $roleSmokeState = $null
+        try { $roleSmokeState = $Context.RoleSmokeTestState } catch { $roleSmokeState = $null }
+        if ($null -ne $roleSmokeState) {
+            $findings = @()
+            try { $findings = @($roleSmokeState.findings) } catch { $findings = @() }
+
+            $adminLoginWorked = $false
+            foreach ($f in @($findings)) {
+                $fr = ""
+                $reason = ""
+                try { $fr = ("" + $f.role).Trim().ToLower() } catch { $fr = "" }
+                try { $reason = ("" + $f.reason).Trim().ToLower() } catch { $reason = "" }
+                if ($fr -ne "admin") { continue }
+                if ($reason -like "login_failed:*") { continue }
+                $adminLoginWorked = $true
+                break
+            }
+
+            if ($adminLoginWorked -and $admins -eq 0) {
+                $okDetails += "INFO: Admin login user exists but admin role count = 0 because governance count comes from ks:audit:superadmin SSOT output."
+            }
+        }
 
         return & $new -Id "governance_superadmin" -Title "3) Governance: superadmin fail-safe" -Status "OK" -Summary ("Superadmins: " + $count + " | Admins: " + $admins + " | Moderators: " + $moderators) -Details $okDetails -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     } catch {

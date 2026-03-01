@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 14:25 (Europe/Berlin)
-# Version: 3.3
+# Changed: 01-03-2026 16:09 (Europe/Berlin)
+# Version: 3.7
 # =============================================================================
 
 [CmdletBinding()]
@@ -460,6 +460,79 @@ if (Test-RecoverArgsNeeded) {
     $IgnoredArgs = @()
 }
 
+function Get-InvocationParameterValues {
+    param(
+        [Parameter(Mandatory = $true)][string]$ParamName
+    )
+
+    $out = New-Object System.Collections.Generic.List[string]
+    $line = ""
+    try { $line = ("" + $MyInvocation.Line) } catch { $line = "" }
+    if ($line.Trim() -eq "") { return @() }
+
+    $tokens = New-Object System.Collections.Generic.List[string]
+    try {
+        $rx = [regex]'("([^"\\]|\\.)*"|''[^'']*''|\S+)'
+        foreach ($m in $rx.Matches($line)) {
+            $t = ("" + $m.Value).Trim()
+            if ($t -eq "") { continue }
+            if (($t.StartsWith('"') -and $t.EndsWith('"')) -or ($t.StartsWith("'") -and $t.EndsWith("'"))) {
+                if ($t.Length -ge 2) { $t = $t.Substring(1, $t.Length - 2) }
+            }
+            $tokens.Add($t) | Out-Null
+        }
+    } catch {
+        return @()
+    }
+
+    if ($tokens.Count -le 0) { return @() }
+
+    $nameNorm = ("-" + ("" + $ParamName).Trim().TrimStart("-"))
+    for ($i = 0; $i -lt $tokens.Count; $i++) {
+        $tok = ("" + $tokens[$i]).Trim()
+        if ($tok -ne $nameNorm) { continue }
+
+        $j = $i + 1
+        while ($j -lt $tokens.Count) {
+            $v = ("" + $tokens[$j]).Trim()
+            if ($v -eq "") { $j++; continue }
+            if ($v.StartsWith("-")) { break }
+            $out.Add($v) | Out-Null
+            $j++
+        }
+    }
+
+    return @($out.ToArray())
+}
+
+function Get-ProcessArgParameterValues {
+    param(
+        [Parameter(Mandatory = $true)][string]$ParamName
+    )
+
+    $out = New-Object System.Collections.Generic.List[string]
+    $argv = @()
+    try { $argv = @([Environment]::GetCommandLineArgs()) } catch { $argv = @() }
+    if ($argv.Count -le 0) { return @() }
+
+    $nameNorm = ("-" + ("" + $ParamName).Trim().TrimStart("-"))
+    for ($i = 0; $i -lt $argv.Count; $i++) {
+        $tok = ("" + $argv[$i]).Trim()
+        if ($tok -ne $nameNorm) { continue }
+
+        $j = $i + 1
+        while ($j -lt $argv.Count) {
+            $v = ("" + $argv[$j]).Trim()
+            if ($v -eq "") { $j++; continue }
+            if ($v.StartsWith("-")) { break }
+            $out.Add($v) | Out-Null
+            $j++
+        }
+    }
+
+    return @($out.ToArray())
+}
+
 # Deterministic HTTP stack preflight
 try { $ProgressPreference = "SilentlyContinue" } catch { }
 
@@ -509,6 +582,7 @@ try { $auditStartedAt = Get-Date } catch { $auditStartedAt = $null }
 # --- Normalize ProbePaths (some launchers accidentally pass them as a single string token)
 function ConvertTo-NormalizedProbePaths([object]$Value) {
     $out = New-Object System.Collections.Generic.List[string]
+    $seen = @{}
 
     if ($null -eq $Value) {
         return @()
@@ -522,29 +596,51 @@ function ConvertTo-NormalizedProbePaths([object]$Value) {
         $s = ("" + $v).Trim()
         if ($s -eq "") { continue }
 
-        if ($s -match '\s') {
-            ($s -split '\s+') | ForEach-Object {
-                $x = ("" + $_).Trim()
-                if ($x -ne "") { $out.Add($x) | Out-Null }
-            }
-            continue
+        $parts = @()
+        if ($s -match "\r?\n" -or $s -match "\s" -or $s -match "[,;]") {
+            try { $parts = @($s -split "[\s,;]+") } catch { $parts = @() }
+        } else {
+            $parts = @($s)
         }
 
-        if ($s -match ',') {
-            ($s -split ',') | ForEach-Object {
-                $x = ("" + $_).Trim()
-                if ($x -ne "") { $out.Add($x) | Out-Null }
-            }
-            continue
-        }
+        foreach ($part in @($parts)) {
+            $x = ("" + $part).Trim()
+            if ($x -eq "") { continue }
 
-        $out.Add($s) | Out-Null
+            if ($x -match '^(?i)https?://') {
+                try {
+                    $u = $null
+                    $ok = $false
+                    try { $ok = [System.Uri]::TryCreate($x, [System.UriKind]::Absolute, [ref]$u) } catch { $ok = $false }
+                    if ($ok -and $u -and $u.AbsolutePath) { $x = ("" + $u.AbsolutePath).Trim() }
+                } catch { }
+            }
+
+            if ($x -eq "") { continue }
+            if (-not $x.StartsWith("/")) { $x = "/" + $x.TrimStart("/") }
+            if ($x -eq "/") { continue }
+
+            if ($seen.ContainsKey($x)) { continue }
+            $seen[$x] = $true
+            $out.Add($x) | Out-Null
+        }
     }
 
     return @($out.ToArray())
 }
 
 $ProbePaths = ConvertTo-NormalizedProbePaths $ProbePaths
+
+if (@($ProbePaths).Count -le 1) {
+    $invProbe = @()
+    try { $invProbe = @(Get-InvocationParameterValues -ParamName "ProbePaths") } catch { $invProbe = @() }
+    if ($invProbe.Count -le 1) {
+        try { $invProbe = @(Get-ProcessArgParameterValues -ParamName "ProbePaths") } catch { $invProbe = @() }
+    }
+    if ($invProbe.Count -gt 1) {
+        $ProbePaths = ConvertTo-NormalizedProbePaths $invProbe
+    }
+}
 
 # --- Recovery: some hosts bind only the first ProbePaths element; extra "/admin/..." tokens land in RemainingArguments.
 # Keep this deterministic: append only tokens that look like probe paths (start with "/").
@@ -594,6 +690,16 @@ if ($null -ne $ProbePaths -and @($ProbePaths).Count -gt 0) {
 }
 
 $RoleSmokePaths = ConvertTo-NormalizedProbePaths $RoleSmokePaths
+if (@($RoleSmokePaths).Count -le 1) {
+    $invRole = @()
+    try { $invRole = @(Get-InvocationParameterValues -ParamName "RoleSmokePaths") } catch { $invRole = @() }
+    if ($invRole.Count -le 1) {
+        try { $invRole = @(Get-ProcessArgParameterValues -ParamName "RoleSmokePaths") } catch { $invRole = @() }
+    }
+    if ($invRole.Count -gt 1) {
+        $RoleSmokePaths = ConvertTo-NormalizedProbePaths $invRole
+    }
+}
 if ($null -ne $RoleSmokePaths -and @($RoleSmokePaths).Count -gt 0) {
     $seenRole = @{}
     $dedupRole = New-Object System.Collections.Generic.List[string]
@@ -955,6 +1061,7 @@ $context = [pscustomobject]@{
     BaseUrl = $BaseUrl
     ProbePaths = $ProbePaths
     RoleSmokePaths = $RoleSmokePaths
+    RoleSmokeExpectations = @{}
     SuperadminEmail = $SuperadminEmail
     SuperadminPassword = $SuperadminPassword
     AdminEmail = $AdminEmail

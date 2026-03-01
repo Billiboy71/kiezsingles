@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\02b_role_smoke_test.ps1
 # Purpose: Audit check - Role access smoke test (GET-only)
 # Created: 28-02-2026 (Europe/Berlin)
-# Changed: 01-03-2026 12:18 (Europe/Berlin)
-# Version: 0.2
+# Changed: 01-03-2026 16:20 (Europe/Berlin)
+# Version: 0.3
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -433,7 +433,9 @@ function Invoke-KsAuditCheck_RoleSmokeTest {
     }
 
     $defaults = Build-DefaultExpectations
-    $expect = Merge-Expectations -Defaults $defaults -Overrides $Context.RoleSmokeExpectations
+    $overrides = $null
+    try { $overrides = $Context.RoleSmokeExpectations } catch { $overrides = $null }
+    $expect = Merge-Expectations -Defaults $defaults -Overrides $overrides
 
     $roles = @(
         @{ name = "superadmin"; email = ("" + $Context.SuperadminEmail); password = ("" + $Context.SuperadminPassword) },
@@ -561,6 +563,33 @@ function Invoke-KsAuditCheck_RoleSmokeTest {
         ok_count = [int]$okCount
         warn_count = [int]$warnCount
         fail_count = [int]$failCount
+        role_count = [int](@($roles).Count)
+        path_count = [int](@($paths).Count)
+        expected_probe_count = [int](@($roles).Count * @($paths).Count)
+        actual_probe_count = [int](@($findings.ToArray()).Count)
+    }
+
+    $expectedProbeCount = [int]$data.expected_probe_count
+    $actualProbeCount = [int]$data.actual_probe_count
+
+    try {
+        $Context | Add-Member -NotePropertyName RoleSmokeTestState -NotePropertyValue ([pscustomobject]@{
+            ok = ($failCount -eq 0 -and $warnCount -eq 0 -and $okCount -eq $expectedProbeCount -and $actualProbeCount -eq $expectedProbeCount)
+            expected_probe_count = $expectedProbeCount
+            actual_probe_count = $actualProbeCount
+            ok_count = [int]$okCount
+            warn_count = [int]$warnCount
+            fail_count = [int]$failCount
+            findings = @($findings.ToArray())
+        }) -Force
+    } catch { }
+
+    if ($actualProbeCount -ne $expectedProbeCount) {
+        return & $new -Id "role_smoke_test" -Title "2b) Role access smoke test (GET-only)" -Status "FAIL" -Summary ("Probe consistency mismatch: actual " + $actualProbeCount + " / expected " + $expectedProbeCount + ".") -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+    }
+
+    if ($okCount -ne $expectedProbeCount) {
+        return & $new -Id "role_smoke_test" -Title "2b) Role access smoke test (GET-only)" -Status "FAIL" -Summary ("OK count mismatch: OK=" + $okCount + " / expected=" + $expectedProbeCount + ".") -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
     if ($failCount -gt 0) {
