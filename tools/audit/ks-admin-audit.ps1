@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 20:34 (Europe/Berlin)
-# Version: 4.1
+# Changed: 01-03-2026 21:01 (Europe/Berlin)
+# Version: 4.4
 # =============================================================================
 
 [CmdletBinding()]
@@ -1280,6 +1280,61 @@ function Get-LaravelLogPath([string]$Root) {
     }
 }
 
+function Get-ResultLogCandidatePaths([string]$PrimaryLogPath, [int]$MaxCandidates = 2) {
+    $out = New-Object System.Collections.Generic.List[string]
+    try {
+        $primary = ("" + $PrimaryLogPath).Trim()
+        if ($primary -ne "") {
+            $out.Add($primary) | Out-Null
+        }
+
+        if ($out.Count -ge $MaxCandidates) { return @($out.ToArray()) }
+        if ($primary -eq "") { return @($out.ToArray()) }
+
+        $dir = ""
+        try { $dir = [System.IO.Path]::GetDirectoryName($primary) } catch { $dir = "" }
+        if ($dir -eq "" -or -not (Test-Path -LiteralPath $dir -PathType Container)) { return @($out.ToArray()) }
+
+        $daily = @()
+        try {
+            $daily = @(Get-ChildItem -LiteralPath $dir -File -Filter "laravel-*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
+        } catch { $daily = @() }
+
+        foreach ($f in $daily) {
+            if ($out.Count -ge $MaxCandidates) { break }
+            $path = ""
+            try { $path = ("" + $f.FullName).Trim() } catch { $path = "" }
+            if ($path -eq "") { continue }
+            if ($path -ieq $primary) { continue }
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $out.Add($path) | Out-Null
+        }
+
+        if ($out.Count -ge $MaxCandidates) { return @($out.ToArray()) }
+
+        $generic = @()
+        try {
+            $generic = @(Get-ChildItem -LiteralPath $dir -File -Filter "*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
+        } catch { $generic = @() }
+
+        foreach ($f in $generic) {
+            if ($out.Count -ge $MaxCandidates) { break }
+            $path = ""
+            try { $path = ("" + $f.FullName).Trim() } catch { $path = "" }
+            if ($path -eq "") { continue }
+            $existsAlready = $false
+            foreach ($existing in @($out.ToArray())) {
+                if ((("" + $existing).Trim()) -ieq $path) { $existsAlready = $true; break }
+            }
+            if ($existsAlready) { continue }
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $out.Add($path) | Out-Null
+        }
+    } catch { }
+
+    return @($out.ToArray())
+}
+
 function Test-IsIgnoredAuditNoiseLogLine([string]$Line) {
     if ($null -eq $Line) { return $false }
     $l = ""
@@ -1435,9 +1490,25 @@ function Get-ResultLogSlice {
         }
     }
 
-    $all = @()
-    try { $all = @(Get-Content -LiteralPath $LogPath -ErrorAction Stop) } catch {
-        $evidence.Add("LogSlice: failed to read log file ($($_.Exception.Message)).") | Out-Null
+    $all = New-Object System.Collections.Generic.List[string]
+    $readOk = $false
+    $readErrors = New-Object System.Collections.Generic.List[string]
+    $scanPaths = @(Get-ResultLogCandidatePaths -PrimaryLogPath $LogPath -MaxCandidates 2)
+    if ($scanPaths.Count -le 0) { $scanPaths = @($LogPath) }
+    foreach ($scanPath in $scanPaths) {
+        if (-not (Test-Path -LiteralPath $scanPath -PathType Leaf)) { continue }
+        try {
+            $part = @(Get-Content -LiteralPath $scanPath -ErrorAction Stop)
+            foreach ($line in $part) { $all.Add(("" + $line)) | Out-Null }
+            $readOk = $true
+        } catch {
+            $readErrors.Add((("" + $scanPath) + ": " + $_.Exception.Message)) | Out-Null
+        }
+    }
+    if (-not $readOk) {
+        $msg = "LogSlice: failed to read log file."
+        if ($readErrors.Count -gt 0) { $msg = ("LogSlice: failed to read log file (" + (($readErrors.ToArray() | Select-Object -First 1) -join "") + ").") }
+        $evidence.Add($msg) | Out-Null
         return [pscustomobject]@{
             lines = @()
             evidence = @($evidence.ToArray())
@@ -1521,11 +1592,32 @@ function Get-ResultLogSlice {
     }
 
     if ($hasParseableTimestamp) {
-        $evidence.Add("Log file contains no entries during this run.") | Out-Null
+        $nearSlice = New-Object System.Collections.Generic.List[string]
+        $nearFrom = $from.AddMinutes(-2)
+        $nearTo = $to.AddMinutes(2)
+        foreach ($line in $allFiltered) {
+            $text = "" + $line
+            $ts = Try-ParseLaravelLogTimestamp $text
+            if ($null -eq $ts) { continue }
+            if ($ts -ge $nearFrom -and $ts -le $nearTo) { $nearSlice.Add($text) | Out-Null }
+        }
+
+        if ($nearSlice.Count -gt 0) {
+            $evidence.Add("LogSlice mode: fallback near time window ($($nearFrom.ToString('yyyy-MM-dd HH:mm:ss')) .. $($nearTo.ToString('yyyy-MM-dd HH:mm:ss'))).") | Out-Null
+            if ($nearSlice.Count -gt $MaxLines) { $nearSlice = New-Object System.Collections.Generic.List[string] (@($nearSlice.ToArray() | Select-Object -Last $MaxLines)) }
+            return [pscustomobject]@{
+                lines = @($nearSlice.ToArray())
+                evidence = @($evidence.ToArray())
+                mode = "time_window_fallback_near"
+            }
+        }
+
+        $evidence.Add("LogSlice mode: fallback tail ($MaxLines lines) after empty check window.") | Out-Null
+        $tailAfterWindowMiss = @($allFiltered | Select-Object -Last $MaxLines)
         return [pscustomobject]@{
-            lines = @()
+            lines = @($tailAfterWindowMiss)
             evidence = @($evidence.ToArray())
-            mode = "time_window_empty"
+            mode = "time_window_empty_tail"
         }
     }
 
@@ -2224,12 +2316,19 @@ foreach ($step in $plan) {
                     $exportPath = Join-Path $effectiveExportFolder $exportName
                     $exportLines = @($logSliceArr)
                     if ($exportLines.Count -le 0) {
-                        $exportLines = @(
-                            "# No log lines matched for this check.",
-                            "# Check: " + ("" + $res.id),
-                            "# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                            "# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")
-                        )
+                        $modeHint = ""
+                        try { $modeHint = ("" + $res.data["log_slice_mode"]).Trim() } catch { $modeHint = "" }
+                        $fallback = New-Object System.Collections.Generic.List[string]
+                        $fallback.Add("# No log lines matched for this check.") | Out-Null
+                        $fallback.Add("# Check: " + ("" + $res.id)) | Out-Null
+                        $fallback.Add("# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
+                        $fallback.Add("# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
+                        if ($modeHint -ne "") { $fallback.Add("# LogSliceMode: " + $modeHint) | Out-Null }
+                        foreach ($ev in $sliceEvidenceArr) {
+                            $t = ("" + $ev).Trim()
+                            if ($t -ne "") { $fallback.Add("# Evidence: " + $t) | Out-Null }
+                        }
+                        $exportLines = @($fallback.ToArray())
                     }
                     [System.IO.File]::WriteAllLines($exportPath, @($exportLines), [System.Text.UTF8Encoding]::new($false))
                     $exports.Add($exportPath) | Out-Null

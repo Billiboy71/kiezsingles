@@ -503,14 +503,49 @@ function Get-KsAuditUiSettings([string]$SettingsPath) {
     }
 }
 
-function Save-KsAuditUiSettings([string]$SettingsPath, [string]$ExportFolderValue) {
+function Save-KsAuditUiSettings([string]$SettingsPath, [string]$ExportFolderValue, [string[]]$SecurityLockoutKeywordsValue = $null) {
     $dir = Split-Path -Parent $SettingsPath
     if ($dir -and (-not (Test-Path -LiteralPath $dir -PathType Container))) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
 
+    $existingExportFolder = ""
+    $existingKeywords = @("too many attempts","throttle","locked","lockout")
+    try {
+        if (Test-Path -LiteralPath $SettingsPath -PathType Leaf) {
+            $raw = [string](Get-Content -LiteralPath $SettingsPath -Raw -ErrorAction SilentlyContinue)
+            if ($raw -and $raw.Trim() -ne "") {
+                $obj = $raw | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($null -ne $obj) {
+                    try {
+                        if ($obj.PSObject.Properties.Name -contains "ExportFolder") {
+                            $existingExportFolder = ("" + $obj.ExportFolder).Trim()
+                        }
+                    } catch { }
+                    try {
+                        if ($obj.PSObject.Properties.Name -contains "SecurityLockoutKeywords") {
+                            $arr = @($obj.SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+                            if ($arr.Count -gt 0) { $existingKeywords = @($arr) }
+                        }
+                    } catch { }
+                }
+            }
+        }
+    } catch { }
+
+    $finalExportFolder = ("" + $ExportFolderValue).Trim()
+    if ($finalExportFolder -eq "") { $finalExportFolder = $existingExportFolder }
+    if ($finalExportFolder -eq "") { $finalExportFolder = "tools/audit/output" }
+
+    $finalKeywords = @($existingKeywords)
+    if ($null -ne $SecurityLockoutKeywordsValue) {
+        $arr = @($SecurityLockoutKeywordsValue | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+        if ($arr.Count -gt 0) { $finalKeywords = @($arr) }
+    }
+
     $payload = [ordered]@{
-        ExportFolder = ("" + $ExportFolderValue)
+        ExportFolder = $finalExportFolder
+        SecurityLockoutKeywords = @($finalKeywords)
     }
 
     $json = $payload | ConvertTo-Json -Depth 3
@@ -645,6 +680,14 @@ function Show-AuditGui() {
             if ($uiSettings.PSObject.Properties.Name -contains "ExportFolder") {
                 $storedFolder = ("" + $uiSettings.ExportFolder).Trim()
                 if ($storedFolder -ne "") { $ExportFolder = $storedFolder }
+            }
+        } catch { }
+        try {
+            if (-not $PSBoundParameters.ContainsKey("SecurityLockoutKeywords")) {
+                if ($uiSettings.PSObject.Properties.Name -contains "SecurityLockoutKeywords") {
+                    $arr = @($uiSettings.SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+                    if ($arr.Count -gt 0) { $SecurityLockoutKeywords = @($arr) }
+                }
             }
         } catch { }
     }
@@ -1074,13 +1117,88 @@ function Show-AuditGui() {
     $chkSessionCsrfBaseline.Checked = [bool]$SessionCsrfBaseline
     $panelLeft.Controls.Add($chkSessionCsrfBaseline)
 
-    # 12) Per-check Details / Export toggles
-    $lblPerCheck = New-Object System.Windows.Forms.Label
-    $lblPerCheck.AutoSize = $true
-    $lblPerCheck.Left = 10
-    $lblPerCheck.Top = 858
-    $lblPerCheck.Text = "12) Per-Check: Details / Export"
-    $panelLeft.Controls.Add($lblPerCheck)
+    # 11x) Security / Abuse options
+    $lblSecurityBlock = New-Object System.Windows.Forms.Label
+    $lblSecurityBlock.AutoSize = $true
+    $lblSecurityBlock.Left = 10
+    $lblSecurityBlock.Top = 846
+    $lblSecurityBlock.Text = "Security / Abuse Protection (Block X)"
+    $panelLeft.Controls.Add($lblSecurityBlock)
+
+    $chkSecurityProbe = New-Object System.Windows.Forms.CheckBox
+    $chkSecurityProbe.Left = 10
+    $chkSecurityProbe.Top = 866
+    $chkSecurityProbe.Width = 340
+    $chkSecurityProbe.Text = "12) SecurityProbe (aktive Probes aktivieren)"
+    $chkSecurityProbe.Checked = [bool]$SecurityProbe
+    $panelLeft.Controls.Add($chkSecurityProbe)
+
+    $lblSecurityAttempts = New-Object System.Windows.Forms.Label
+    $lblSecurityAttempts.AutoSize = $true
+    $lblSecurityAttempts.Left = 10
+    $lblSecurityAttempts.Top = 890
+    $lblSecurityAttempts.Text = "SecurityLoginAttempts (1-10)"
+    $panelLeft.Controls.Add($lblSecurityAttempts)
+
+    $numSecurityAttempts = New-Object System.Windows.Forms.NumericUpDown
+    $numSecurityAttempts.Left = 210
+    $numSecurityAttempts.Top = 886
+    $numSecurityAttempts.Width = 60
+    $numSecurityAttempts.Minimum = 1
+    $numSecurityAttempts.Maximum = 10
+    $numSecurityAttempts.Value = $(if ($SecurityLoginAttempts -ge 1 -and $SecurityLoginAttempts -le 10) { [decimal]$SecurityLoginAttempts } else { [decimal]8 })
+    $panelLeft.Controls.Add($numSecurityAttempts)
+
+    $chkSecurityCheckIpBan = New-Object System.Windows.Forms.CheckBox
+    $chkSecurityCheckIpBan.Left = 10
+    $chkSecurityCheckIpBan.Top = 914
+    $chkSecurityCheckIpBan.Width = 340
+    $chkSecurityCheckIpBan.Text = "SecurityCheckIpBan"
+    $chkSecurityCheckIpBan.Checked = [bool]$SecurityCheckIpBan
+    $panelLeft.Controls.Add($chkSecurityCheckIpBan)
+
+    $chkSecurityCheckRegister = New-Object System.Windows.Forms.CheckBox
+    $chkSecurityCheckRegister.Left = 10
+    $chkSecurityCheckRegister.Top = 938
+    $chkSecurityCheckRegister.Width = 340
+    $chkSecurityCheckRegister.Text = "SecurityCheckRegister"
+    $chkSecurityCheckRegister.Checked = [bool]$SecurityCheckRegister
+    $panelLeft.Controls.Add($chkSecurityCheckRegister)
+
+    $chkSecurityExpect429 = New-Object System.Windows.Forms.CheckBox
+    $chkSecurityExpect429.Left = 10
+    $chkSecurityExpect429.Top = 962
+    $chkSecurityExpect429.Width = 340
+    $chkSecurityExpect429.Text = "SecurityExpect429"
+    $chkSecurityExpect429.Checked = [bool]$SecurityExpect429
+    $panelLeft.Controls.Add($chkSecurityExpect429)
+
+    $lblSecurityKeywords = New-Object System.Windows.Forms.Label
+    $lblSecurityKeywords.AutoSize = $true
+    $lblSecurityKeywords.Left = 10
+    $lblSecurityKeywords.Top = 986
+    $lblSecurityKeywords.Text = "SecurityLockoutKeywords (comma-separated)"
+    $panelLeft.Controls.Add($lblSecurityKeywords)
+
+    $txtSecurityKeywords = New-Object System.Windows.Forms.TextBox
+    $txtSecurityKeywords.Left = 10
+    $txtSecurityKeywords.Top = 1004
+    $txtSecurityKeywords.Width = 316
+    $txtSecurityKeywords.Height = 44
+    $txtSecurityKeywords.Multiline = $true
+    $txtSecurityKeywords.ScrollBars = "Vertical"
+    $txtSecurityKeywords.WordWrap = $true
+    $txtSecurityKeywords.Text = ((@($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" }) -join ", "))
+    $panelLeft.Controls.Add($txtSecurityKeywords)
+
+    $btnSaveSecurityKeywords = New-Object System.Windows.Forms.Button
+    $btnSaveSecurityKeywords.Left = 330
+    $btnSaveSecurityKeywords.Top = 1004
+    $btnSaveSecurityKeywords.Text = "S"
+    Set-RoundButtonShape -Button $btnSaveSecurityKeywords
+    $panelLeft.Controls.Add($btnSaveSecurityKeywords)
+
+    # Per-check Details / Export toggles
 
     $perCheckRows = New-Object System.Collections.Generic.List[object]
     $perCheckDefs = @(
@@ -1101,7 +1219,7 @@ function Show-AuditGui() {
         @{ id = "log_clear_after"; label = "Log clear after" }
     )
 
-    $matrixStartY = 878
+    $matrixStartY = 1092
     $matrixRowH = 22
     for ($i = 0; $i -lt $perCheckDefs.Count; $i++) {
         $d = $perCheckDefs[$i]
@@ -1136,8 +1254,8 @@ function Show-AuditGui() {
         $perCheckRows.Add([pscustomobject]@{ id = ("" + $d.id); label = ("" + $d.label); chkDetails = $chkD; chkExport = $chkE }) | Out-Null
     }
 
-    $detailsMasterTop = 830
-    $globalBlockTop = 1060
+    $detailsMasterTop = 1066
+    $globalBlockTop = 1256
 
     # 13) Master switches (optional, apply to all per-check toggles)
     $chkShowCheckDetails = New-Object System.Windows.Forms.CheckBox
@@ -1217,7 +1335,7 @@ function Show-AuditGui() {
     $btnRun.Width = 82
     $btnRun.Height = 32
     $btnRun.Left = 10
-    $btnRun.Top = 1194
+    $btnRun.Top = 1424
     $panelLeft.Controls.Add($btnRun)
 
     $btnCopy = New-Object System.Windows.Forms.Button
@@ -1225,7 +1343,7 @@ function Show-AuditGui() {
     $btnCopy.Width = 90
     $btnCopy.Height = 32
     $btnCopy.Left = 98
-    $btnCopy.Top = 1194
+    $btnCopy.Top = 1424
     $btnCopy.Enabled = $false
     $panelLeft.Controls.Add($btnCopy)
 
@@ -1234,13 +1352,13 @@ function Show-AuditGui() {
     $btnClear.Width = 60
     $btnClear.Height = 32
     $btnClear.Left = 192
-    $btnClear.Top = 1194
+    $btnClear.Top = 1424
     $panelLeft.Controls.Add($btnClear)
 
     $lblStatus = New-Object System.Windows.Forms.Label
     $lblStatus.AutoSize = $true
     $lblStatus.Left = 10
-    $lblStatus.Top = 1234
+    $lblStatus.Top = 1464
     $lblStatus.Width = 340
     $lblStatus.Text = ""
     $panelLeft.Controls.Add($lblStatus)
@@ -1612,6 +1730,13 @@ function Show-AuditGui() {
         $toolTip.SetToolTip($chkLoginCsrfProbe, "Fuehrt Login-CSRF-Preflight aus (GET /login, POST /login no-redirect).")
         $toolTip.SetToolTip($chkRoleSmokeTest, "Fuehrt GET-only RoleSmokeTest aus (inkl. Login-Preflight, falls aktiviert).")
         $toolTip.SetToolTip($chkSessionCsrfBaseline, "Liest Session-/CSRF-Baseline aus .env/config (read-only).")
+        $toolTip.SetToolTip($chkSecurityProbe, "Aktiviert aktive Security/Abuse-Probes (Login-Lockout/Register/IP-Ban, je nach Unteroptionen).")
+        $toolTip.SetToolTip($numSecurityAttempts, "Anzahl Login-Fehlversuche fuer den Lockout-Probe (1-10).")
+        $toolTip.SetToolTip($chkSecurityCheckIpBan, "Optionaler Probe fuer IP-Ban-Enforcement.")
+        $toolTip.SetToolTip($chkSecurityCheckRegister, "Optionaler Probe fuer Register-/Invite-Abuse-Schutz.")
+        $toolTip.SetToolTip($chkSecurityExpect429, "Erwartet explizit HTTP 429 als Lockout-Signal.")
+        $toolTip.SetToolTip($txtSecurityKeywords, "Kommagetrennte Keywords fuer Lockout-/Throttle-Erkennung.")
+        $toolTip.SetToolTip($btnSaveSecurityKeywords, "SecurityLockoutKeywords speichern.")
         $toolTip.SetToolTip($txtSuperadminEmail, "Superadmin E-Mail fuer Login/RoleSmoke.")
         $toolTip.SetToolTip($txtSuperadminPassword, "Superadmin Passwort fuer Login/RoleSmoke.")
         $toolTip.SetToolTip($btnSaveSuperadmin, "Superadmin Credentials speichern")
@@ -1706,6 +1831,17 @@ function Show-AuditGui() {
         $btnClearModerator.Enabled = $roleOn
     }
 
+    function Sync-SecurityFieldsEnabled() {
+        $on = [bool]$chkSecurityProbe.Checked
+        $lblSecurityAttempts.Enabled = $on
+        $numSecurityAttempts.Enabled = $on
+        $chkSecurityCheckIpBan.Enabled = $on
+        $chkSecurityCheckRegister.Enabled = $on
+        $chkSecurityExpect429.Enabled = $on
+        $lblSecurityKeywords.Enabled = $on
+        $txtSecurityKeywords.Enabled = $on
+    }
+
     function Sync-ExportFieldsEnabled() {
         $expOn = [bool]$chkExportLogs.Checked
         $lblExportLogsLines.Enabled = $expOn
@@ -1735,6 +1871,9 @@ function Show-AuditGui() {
     $chkRoleSmokeTest.add_CheckedChanged({ Sync-RoleSmokeFieldsEnabled })
     $chkLoginCsrfProbe.add_CheckedChanged({ Sync-RoleSmokeFieldsEnabled })
     Sync-RoleSmokeFieldsEnabled
+
+    $chkSecurityProbe.add_CheckedChanged({ Sync-SecurityFieldsEnabled })
+    Sync-SecurityFieldsEnabled
 
     $chkExportLogs.add_CheckedChanged({ Sync-ExportFieldsEnabled })
     Sync-ExportFieldsEnabled
@@ -1811,15 +1950,18 @@ function Show-AuditGui() {
         if ($chkLoginCsrfProbe.Checked) { $argsList.Add("-LoginCsrfProbe") | Out-Null }
         if ($chkRoleSmokeTest.Checked) { $argsList.Add("-RoleSmokeTest") | Out-Null }
         if ($chkSessionCsrfBaseline.Checked) { $argsList.Add("-SessionCsrfBaseline") | Out-Null }
-        if ($SecurityProbe) { $argsList.Add("-SecurityProbe") | Out-Null }
-        if ($SecurityCheckIpBan) { $argsList.Add("-SecurityCheckIpBan") | Out-Null }
-        if ($SecurityCheckRegister) { $argsList.Add("-SecurityCheckRegister") | Out-Null }
-        if ($SecurityExpect429) { $argsList.Add("-SecurityExpect429") | Out-Null }
-        if ($SecurityLoginAttempts -gt 0) {
+        if ($chkSecurityProbe.Checked) { $argsList.Add("-SecurityProbe") | Out-Null }
+        if ($chkSecurityCheckIpBan.Checked) { $argsList.Add("-SecurityCheckIpBan") | Out-Null }
+        if ($chkSecurityCheckRegister.Checked) { $argsList.Add("-SecurityCheckRegister") | Out-Null }
+        if ($chkSecurityExpect429.Checked) { $argsList.Add("-SecurityExpect429") | Out-Null }
+        $securityAttemptsUi = 8
+        try { $securityAttemptsUi = [int]$numSecurityAttempts.Value } catch { $securityAttemptsUi = 8 }
+        if ($securityAttemptsUi -gt 0) {
             $argsList.Add("-SecurityLoginAttempts") | Out-Null
-            $argsList.Add(("" + $SecurityLoginAttempts)) | Out-Null
+            $argsList.Add(("" + $securityAttemptsUi)) | Out-Null
         }
-        $lockoutKw = @($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+        $lockoutKw = @()
+        try { $lockoutKw = @(((("" + $txtSecurityKeywords.Text) -split "[,`r`n]+") | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })) } catch { $lockoutKw = @() }
         if ($lockoutKw.Count -gt 0) {
             $argsList.Add("-SecurityLockoutKeywords") | Out-Null
             foreach ($kw in $lockoutKw) { $argsList.Add($kw) | Out-Null }
@@ -2060,6 +2202,25 @@ function Show-AuditGui() {
             $lblStatus.Text = "[OK] ExportFolder saved."
         } catch {
             $lblStatus.Text = ("[WARN] ExportFolder save failed: " + $_.Exception.Message)
+        }
+    })
+
+    $btnSaveSecurityKeywords.Add_Click({
+        try {
+            $kw = @()
+            try { $kw = @(((("" + $txtSecurityKeywords.Text) -split "[,`r`n]+") | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })) } catch { $kw = @() }
+            if ($kw.Count -le 0) { $kw = @("too many attempts","throttle","locked","lockout") }
+            try { $txtSecurityKeywords.Text = ($kw -join ", ") } catch { }
+            try { $script:SecurityLockoutKeywords = @($kw) } catch { }
+
+            $folderNow = ""
+            try { $folderNow = ("" + $txtExportFolder.Text).Trim() } catch { $folderNow = "" }
+            $folderNow = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $folderNow
+            try { $txtExportFolder.Text = $folderNow } catch { }
+            Save-KsAuditUiSettings -SettingsPath $uiSettingsFile -ExportFolderValue $folderNow -SecurityLockoutKeywordsValue @($kw)
+            $lblStatus.Text = "[OK] SecurityLockoutKeywords saved."
+        } catch {
+            $lblStatus.Text = ("[WARN] SecurityLockoutKeywords save failed: " + $_.Exception.Message)
         }
     })
 
