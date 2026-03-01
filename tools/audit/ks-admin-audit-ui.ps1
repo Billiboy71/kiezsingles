@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 16:04 (Europe/Berlin)
-# Version: 7.5
+# Changed: 01-03-2026 18:45 (Europe/Berlin)
+# Version: 7.6
 # =============================================================================
 
 [CmdletBinding()]
@@ -87,6 +87,22 @@ param(
 
     # Lockout keywords used by security probes.
     [string[]]$SecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout"),
+
+    # If true, show per-check detail/evidence blocks in audit output.
+    [bool]$ShowCheckDetails = $false,
+
+    # If true, export per-check log slices.
+    [bool]$ExportLogs = $false,
+
+    # Max lines for per-check log slice/export.
+    [ValidateSet(50,200,500,1000)]
+    [int]$ExportLogsLines = 200,
+
+    # Folder for exported per-check logs.
+    [string]$ExportFolder = "tools/audit/output",
+
+    # If true, open export folder after run (if exports exist).
+    [bool]$AutoOpenExportFolder = $false,
 
     # If set, writes the whole audit output to clipboard at the end (wrapper-only).
     # NOTE: Console mode only. In GUI use the "Copy Output" button.
@@ -557,7 +573,7 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "7.5"
+    $uiVersion = "7.6"
     $form = New-Object System.Windows.Forms.Form
     $form.Text = ("KiezSingles Admin Audit v" + $uiVersion)
     $form.Width = 1180
@@ -981,13 +997,77 @@ function Show-AuditGui() {
     $chkSessionCsrfBaseline.Checked = [bool]$SessionCsrfBaseline
     $panelLeft.Controls.Add($chkSessionCsrfBaseline)
 
+    # 12) Optional detail view + log export artifacts
+    $chkShowCheckDetails = New-Object System.Windows.Forms.CheckBox
+    $chkShowCheckDetails.Left = 10
+    $chkShowCheckDetails.Top = 830
+    $chkShowCheckDetails.Width = 340
+    $chkShowCheckDetails.Text = "12) ShowCheckDetails (Evidence/LogSlice)"
+    $chkShowCheckDetails.Checked = [bool]$ShowCheckDetails
+    $panelLeft.Controls.Add($chkShowCheckDetails)
+
+    $chkExportLogs = New-Object System.Windows.Forms.CheckBox
+    $chkExportLogs.Left = 10
+    $chkExportLogs.Top = 854
+    $chkExportLogs.Width = 340
+    $chkExportLogs.Text = "13) ExportLogs (per-check .log)"
+    $chkExportLogs.Checked = [bool]$ExportLogs
+    $panelLeft.Controls.Add($chkExportLogs)
+
+    $lblExportLogsLines = New-Object System.Windows.Forms.Label
+    $lblExportLogsLines.AutoSize = $true
+    $lblExportLogsLines.Text = "ExportLogsLines"
+    $lblExportLogsLines.Left = 10
+    $lblExportLogsLines.Top = 878
+    $panelLeft.Controls.Add($lblExportLogsLines)
+
+    $cmbExportLogsLines = New-Object System.Windows.Forms.ComboBox
+    $cmbExportLogsLines.Left = 10
+    $cmbExportLogsLines.Top = 896
+    $cmbExportLogsLines.Width = 100
+    $cmbExportLogsLines.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    [void]$cmbExportLogsLines.Items.Add("50")
+    [void]$cmbExportLogsLines.Items.Add("200")
+    [void]$cmbExportLogsLines.Items.Add("500")
+    [void]$cmbExportLogsLines.Items.Add("1000")
+    $expLinesSelection = "200"
+    try {
+        $n = [int]$ExportLogsLines
+        if ($n -eq 50 -or $n -eq 200 -or $n -eq 500 -or $n -eq 1000) { $expLinesSelection = ("" + $n) }
+    } catch { $expLinesSelection = "200" }
+    $cmbExportLogsLines.SelectedItem = $expLinesSelection
+    if ($null -eq $cmbExportLogsLines.SelectedItem) { $cmbExportLogsLines.SelectedItem = "200" }
+    $panelLeft.Controls.Add($cmbExportLogsLines)
+
+    $lblExportFolder = New-Object System.Windows.Forms.Label
+    $lblExportFolder.AutoSize = $true
+    $lblExportFolder.Text = "ExportFolder"
+    $lblExportFolder.Left = 120
+    $lblExportFolder.Top = 878
+    $panelLeft.Controls.Add($lblExportFolder)
+
+    $txtExportFolder = New-Object System.Windows.Forms.TextBox
+    $txtExportFolder.Left = 120
+    $txtExportFolder.Top = 896
+    $txtExportFolder.Width = 230
+    $txtExportFolder.Text = ("" + $ExportFolder)
+    $panelLeft.Controls.Add($txtExportFolder)
+
+    $chkAutoOpenExportFolder = New-Object System.Windows.Forms.CheckBox
+    $chkAutoOpenExportFolder.Left = 10
+    $chkAutoOpenExportFolder.Top = 924
+    $chkAutoOpenExportFolder.Width = 340
+    $chkAutoOpenExportFolder.Text = "14) AutoOpenExportFolder"
+    $chkAutoOpenExportFolder.Checked = [bool]$AutoOpenExportFolder
+    $panelLeft.Controls.Add($chkAutoOpenExportFolder)
+
     # --- Bottom buttons (left)
     $btnRun = New-Object System.Windows.Forms.Button
     $btnRun.Text = "Run"
     $btnRun.Width = 82
     $btnRun.Height = 32
     $btnRun.Left = 10
-    $btnRun.Top = 846
+    $btnRun.Top = 956
     $panelLeft.Controls.Add($btnRun)
 
     $btnCopy = New-Object System.Windows.Forms.Button
@@ -995,7 +1075,7 @@ function Show-AuditGui() {
     $btnCopy.Width = 90
     $btnCopy.Height = 32
     $btnCopy.Left = 98
-    $btnCopy.Top = 846
+    $btnCopy.Top = 956
     $btnCopy.Enabled = $false
     $panelLeft.Controls.Add($btnCopy)
 
@@ -1004,13 +1084,13 @@ function Show-AuditGui() {
     $btnClear.Width = 60
     $btnClear.Height = 32
     $btnClear.Left = 192
-    $btnClear.Top = 846
+    $btnClear.Top = 956
     $panelLeft.Controls.Add($btnClear)
 
     $lblStatus = New-Object System.Windows.Forms.Label
     $lblStatus.AutoSize = $true
     $lblStatus.Left = 10
-    $lblStatus.Top = 886
+    $lblStatus.Top = 996
     $lblStatus.Width = 340
     $lblStatus.Text = ""
     $panelLeft.Controls.Add($lblStatus)
@@ -1476,6 +1556,15 @@ function Show-AuditGui() {
         $btnClearModerator.Enabled = $roleOn
     }
 
+    function Sync-ExportFieldsEnabled() {
+        $expOn = [bool]$chkExportLogs.Checked
+        $lblExportLogsLines.Enabled = $expOn
+        $cmbExportLogsLines.Enabled = $expOn
+        $lblExportFolder.Enabled = $expOn
+        $txtExportFolder.Enabled = $expOn
+        $chkAutoOpenExportFolder.Enabled = $expOn
+    }
+
     $chkHttpProbe.add_CheckedChanged({ Sync-HttpFieldsEnabled })
     Sync-HttpFieldsEnabled
 
@@ -1485,6 +1574,9 @@ function Show-AuditGui() {
     $chkRoleSmokeTest.add_CheckedChanged({ Sync-RoleSmokeFieldsEnabled })
     $chkLoginCsrfProbe.add_CheckedChanged({ Sync-RoleSmokeFieldsEnabled })
     Sync-RoleSmokeFieldsEnabled
+
+    $chkExportLogs.add_CheckedChanged({ Sync-ExportFieldsEnabled })
+    Sync-ExportFieldsEnabled
 
     function Get-UiArgs() {
         $argsList = New-Object System.Collections.Generic.List[string]
@@ -1568,6 +1660,27 @@ function Show-AuditGui() {
             $argsList.Add("-SecurityLockoutKeywords") | Out-Null
             foreach ($kw in $lockoutKw) { $argsList.Add($kw) | Out-Null }
         }
+
+        $argsList.Add("-ShowCheckDetails") | Out-Null
+        $argsList.Add(("" + [bool]$chkShowCheckDetails.Checked).ToLowerInvariant()) | Out-Null
+
+        $argsList.Add("-ExportLogs") | Out-Null
+        $argsList.Add(("" + [bool]$chkExportLogs.Checked).ToLowerInvariant()) | Out-Null
+
+        $exportLines = 200
+        try { $exportLines = [int](("" + $cmbExportLogsLines.Text).Trim()) } catch { $exportLines = 200 }
+        if ($exportLines -notin @(50,200,500,1000)) { $exportLines = 200 }
+        $argsList.Add("-ExportLogsLines") | Out-Null
+        $argsList.Add(("" + $exportLines)) | Out-Null
+
+        $exportFolderUi = ""
+        try { $exportFolderUi = ("" + $txtExportFolder.Text).Trim() } catch { $exportFolderUi = "" }
+        if ($exportFolderUi -eq "") { $exportFolderUi = "tools/audit/output" }
+        $argsList.Add("-ExportFolder") | Out-Null
+        $argsList.Add($exportFolderUi) | Out-Null
+
+        $argsList.Add("-AutoOpenExportFolder") | Out-Null
+        $argsList.Add(("" + [bool]$chkAutoOpenExportFolder.Checked).ToLowerInvariant()) | Out-Null
 
         if ($chkRoleSmokeTest.Checked) {
             $rsLines = @()
@@ -1918,6 +2031,30 @@ if ($SecurityLockoutKeywords -and $SecurityLockoutKeywords.Count -gt 0) {
         foreach ($k in $kw) { $argList.Add($k) | Out-Null }
     }
 }
+
+$argList.Add("-ShowCheckDetails") | Out-Null
+$argList.Add(("" + [bool]$ShowCheckDetails).ToLowerInvariant()) | Out-Null
+
+$argList.Add("-ExportLogs") | Out-Null
+$argList.Add(("" + [bool]$ExportLogs).ToLowerInvariant()) | Out-Null
+
+$expLines = 200
+try {
+    $nExp = [int]$ExportLogsLines
+    if ($nExp -in @(50,200,500,1000)) { $expLines = $nExp }
+} catch { $expLines = 200 }
+$argList.Add("-ExportLogsLines") | Out-Null
+$argList.Add(("" + $expLines)) | Out-Null
+
+$expFolder = ""
+try { $expFolder = ("" + $ExportFolder).Trim() } catch { $expFolder = "" }
+if ($expFolder -eq "") { $expFolder = "tools/audit/output" }
+$argList.Add("-ExportFolder") | Out-Null
+$argList.Add($expFolder) | Out-Null
+
+$argList.Add("-AutoOpenExportFolder") | Out-Null
+$argList.Add(("" + [bool]$AutoOpenExportFolder).ToLowerInvariant()) | Out-Null
+
 if ($LogSnapshot) {
     $argList.Add("-LogSnapshot") | Out-Null
     $snapLines = 200

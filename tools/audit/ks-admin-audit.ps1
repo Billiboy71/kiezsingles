@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 16:09 (Europe/Berlin)
-# Version: 3.7
+# Changed: 01-03-2026 18:45 (Europe/Berlin)
+# Version: 3.8
 # =============================================================================
 
 [CmdletBinding()]
@@ -82,6 +82,21 @@ param(
 
     # Lockout keywords used by security probes
     [string[]]$SecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout"),
+
+    # If true, prints optional per-check details/evidence blocks below the status line.
+    [string]$ShowCheckDetails = "true",
+
+    # If true, exports per-check log slices to files in ExportFolder.
+    [string]$ExportLogs = "false",
+
+    # Max lines for per-check log slice and export.
+    [int]$ExportLogsLines = 200,
+
+    # Output folder for per-check exported log slices.
+    [string]$ExportFolder = "tools/audit/output",
+
+    # If true, opens ExportFolder in Explorer after the run (when exports exist).
+    [string]$AutoOpenExportFolder = "false",
 
     # If set, core will NOT call 'exit'. Instead it returns the exit code as an integer.
     # This is required for running the core in-process from the GUI without terminating the GUI host.
@@ -219,6 +234,11 @@ function Test-KnownValueParam([string]$name) {
         "-LogSnapshotLines" { return $true }
         "-SecurityLoginAttempts" { return $true }
         "-SecurityLockoutKeywords" { return $true }
+        "-ShowCheckDetails" { return $true }
+        "-ExportLogs" { return $true }
+        "-ExportLogsLines" { return $true }
+        "-ExportFolder" { return $true }
+        "-AutoOpenExportFolder" { return $true }
         "-Gui" { return $true }
         default { return $false }
     }
@@ -270,6 +290,11 @@ if (Test-RecoverArgsNeeded) {
     $recSecurityCheckRegister = $false
     $recSecurityExpect429 = $false
     $recSecurityLockoutKeywords = New-Object System.Collections.Generic.List[string]
+    $recShowCheckDetails = $true
+    $recExportLogs = $false
+    $recExportLogsLines = 200
+    $recExportFolder = "tools/audit/output"
+    $recAutoOpenExportFolder = $false
     $recNoExit = $false
     $recSuperadminEmail = ""
     $recSuperadminPassword = ""
@@ -408,6 +433,27 @@ if (Test-RecoverArgsNeeded) {
             continue
         }
 
+        if ($name -eq "-ExportFolder") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                $recExportFolder = ("" + $inlineVal).Trim()
+                $i++
+                continue
+            }
+
+            if (($i + 1) -lt $tokens.Count) {
+                $nv = ("" + $tokens[$i + 1]).Trim()
+                if ($nv -notmatch '^-') {
+                    $recExportFolder = $nv
+                    $i += 2
+                    continue
+                }
+            }
+
+            $i++
+            continue
+        }
+
         if ($name -eq "-LogSnapshotLines") {
             $inlineVal = Get-ArgValueFromToken $t
             if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
@@ -459,6 +505,68 @@ if (Test-RecoverArgsNeeded) {
             }
 
             $i++
+            continue
+        }
+
+        if ($name -eq "-ExportLogsLines") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                try {
+                    $n = [int](("" + $inlineVal).Trim())
+                    if ($n -gt 0) { $recExportLogsLines = $n }
+                } catch { }
+                $i++
+                continue
+            }
+
+            if (($i + 1) -lt $tokens.Count) {
+                $nv = ("" + $tokens[$i + 1]).Trim()
+                if ($nv -notmatch '^-') {
+                    try {
+                        $n = [int]$nv
+                        if ($n -gt 0) { $recExportLogsLines = $n }
+                    } catch { }
+                    $i += 2
+                    continue
+                }
+            }
+
+            $i++
+            continue
+        }
+
+        if ($name -eq "-ShowCheckDetails" -or $name -eq "-ExportLogs" -or $name -eq "-AutoOpenExportFolder") {
+            $inlineVal = Get-ArgValueFromToken $t
+            $val = $null
+            if ($null -ne $inlineVal) {
+                $val = ("" + $inlineVal).Trim()
+                $i++
+            } else {
+                if (($i + 1) -lt $tokens.Count) {
+                    $nv = ("" + $tokens[$i + 1]).Trim()
+                    if ($nv -notmatch '^-') {
+                        $val = $nv
+                        $i += 2
+                    } else {
+                        $val = "true"
+                        $i++
+                    }
+                } else {
+                    $val = "true"
+                    $i++
+                }
+            }
+
+            $parsed = $true
+            try { $parsed = [System.Convert]::ToBoolean($val) } catch {
+                if (("" + $val) -match '^(?i:0|no|off|false|\$false)$') { $parsed = $false } else { $parsed = $true }
+            }
+
+            switch ($name) {
+                "-ShowCheckDetails" { $recShowCheckDetails = [bool]$parsed }
+                "-ExportLogs" { $recExportLogs = [bool]$parsed }
+                "-AutoOpenExportFolder" { $recAutoOpenExportFolder = [bool]$parsed }
+            }
             continue
         }
 
@@ -537,6 +645,11 @@ if (Test-RecoverArgsNeeded) {
     if ($recSecurityCheckIpBan) { $SecurityCheckIpBan = $true }
     if ($recSecurityCheckRegister) { $SecurityCheckRegister = $true }
     if ($recSecurityExpect429) { $SecurityExpect429 = $true }
+    $ShowCheckDetails = [bool]$recShowCheckDetails
+    $ExportLogs = [bool]$recExportLogs
+    $ExportLogsLines = [int]$recExportLogsLines
+    if ($recExportFolder -ne "") { $ExportFolder = $recExportFolder }
+    $AutoOpenExportFolder = [bool]$recAutoOpenExportFolder
     if ($recNoExit) { $NoExit = $true }
     if ($recSuperadminEmail -ne "") { $SuperadminEmail = $recSuperadminEmail }
     if ($recSuperadminPassword -ne "") { $SuperadminPassword = $recSuperadminPassword }
@@ -805,6 +918,37 @@ if ($null -ne $RoleSmokePaths -and @($RoleSmokePaths).Count -gt 0) {
     $RoleSmokePaths = @($dedupRole.ToArray())
 }
 
+# Recover string/bool value parameters from invocation if host binding shifted.
+function Resolve-ParamValues([string]$Name) {
+    $vals = @()
+    try { $vals = @(Get-InvocationParameterValues -ParamName $Name) } catch { $vals = @() }
+    if ($vals.Count -le 0) {
+        try { $vals = @(Get-ProcessArgParameterValues -ParamName $Name) } catch { $vals = @() }
+    }
+    return @($vals)
+}
+
+$showVals = @(Resolve-ParamValues "ShowCheckDetails")
+if ($showVals.Count -gt 0) { $ShowCheckDetails = ("" + $showVals[$showVals.Count - 1]).Trim() }
+
+$expVals = @(Resolve-ParamValues "ExportLogs")
+if ($expVals.Count -gt 0) { $ExportLogs = ("" + $expVals[$expVals.Count - 1]).Trim() }
+
+$expLinesVals = @(Resolve-ParamValues "ExportLogsLines")
+if ($expLinesVals.Count -gt 0) {
+    $v = ("" + $expLinesVals[$expLinesVals.Count - 1]).Trim()
+    if ($v -ne "") { $ExportLogsLines = $v }
+}
+
+$expFolderVals = @(Resolve-ParamValues "ExportFolder")
+if ($expFolderVals.Count -gt 0) {
+    $v = ("" + $expFolderVals[$expFolderVals.Count - 1]).Trim()
+    if ($v -ne "") { $ExportFolder = $v }
+}
+
+$autoOpenVals = @(Resolve-ParamValues "AutoOpenExportFolder")
+if ($autoOpenVals.Count -gt 0) { $AutoOpenExportFolder = ("" + $autoOpenVals[$autoOpenVals.Count - 1]).Trim() }
+
 $effectiveLoginCsrfProbe = ([bool]$LoginCsrfProbe -or [bool]$RoleSmokeTest)
 $effectiveSessionCsrfBaseline = ([bool]$SessionCsrfBaseline -or [bool]$RoleSmokeTest)
 
@@ -978,8 +1122,17 @@ function New-AuditResult {
         [Parameter(Mandatory = $true)][string]$Summary,
         [string[]]$Details = @(),
         [hashtable]$Data = @{},
+        [string]$DetailsText = "",
+        [object[]]$Evidence = @(),
+        [string[]]$LogSlice = @(),
+        [string]$LogExportPath = "",
         [int]$DurationMs = 0
     )
+
+    $effectiveDetailsText = $DetailsText
+    if (($effectiveDetailsText -eq "") -and ((Get-SafeCount $Details) -gt 0)) {
+        try { $effectiveDetailsText = ((@($Details) | ForEach-Object { "" + $_ }) -join "`n") } catch { $effectiveDetailsText = "" }
+    }
 
     return [pscustomobject]@{
         id = $Id
@@ -988,6 +1141,10 @@ function New-AuditResult {
         summary = $Summary
         details = @($Details)
         data = $Data
+        details_text = $effectiveDetailsText
+        evidence = @($Evidence)
+        log_slice = @($LogSlice)
+        log_export_path = ("" + $LogExportPath)
         duration_ms = $DurationMs
     }
 }
@@ -1074,6 +1231,176 @@ function Get-LaravelLogPath([string]$Root) {
     }
 }
 
+function Convert-ToBooleanSafe([object]$Value, [bool]$Default = $false) {
+    try {
+        if ($null -eq $Value) { return $Default }
+        if ($Value -is [bool]) { return [bool]$Value }
+        $s = ("" + $Value).Trim()
+        if ($s -eq "") { return $Default }
+        if ($s -match '^(?i:1|true|\$true|yes|on)$') { return $true }
+        if ($s -match '^(?i:0|false|\$false|no|off)$') { return $false }
+        return [System.Convert]::ToBoolean($Value)
+    } catch {
+        return $Default
+    }
+}
+
+function Convert-ToIntSafe([object]$Value, [int]$Default = 0) {
+    try {
+        if ($null -eq $Value) { return $Default }
+        $n = [int]$Value
+        return $n
+    } catch {
+        return $Default
+    }
+}
+
+function Resolve-AuditExportFolder([string]$ProjectRoot, [string]$FolderValue) {
+    try {
+        $candidate = ("" + $FolderValue).Trim()
+        if ($candidate -eq "") { $candidate = "tools/audit/output" }
+        if (-not [System.IO.Path]::IsPathRooted($candidate)) {
+            return (Join-Path $ProjectRoot $candidate)
+        }
+        return $candidate
+    } catch {
+        return (Join-Path $ProjectRoot "tools/audit/output")
+    }
+}
+
+function Convert-ToSafeFileSegment([string]$Value) {
+    $s = ("" + $Value).Trim().ToLowerInvariant()
+    if ($s -eq "") { $s = "check" }
+    $s = $s -replace '[^a-z0-9\-_]+', '-'
+    $s = $s.Trim('-')
+    if ($s -eq "") { $s = "check" }
+    return $s
+}
+
+function Try-ParseLaravelLogTimestamp([string]$Line) {
+    if ($null -eq $Line) { return $null }
+    try {
+        if ($Line -match '^\[(?<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]') {
+            return [datetime]::ParseExact($Matches['ts'], 'yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture)
+        }
+    } catch { }
+    return $null
+}
+
+function Get-ValueFromResultData {
+    param(
+        [Parameter(Mandatory = $true)]$Data,
+        [Parameter(Mandatory = $true)][string[]]$Keys
+    )
+    foreach ($k in @($Keys)) {
+        try {
+            if ($Data -is [System.Collections.IDictionary]) {
+                if ($Data.Contains($k)) { return $Data[$k] }
+            }
+            if ($Data.PSObject -and ($Data.PSObject.Properties.Name -contains $k)) {
+                return $Data.$k
+            }
+        } catch { }
+    }
+    return $null
+}
+
+function Get-ResultLogSlice {
+    param(
+        [Parameter(Mandatory = $true)][string]$LogPath,
+        [Parameter(Mandatory = $true)]$Res,
+        [Parameter(Mandatory = $true)][datetime]$CheckStartedAt,
+        [Parameter(Mandatory = $true)][datetime]$CheckFinishedAt,
+        [Parameter(Mandatory = $true)][int]$MaxLines
+    )
+
+    $evidence = New-Object System.Collections.Generic.List[string]
+    $slice = New-Object System.Collections.Generic.List[string]
+
+    if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) {
+        $evidence.Add("LogSlice: laravel.log not found at '$LogPath'.") | Out-Null
+        return [pscustomobject]@{
+            lines = @()
+            evidence = @($evidence.ToArray())
+            mode = "missing"
+        }
+    }
+
+    $all = @()
+    try { $all = @(Get-Content -LiteralPath $LogPath -ErrorAction Stop) } catch {
+        $evidence.Add("LogSlice: failed to read laravel.log ($($_.Exception.Message)).") | Out-Null
+        return [pscustomobject]@{
+            lines = @()
+            evidence = @($evidence.ToArray())
+            mode = "read_error"
+        }
+    }
+
+    if ($all.Count -le 0) {
+        $evidence.Add("LogSlice: laravel.log is empty.") | Out-Null
+        return [pscustomobject]@{
+            lines = @()
+            evidence = @($evidence.ToArray())
+            mode = "empty"
+        }
+    }
+
+    $data = $null
+    try { $data = $Res.data } catch { $data = $null }
+
+    $corr = ""
+    if ($null -ne $data) {
+        $corrRaw = Get-ValueFromResultData -Data $data -Keys @("correlation_id","correlationId","request_id","requestId","trace_id","traceId")
+        if ($null -ne $corrRaw) { $corr = ("" + $corrRaw).Trim() }
+    }
+
+    if ($corr -ne "") {
+        foreach ($line in $all) {
+            $text = "" + $line
+            if ($text -like ("*" + $corr + "*")) { $slice.Add($text) | Out-Null }
+        }
+        if ($slice.Count -gt 0) {
+            $evidence.Add("LogSlice mode: correlation_id ($corr)") | Out-Null
+            if ($slice.Count -gt $MaxLines) { $slice = New-Object System.Collections.Generic.List[string] (@($slice.ToArray() | Select-Object -Last $MaxLines)) }
+            return [pscustomobject]@{
+                lines = @($slice.ToArray())
+                evidence = @($evidence.ToArray())
+                mode = "correlation"
+            }
+        }
+    }
+
+    $from = $CheckStartedAt
+    $to = $CheckFinishedAt
+    if ($to -lt $from) { $to = $from }
+    $to = $to.AddSeconds(2)
+
+    foreach ($line in $all) {
+        $text = "" + $line
+        $ts = Try-ParseLaravelLogTimestamp $text
+        if ($null -eq $ts) { continue }
+        if ($ts -ge $from -and $ts -le $to) { $slice.Add($text) | Out-Null }
+    }
+
+    if ($slice.Count -gt 0) {
+        $evidence.Add("LogSlice mode: time_window ($($from.ToString('yyyy-MM-dd HH:mm:ss')) .. $($to.ToString('yyyy-MM-dd HH:mm:ss'))).") | Out-Null
+        if ($slice.Count -gt $MaxLines) { $slice = New-Object System.Collections.Generic.List[string] (@($slice.ToArray() | Select-Object -Last $MaxLines)) }
+        return [pscustomobject]@{
+            lines = @($slice.ToArray())
+            evidence = @($evidence.ToArray())
+            mode = "time_window"
+        }
+    }
+
+    $tail = @($all | Select-Object -Last $MaxLines)
+    $evidence.Add("LogSlice mode: fallback tail ($MaxLines lines).") | Out-Null
+    return [pscustomobject]@{
+        lines = @($tail)
+        evidence = @($evidence.ToArray())
+        mode = "tail"
+    }
+}
+
 function Invoke-LaravelLogRotateIfExists([string]$Root, [string]$PhaseLabel) {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -1157,6 +1484,13 @@ try {
     if ($kw.Count -gt 0) { $effectiveSecurityLockoutKeywords = @($kw) }
 } catch { }
 
+$effectiveShowCheckDetails = Convert-ToBooleanSafe $ShowCheckDetails $true
+$effectiveExportLogs = Convert-ToBooleanSafe $ExportLogs $false
+$effectiveExportLogsLines = Convert-ToIntSafe $ExportLogsLines 200
+if ($effectiveExportLogsLines -lt 1) { $effectiveExportLogsLines = 200 }
+$effectiveExportFolder = Resolve-AuditExportFolder -ProjectRoot $projectRoot -FolderValue $ExportFolder
+$effectiveAutoOpenExportFolder = Convert-ToBooleanSafe $AutoOpenExportFolder $false
+
 # Resolve TailLogMode for checks (prefer env var)
 $tailMode = "history"
 try {
@@ -1194,6 +1528,11 @@ $context = [pscustomobject]@{
     SecurityCheckRegister = [bool]$SecurityCheckRegister
     SecurityExpect429 = [bool]$SecurityExpect429
     SecurityLockoutKeywords = @($effectiveSecurityLockoutKeywords)
+    ShowCheckDetails = [bool]$effectiveShowCheckDetails
+    ExportLogs = [bool]$effectiveExportLogs
+    ExportLogsLines = [int]$effectiveExportLogsLines
+    ExportFolder = $effectiveExportFolder
+    AutoOpenExportFolder = [bool]$effectiveAutoOpenExportFolder
     Helpers = [pscustomobject]@{
         WriteSection = ${function:Write-Section}
         RunPHPArtisan = ${function:Invoke-PHPArtisan}
@@ -1657,20 +1996,96 @@ Write-Host ("SecurityCheckIpBan: " + [bool]$SecurityCheckIpBan)
 Write-Host ("SecurityCheckRegister: " + [bool]$SecurityCheckRegister)
 Write-Host ("SecurityExpect429: " + [bool]$SecurityExpect429)
 Write-Host ("SecurityLockoutKeywords: " + (($effectiveSecurityLockoutKeywords | ForEach-Object { "" + $_ }) -join ", "))
+Write-Host ("ShowCheckDetails: " + [bool]$effectiveShowCheckDetails)
+Write-Host ("ExportLogs: " + [bool]$effectiveExportLogs)
+Write-Host ("ExportLogsLines: " + [int]$effectiveExportLogsLines)
+Write-Host ("ExportFolder: " + $effectiveExportFolder)
+Write-Host ("AutoOpenExportFolder: " + [bool]$effectiveAutoOpenExportFolder)
 Write-Host ("ChecksSource: " + $checksSourceLabel + " (" + $checksRoot + ")")
 
 $results = New-Object System.Collections.Generic.List[object]
+$exports = New-Object System.Collections.Generic.List[string]
 $maxScore = 0
+
+if ($effectiveExportLogs) {
+    try {
+        New-Item -ItemType Directory -Path $effectiveExportFolder -Force -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Host ("[WARN] ExportFolder could not be created: " + $effectiveExportFolder + " (" + $_.Exception.Message + ")")
+    }
+}
 
 foreach ($step in $plan) {
     $res = $null
+    $checkStartedAt = Get-Date
     try {
         $res = & $step
     } catch {
         $res = New-AuditResult -Id "core_exception" -Title "Core exception" -Status "CRITICAL" -Summary $_.Exception.Message -Details @() -Data @{} -DurationMs 0
     }
+    $checkFinishedAt = Get-Date
 
     if ($null -ne $res) {
+        if ($null -eq $res.data) { $res.data = @{} }
+        try { $res.data["check_started_at"] = $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
+        try { $res.data["check_finished_at"] = $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
+
+        $computedDetailsText = ""
+        try { $computedDetailsText = ("" + $res.details_text) } catch { $computedDetailsText = "" }
+        if ($computedDetailsText.Trim() -eq "") {
+            try {
+                $detailsRaw = ConvertTo-SafeStringArray $res.details
+                if ((Get-SafeCount $detailsRaw) -gt 0) { $computedDetailsText = (($detailsRaw | ForEach-Object { "" + $_ }) -join "`n") }
+            } catch { $computedDetailsText = "" }
+        }
+        try { $res.details_text = $computedDetailsText } catch { }
+
+        $logSliceArr = @()
+        $sliceEvidenceArr = @()
+        try {
+            $sliceObj = Get-ResultLogSlice -LogPath (Get-LaravelLogPath $projectRoot) -Res $res -CheckStartedAt $checkStartedAt -CheckFinishedAt $checkFinishedAt -MaxLines $effectiveExportLogsLines
+            if ($null -ne $sliceObj) {
+                try { $logSliceArr = @(ConvertTo-SafeStringArray $sliceObj.lines) } catch { $logSliceArr = @() }
+                try { $sliceEvidenceArr = @(ConvertTo-SafeStringArray $sliceObj.evidence) } catch { $sliceEvidenceArr = @() }
+                try { $res.data["log_slice_mode"] = ("" + $sliceObj.mode) } catch { }
+            }
+        } catch {
+            $sliceEvidenceArr = @("LogSlice: generation failed (" + $_.Exception.Message + ").")
+            $logSliceArr = @()
+        }
+        try { $res.log_slice = @($logSliceArr) } catch { }
+
+        $resEvidence = @()
+        try { $resEvidence = @(ConvertTo-SafeStringArray $res.evidence) } catch { $resEvidence = @() }
+        $evidenceCombined = New-Object System.Collections.Generic.List[string]
+        foreach ($e in $resEvidence) { $evidenceCombined.Add(("" + $e)) | Out-Null }
+        foreach ($e in $sliceEvidenceArr) { $evidenceCombined.Add(("" + $e)) | Out-Null }
+        try { $res.evidence = @($evidenceCombined.ToArray()) } catch { }
+
+        if ($effectiveExportLogs) {
+            try {
+                $runStamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
+                $checkName = Convert-ToSafeFileSegment ("" + $res.id)
+                $exportName = ("{0}_security-abuse_{1}.log" -f $runStamp, $checkName)
+                $exportPath = Join-Path $effectiveExportFolder $exportName
+                $exportLines = @($logSliceArr)
+                if ($exportLines.Count -le 0) {
+                    $exportLines = @(
+                        "# No log lines matched for this check.",
+                        "# Check: " + ("" + $res.id),
+                        "# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                        "# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                    )
+                }
+                [System.IO.File]::WriteAllLines($exportPath, @($exportLines), [System.Text.UTF8Encoding]::new($false))
+                $exports.Add($exportPath) | Out-Null
+                try { $res.log_export_path = $exportPath } catch { }
+                try { $res.data["log_export_path"] = $exportPath } catch { }
+            } catch {
+                try { $res.data["log_export_error"] = ("" + $_.Exception.Message) } catch { }
+            }
+        }
+
         $results.Add($res) | Out-Null
         $score = Get-ResultScore $res
         if ($score -gt $maxScore) { $maxScore = $score }
@@ -1678,11 +2093,40 @@ foreach ($step in $plan) {
         Write-Host ""
         Write-Host ((Format-StatusTag $res.status) + " " + $res.title + " - " + $res.summary + " (" + $res.duration_ms + "ms)")
 
-        $detailsToPrint = Get-DetailsForOutput $res
-        $detailsToPrintArr = ConvertTo-SafeStringArray $detailsToPrint
-        if ((Get-SafeCount $detailsToPrintArr) -gt 0) {
-            Write-Host ""
-            foreach ($d in $detailsToPrintArr) { Write-Host $d }
+        if ($effectiveShowCheckDetails) {
+            $detailsToPrint = Get-DetailsForOutput $res
+            $detailsToPrintArr = ConvertTo-SafeStringArray $detailsToPrint
+            $evToPrint = @()
+            try { $evToPrint = @(ConvertTo-SafeStringArray $res.evidence) } catch { $evToPrint = @() }
+            $sliceToPrint = @()
+            try { $sliceToPrint = @(ConvertTo-SafeStringArray $res.log_slice) } catch { $sliceToPrint = @() }
+            $exportPathPrint = ""
+            try { $exportPathPrint = ("" + $res.log_export_path).Trim() } catch { $exportPathPrint = "" }
+
+            if ((Get-SafeCount $detailsToPrintArr) -gt 0 -or (Get-SafeCount $evToPrint) -gt 0 -or (Get-SafeCount $sliceToPrint) -gt 0 -or $exportPathPrint -ne "") {
+                Write-Host ""
+
+                if ((Get-SafeCount $evToPrint) -gt 0) {
+                    Write-Host "  Evidence:"
+                    foreach ($x in $evToPrint) { Write-Host ("    - " + $x) }
+                }
+
+                if ((Get-SafeCount $detailsToPrintArr) -gt 0) {
+                    Write-Host "  Details:"
+                    foreach ($d in $detailsToPrintArr) { Write-Host ("    " + $d) }
+                }
+
+                if ($exportPathPrint -ne "") {
+                    Write-Host ("  Log: exported -> " + $exportPathPrint)
+                } elseif ((Get-SafeCount $sliceToPrint) -gt 0) {
+                    Write-Host ("  Log: log slice shown below (max " + [int]$effectiveExportLogsLines + " lines)")
+                }
+
+                if ((Get-SafeCount $sliceToPrint) -gt 0) {
+                    Write-Host "  LogSlice:"
+                    foreach ($line in $sliceToPrint) { Write-Host ("    " + $line) }
+                }
+            }
         }
     }
 }
@@ -1706,5 +2150,21 @@ switch ($finalStatus) {
 Write-Section "Audit result"
 Write-Host ("FinalStatus: " + $finalStatus)
 Write-Host ("ExitCode: " + $exitCode)
+
+if ($exports.Count -gt 0) {
+    Write-Section "Exports"
+    foreach ($p in @($exports.ToArray())) {
+        Write-Host ("Datei: " + $p)
+    }
+
+    if ($effectiveAutoOpenExportFolder) {
+        try {
+            Start-Process explorer.exe $effectiveExportFolder | Out-Null
+            Write-Host ("Explorer: opened " + $effectiveExportFolder)
+        } catch {
+            Write-Host ("[WARN] Could not open export folder: " + $_.Exception.Message)
+        }
+    }
+}
 
 return (Stop-Program $exitCode)
