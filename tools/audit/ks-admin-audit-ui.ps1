@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 20:24 (Europe/Berlin)
-# Version: 8.2
+# Changed: 01-03-2026 20:44 (Europe/Berlin)
+# Version: 8.3
 # =============================================================================
 
 [CmdletBinding()]
@@ -636,7 +636,7 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "8.2"
+    $uiVersion = "8.3"
     $uiSettingsFile = Join-Path $uiProjectRoot "tools\audit\ks-admin-audit-ui.settings.json"
     $uiSettings = $null
     try { $uiSettings = Get-KsAuditUiSettings -SettingsPath $uiSettingsFile } catch { $uiSettings = $null }
@@ -1217,7 +1217,7 @@ function Show-AuditGui() {
     $btnRun.Width = 82
     $btnRun.Height = 32
     $btnRun.Left = 10
-    $btnRun.Top = 1162
+    $btnRun.Top = 1194
     $panelLeft.Controls.Add($btnRun)
 
     $btnCopy = New-Object System.Windows.Forms.Button
@@ -1225,7 +1225,7 @@ function Show-AuditGui() {
     $btnCopy.Width = 90
     $btnCopy.Height = 32
     $btnCopy.Left = 98
-    $btnCopy.Top = 1162
+    $btnCopy.Top = 1194
     $btnCopy.Enabled = $false
     $panelLeft.Controls.Add($btnCopy)
 
@@ -1234,13 +1234,13 @@ function Show-AuditGui() {
     $btnClear.Width = 60
     $btnClear.Height = 32
     $btnClear.Left = 192
-    $btnClear.Top = 1162
+    $btnClear.Top = 1194
     $panelLeft.Controls.Add($btnClear)
 
     $lblStatus = New-Object System.Windows.Forms.Label
     $lblStatus.AutoSize = $true
     $lblStatus.Left = 10
-    $lblStatus.Top = 1202
+    $lblStatus.Top = 1234
     $lblStatus.Width = 340
     $lblStatus.Text = ""
     $panelLeft.Controls.Add($lblStatus)
