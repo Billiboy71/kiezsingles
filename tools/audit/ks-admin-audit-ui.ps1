@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 20:34 (Europe/Berlin)
-# Version: 7.9
+# Changed: 01-03-2026 20:40 (Europe/Berlin)
+# Version: 8.0
 # =============================================================================
 
 [CmdletBinding()]
@@ -713,6 +713,7 @@ function Show-AuditGui() {
     # --- Left panel: settings
     $panelLeft = $split.Panel1
     $panelLeft.Padding = New-Object System.Windows.Forms.Padding(10, 10, 10, 10)
+    $panelLeft.AutoScroll = $true
 
     $lblTitle = New-Object System.Windows.Forms.Label
     $lblTitle.AutoSize = $true
