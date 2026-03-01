@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 19:25 (Europe/Berlin)
-# Version: 7.7
+# Changed: 01-03-2026 19:42 (Europe/Berlin)
+# Version: 7.8
 # =============================================================================
 
 [CmdletBinding()]
@@ -482,6 +482,42 @@ function Save-KsAuditCredential([string]$ConfigPath, [string]$Role, [string]$Ema
     [System.IO.File]::WriteAllText($ConfigPath, $json, $utf8NoBom)
 }
 
+function Get-KsAuditUiSettings([string]$SettingsPath) {
+    if (-not $SettingsPath -or ("" + $SettingsPath).Trim() -eq "") { return $null }
+
+    try {
+        if (-not (Test-Path -LiteralPath $SettingsPath -PathType Leaf)) {
+            Save-KsAuditUiSettings -SettingsPath $SettingsPath -ExportFolderValue "tools/audit/output"
+        }
+    } catch { }
+
+    if (-not (Test-Path -LiteralPath $SettingsPath -PathType Leaf)) { return $null }
+
+    try {
+        $raw = [string](Get-Content -LiteralPath $SettingsPath -Raw -ErrorAction Stop)
+        if ($raw.Trim() -eq "") { return $null }
+        return ($raw | ConvertFrom-Json -ErrorAction Stop)
+    } catch {
+        Write-Host ("[WARN] UI settings read failed: " + $_.Exception.Message)
+        return $null
+    }
+}
+
+function Save-KsAuditUiSettings([string]$SettingsPath, [string]$ExportFolderValue) {
+    $dir = Split-Path -Parent $SettingsPath
+    if ($dir -and (-not (Test-Path -LiteralPath $dir -PathType Container))) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+
+    $payload = [ordered]@{
+        ExportFolder = ("" + $ExportFolderValue)
+    }
+
+    $json = $payload | ConvertTo-Json -Depth 3
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($SettingsPath, $json, $utf8NoBom)
+}
+
 function Set-RoundButtonShape([System.Windows.Forms.Button]$Button) {
     if ($null -eq $Button) { return }
     try {
@@ -600,7 +636,18 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "7.7"
+    $uiVersion = "7.8"
+    $uiSettingsFile = Join-Path $uiProjectRoot "tools\audit\ks-admin-audit-ui.settings.json"
+    $uiSettings = $null
+    try { $uiSettings = Get-KsAuditUiSettings -SettingsPath $uiSettingsFile } catch { $uiSettings = $null }
+    if ($null -ne $uiSettings) {
+        try {
+            if ($uiSettings.PSObject.Properties.Name -contains "ExportFolder") {
+                $storedFolder = ("" + $uiSettings.ExportFolder).Trim()
+                if ($storedFolder -ne "") { $ExportFolder = $storedFolder }
+            }
+        } catch { }
+    }
     $uiResolvedExportFolder = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $ExportFolder
     try { $script:ExportFolder = $uiResolvedExportFolder } catch { }
     $form = New-Object System.Windows.Forms.Form
@@ -1078,9 +1125,16 @@ function Show-AuditGui() {
     $txtExportFolder = New-Object System.Windows.Forms.TextBox
     $txtExportFolder.Left = 120
     $txtExportFolder.Top = 896
-    $txtExportFolder.Width = 230
+    $txtExportFolder.Width = 206
     $txtExportFolder.Text = ("" + $uiResolvedExportFolder)
     $panelLeft.Controls.Add($txtExportFolder)
+
+    $btnSaveExportFolder = New-Object System.Windows.Forms.Button
+    $btnSaveExportFolder.Left = 330
+    $btnSaveExportFolder.Top = 896
+    $btnSaveExportFolder.Text = "S"
+    Set-RoundButtonShape -Button $btnSaveExportFolder
+    $panelLeft.Controls.Add($btnSaveExportFolder)
 
     $chkAutoOpenExportFolder = New-Object System.Windows.Forms.CheckBox
     $chkAutoOpenExportFolder.Left = 10
@@ -1591,6 +1645,7 @@ function Show-AuditGui() {
         $cmbExportLogsLines.Enabled = $expOn
         $lblExportFolder.Enabled = $expOn
         $txtExportFolder.Enabled = $expOn
+        $btnSaveExportFolder.Enabled = $expOn
         $chkAutoOpenExportFolder.Enabled = $expOn
     }
 
@@ -1891,6 +1946,20 @@ function Show-AuditGui() {
             $lblStatus.Text = ("Pfade gespeichert: " + $uiPathsConfigFile)
         } catch {
             $lblStatus.Text = ("Save Paths fehlgeschlagen: " + $_.Exception.Message)
+        }
+    })
+
+    $btnSaveExportFolder.Add_Click({
+        try {
+            $folderNow = ""
+            try { $folderNow = ("" + $txtExportFolder.Text).Trim() } catch { $folderNow = "" }
+            $folderNow = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $folderNow
+            try { $txtExportFolder.Text = $folderNow } catch { }
+            try { $script:ExportFolder = $folderNow } catch { }
+            Save-KsAuditUiSettings -SettingsPath $uiSettingsFile -ExportFolderValue $folderNow
+            $lblStatus.Text = "[OK] ExportFolder saved."
+        } catch {
+            $lblStatus.Text = ("[WARN] ExportFolder save failed: " + $_.Exception.Message)
         }
     })
 
