@@ -29,6 +29,10 @@ class EventServiceProvider extends ServiceProvider
             \App\Listeners\LogPasswordResetCompleted::class,
         ],
 
+        \App\Events\Security\SecurityEventTriggered::class => [
+            \App\Listeners\Security\StoreSecurityEvent::class,
+        ],
+
         // =========================================================================
         // Ticket Domain Events (Core)
         // =========================================================================

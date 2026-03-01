@@ -9,7 +9,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\SecurityIdentityBan;
 use App\Models\User;
+use App\Services\Security\DeviceHashService;
+use App\Services\Security\SecurityEventLogger;
 use App\Support\SystemSettingHelper;
 use App\Support\Turnstile;
 use Illuminate\Auth\Events\Registered;
@@ -24,6 +27,11 @@ use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
+    public function __construct(
+        private readonly SecurityEventLogger $securityEventLogger,
+        private readonly DeviceHashService $deviceHashService,
+    ) {}
+
     public function create(): View
     {
         // Quelle: Mapping-Tabelle (kein config/kiez.php mehr)
@@ -40,6 +48,43 @@ class RegisteredUserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $registerEmail = mb_strtolower(trim((string) $request->input('email', '')));
+        $deviceHash = $this->deviceHashService->forRequest($request);
+
+        $this->securityEventLogger->log(
+            type: 'register_attempt',
+            ip: $request->ip(),
+            email: $registerEmail !== '' ? $registerEmail : null,
+            deviceHash: $deviceHash,
+            meta: [
+                'path' => $request->path(),
+            ],
+        );
+
+        if ($registerEmail !== '') {
+            $activeIdentityBan = SecurityIdentityBan::query()
+                ->where('email', $registerEmail)
+                ->active()
+                ->latest('id')
+                ->first();
+
+            if ($activeIdentityBan) {
+                $this->securityEventLogger->log(
+                    type: 'identity_blocked',
+                    ip: $request->ip(),
+                    email: $registerEmail,
+                    deviceHash: $deviceHash,
+                    meta: [
+                        'reason' => $activeIdentityBan->reason,
+                        'banned_until' => $activeIdentityBan->banned_until?->toIso8601String(),
+                        'path' => $request->path(),
+                    ],
+                );
+
+                abort(403, 'This identity is banned.');
+            }
+        }
+
         // ===============================
         // DEBUG GATE (SystemSettings)
         // ===============================

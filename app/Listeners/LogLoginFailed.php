@@ -6,21 +6,35 @@
 
 namespace App\Listeners;
 
-use App\Models\SecurityEvent;
+use App\Services\Security\DeviceHashService;
+use App\Services\Security\SecurityEventLogger;
 use Illuminate\Auth\Events\Failed;
 
 class LogLoginFailed
 {
+    public function __construct(
+        private readonly SecurityEventLogger $securityEventLogger,
+        private readonly DeviceHashService $deviceHashService,
+    ) {}
+
     public function handle(Failed $event): void
     {
-        SecurityEvent::create([
-            'user_id'     => $event->user?->id,
-            'event_type'  => 'login_failed',
-            'ip'          => request()->ip(),
-            'user_agent'  => request()->userAgent(),
-            'metadata'    => [
+        if (!app()->bound('request')) {
+            return;
+        }
+
+        $request = request();
+        $email = mb_strtolower(trim((string) $request->input('email', '')));
+
+        $this->securityEventLogger->log(
+            type: 'login_failed',
+            ip: $request->ip(),
+            userId: $event->user?->id,
+            email: $email !== '' ? $email : null,
+            deviceHash: $this->deviceHashService->forRequest($request),
+            meta: [
                 'guard' => $event->guard,
             ],
-        ]);
+        );
     }
 }

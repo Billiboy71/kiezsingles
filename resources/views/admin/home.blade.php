@@ -95,6 +95,7 @@ Version: 2.8
         'debug'        => 'debug',
         'moderation'   => 'moderation',
         'roles'        => 'roles',
+        'security'     => 'security',
     ];
 
     $staffAllowedSections = array_values(array_unique(array_filter(array_map(
@@ -160,6 +161,10 @@ Version: 2.8
         ? route((string) $adminModules['roles']['route'])
         : url('/admin/users');
 
+    $adminSecurityUrl = (isset($adminModules['security']['route']) && \Illuminate\Support\Facades\Route::has((string) $adminModules['security']['route']))
+        ? route((string) $adminModules['security']['route'])
+        : url('/admin/security');
+
 @endphp
 
 @section('content')
@@ -205,6 +210,10 @@ Version: 2.8
 
                 @if($canAccessSection('roles'))
                     <a class="ks-btn" href="{{ $adminUsersUrl }}" target="_self">Rollen</a>
+                @endif
+
+                @if($canAccessSection('security'))
+                    <a class="ks-btn" href="{{ $adminSecurityUrl }}" target="_self">Security</a>
                 @endif
             </div>
         </div>
@@ -256,6 +265,14 @@ Version: 2.8
                 <h3>Rollen</h3>
                 <p>User-Liste und Rollenverwaltung.</p>
                 <a href="{{ $adminUsersUrl }}" target="_self">Öffnen</a>
+            </div>
+        @endif
+
+        @if($canAccessSection('security'))
+            <div class="ks-card">
+                <h3>Security</h3>
+                <p>Events, Bans, Lockout-Settings und Schutzmechanismen.</p>
+                <a href="{{ $adminSecurityUrl }}" target="_self">Öffnen</a>
             </div>
         @endif
     </div>

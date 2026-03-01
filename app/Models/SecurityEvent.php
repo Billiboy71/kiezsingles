@@ -7,14 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class SecurityEvent extends Model
 {
     protected $fillable = [
-        'user_id',
-        'event_type',
+        'type',
         'ip',
-        'user_agent',
-        'metadata',
+        'user_id',
+        'email',
+        'device_hash',
+        'meta',
     ];
 
     protected $casts = [
-        'metadata' => 'array',
+        'user_id' => 'integer',
+        'meta' => 'array',
     ];
 }

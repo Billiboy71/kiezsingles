@@ -39,6 +39,7 @@ final class AdminSectionAccess
     public const SECTION_DEBUG = 'debug';
     public const SECTION_MODERATION = 'moderation';
     public const SECTION_ROLES = 'roles';
+    public const SECTION_SECURITY = 'security';
 
     /**
      * All known section keys (fail-closed for unknown keys).
@@ -53,6 +54,7 @@ final class AdminSectionAccess
             self::SECTION_DEBUG,
             self::SECTION_MODERATION,
             self::SECTION_ROLES,
+            self::SECTION_SECURITY,
         ];
     }
 
@@ -274,6 +276,9 @@ final class AdminSectionAccess
             return false;
         }
         if ($sectionKey === self::SECTION_ROLES) {
+            return false;
+        }
+        if ($sectionKey === self::SECTION_SECURITY) {
             return false;
         }
 

@@ -20,6 +20,7 @@ final class AdminModuleRegistry
     public const SECTION_DEBUG       = 'debug';
     public const SECTION_MODERATION  = 'moderation';
     public const SECTION_ROLES       = 'roles';
+    public const SECTION_SECURITY    = 'security';
 
     /**
      * Central registry definition.
@@ -64,6 +65,11 @@ final class AdminModuleRegistry
             self::SECTION_ROLES => [
                 'label' => 'Rollen',
                 'route' => 'admin.users.index',
+                'access' => 'superadmin',
+            ],
+            self::SECTION_SECURITY => [
+                'label' => 'Security',
+                'route' => 'admin.security.overview',
                 'access' => 'superadmin',
             ],
         ];

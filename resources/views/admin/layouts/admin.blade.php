@@ -185,6 +185,12 @@ Version: 6.1
                     'route' => 'admin.users.index',
                     'access' => 'superadmin',
                 ];
+
+                $modules['security'] = [
+                    'label' => 'Security',
+                    'route' => 'admin.security.overview',
+                    'access' => 'superadmin',
+                ];
             }
         }
 

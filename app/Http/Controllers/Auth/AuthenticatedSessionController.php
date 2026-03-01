@@ -11,7 +11,10 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\SecurityIdentityBan;
 use App\Models\User;
+use App\Services\Security\DeviceHashService;
+use App\Services\Security\SecurityEventLogger;
 use App\Support\KsMaintenance;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +24,11 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
+    public function __construct(
+        private readonly SecurityEventLogger $securityEventLogger,
+        private readonly DeviceHashService $deviceHashService,
+    ) {}
+
     /**
      * Display the login view.
      */
@@ -38,17 +46,68 @@ class AuthenticatedSessionController extends Controller
         $originalLogin = (string) $request->input('email', '');
         $mappedFromUsername = false;
 
+        $resolvedUser = null;
+
         // Wenn kein '@' drin ist, behandeln wir es als Username und mappen auf die echte E-Mail
         if ($originalLogin !== '' && !str_contains($originalLogin, '@')) {
             $u = User::query()
-                ->select(['email'])
+                ->select(['id', 'email', 'is_frozen'])
                 ->where('username', $originalLogin)
                 ->first();
 
             if ($u && is_string($u->email) && $u->email !== '') {
                 $request->merge(['email' => $u->email]);
                 $mappedFromUsername = true;
+                $resolvedUser = $u;
             }
+        }
+
+        $normalizedEmail = mb_strtolower(trim((string) $request->input('email', '')));
+
+        if ($normalizedEmail !== '') {
+            $activeIdentityBan = SecurityIdentityBan::query()
+                ->where('email', $normalizedEmail)
+                ->active()
+                ->latest('id')
+                ->first();
+
+            if ($activeIdentityBan) {
+                $this->securityEventLogger->log(
+                    type: 'identity_blocked',
+                    ip: $request->ip(),
+                    email: $normalizedEmail,
+                    deviceHash: $this->deviceHashService->forRequest($request),
+                    meta: [
+                        'reason' => $activeIdentityBan->reason,
+                        'banned_until' => $activeIdentityBan->banned_until?->toIso8601String(),
+                        'path' => $request->path(),
+                    ],
+                );
+
+                abort(403, 'This identity is banned.');
+            }
+        }
+
+        if (!$resolvedUser && $normalizedEmail !== '') {
+            $resolvedUser = User::query()
+                ->select(['id', 'is_frozen', 'email'])
+                ->where('email', $normalizedEmail)
+                ->first();
+        }
+
+        if ($resolvedUser && (bool) $resolvedUser->is_frozen) {
+            $this->securityEventLogger->log(
+                type: 'account_frozen_blocked',
+                ip: $request->ip(),
+                userId: (int) $resolvedUser->id,
+                email: $resolvedUser->email,
+                deviceHash: $this->deviceHashService->forRequest($request),
+                meta: [
+                    'path' => $request->path(),
+                ],
+            );
+
+            abort(403, 'This account is frozen.');
         }
 
         // Kein Captcha beim Login (Throttle reicht)

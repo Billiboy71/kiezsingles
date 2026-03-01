@@ -6,23 +6,32 @@
 
 namespace App\Listeners;
 
-use App\Models\SecurityEvent;
+use App\Services\Security\DeviceHashService;
+use App\Services\Security\SecurityEventLogger;
 use Illuminate\Auth\Events\Login;
 
 class LogLoginSuccess
 {
+    public function __construct(
+        private readonly SecurityEventLogger $securityEventLogger,
+        private readonly DeviceHashService $deviceHashService,
+    ) {}
+
     public function handle(Login $event): void
     {
-        if (!config('security.ip_logging.login')) {
+        if (!app()->bound('request')) {
             return;
         }
 
-        SecurityEvent::create([
-            'user_id' => $event->user->id ?? null,
-            'event_type' => 'login_success',
-            'ip' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-            'metadata' => ['guard' => $event->guard],
-        ]);
+        $request = request();
+
+        $this->securityEventLogger->log(
+            type: 'login_success',
+            ip: $request->ip(),
+            userId: $event->user->id ?? null,
+            email: $event->user->email ?? null,
+            deviceHash: $this->deviceHashService->forRequest($request),
+            meta: ['guard' => $event->guard],
+        );
     }
 }

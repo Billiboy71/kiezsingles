@@ -43,7 +43,7 @@ use Illuminate\Support\Facades\Schema;
 | - staff
 | - section:*
 */
-Route::prefix('admin')->name('admin.')->middleware(['auth', 'staff'])->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['ensure.not.banned.ip', 'auth', 'staff'])->group(function () {
 
     /*
      |--------------------------------------------------------------
@@ -77,7 +77,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'staff'])->group(fun
 | - 'staff' ist hier bewusst NICHT mehr enthalten (redundant),
 |   da superadmin bereits eine Teilmenge von staff ist.
 */
-Route::prefix('admin')->name('admin.')->middleware(['auth', 'superadmin'])->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['ensure.not.banned.ip', 'auth', 'superadmin'])->group(function () {
 
     /*
      |--------------------------------------------------------------
@@ -121,6 +121,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'superadmin'])->grou
      */
     Route::middleware(['section:develop'])->group(function () {
         require __DIR__ . '/admin/develop.php';
+    });
+
+    Route::middleware(['section:security'])->group(function () {
+        require __DIR__ . '/admin/security.php';
     });
 
     Route::post('settings/layout-outlines', function (\Illuminate\Http\Request $request) {
@@ -177,15 +181,19 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'superadmin'])->grou
             ->name('users.show');
 
         Route::patch('users/{user}/roles', [AdminUserController::class, 'updateRoles'])
+            ->middleware('ensure.admin.stepup')
             ->name('users.roles.update');
 
         Route::delete('users/{user}', [AdminUserController::class, 'destroy'])
+            ->middleware('ensure.admin.stepup')
             ->name('users.destroy');
 
         Route::post('roles/set-role', [AdminUserController::class, 'setRole'])
+            ->middleware('ensure.admin.stepup')
             ->name('roles.set_role');
 
         Route::post('roles/delete-user', [AdminUserController::class, 'deleteUser'])
+            ->middleware('ensure.admin.stepup')
             ->name('roles.delete_user');
     });
 });

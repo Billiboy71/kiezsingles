@@ -107,6 +107,7 @@ $buildAdminContext = function (string $adminTab): array {
     $adminTicketsUrl = url('/admin/tickets');
     $adminModerationUrl = url('/admin/moderation');
     $adminUsersUrl = url('/admin/users');
+    $adminSecurityUrl = url('/admin/security');
 
     $adminModuleFallbackUrls = [
         'admin.home' => $adminHomeUrl,
@@ -115,6 +116,7 @@ $buildAdminContext = function (string $adminTab): array {
         'admin.tickets.index' => $adminTicketsUrl,
         'admin.moderation' => $adminModerationUrl,
         'admin.users.index' => $adminUsersUrl,
+        'admin.security.overview' => $adminSecurityUrl,
     ];
 
     // Navigation generiert sich aus zentraler Registry (routes/web/admin.php) + Rollenfilter
@@ -188,6 +190,12 @@ $buildAdminContext = function (string $adminTab): array {
                 'key' => 'roles',
                 'label' => 'Rollen',
                 'url' => $adminUsersUrl,
+            ];
+
+            $adminNavItems[] = [
+                'key' => 'security',
+                'label' => 'Security',
+                'url' => $adminSecurityUrl,
             ];
         }
     }
@@ -279,6 +287,7 @@ $buildAdminContext = function (string $adminTab): array {
         'adminTicketsUrl' => $adminTicketsUrl,
         'adminModerationUrl' => $adminModerationUrl,
         'adminUsersUrl' => $adminUsersUrl,
+        'adminSecurityUrl' => $adminSecurityUrl,
 
         // explizit fürs Layout (Debug-Sichtbarkeit wird durch /admin/status autoritativ gesteuert)
         'adminShowDebugTab' => ($isSuperadminRole ? true : false),
@@ -313,6 +322,9 @@ Route::get('/', function () use ($buildAdminContext) {
         }
         if ($tabQuery === 'tickets' && Route::has('admin.tickets.index')) {
             return redirect()->route('admin.tickets.index');
+        }
+        if ($tabQuery === 'security' && Route::has('admin.security.overview')) {
+            return redirect()->route('admin.security.overview');
         }
     }
 

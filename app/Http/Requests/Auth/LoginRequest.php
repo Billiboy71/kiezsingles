@@ -6,7 +6,9 @@
 
 namespace App\Http\Requests\Auth;
 
-use Illuminate\Auth\Events\Lockout;
+use App\Services\Security\DeviceHashService;
+use App\Services\Security\SecurityEventLogger;
+use App\Services\Security\SecuritySettingsService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -65,7 +67,8 @@ class LoginRequest extends FormRequest
         }
 
         if (! $authenticated) {
-            RateLimiter::hit($this->throttleKey());
+            $settings = app(SecuritySettingsService::class)->get();
+            RateLimiter::hit($this->throttleKey(), (int) $settings->lockout_seconds);
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -82,13 +85,33 @@ class LoginRequest extends FormRequest
      */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        $settings = app(SecuritySettingsService::class)->get();
+        $attemptLimit = max(1, (int) $settings->login_attempt_limit);
+
+        if (!RateLimiter::tooManyAttempts($this->throttleKey(), $attemptLimit)) {
             return;
         }
 
-        event(new Lockout($this));
-
         $seconds = RateLimiter::availableIn($this->throttleKey());
+
+        /** @var SecurityEventLogger $logger */
+        $logger = app(SecurityEventLogger::class);
+
+        /** @var DeviceHashService $deviceHashService */
+        $deviceHashService = app(DeviceHashService::class);
+
+        $email = mb_strtolower(trim((string) $this->input('email', '')));
+
+        $logger->log(
+            type: 'login_lockout',
+            ip: $this->ip(),
+            email: $email !== '' ? $email : null,
+            deviceHash: $deviceHashService->forRequest($this),
+            meta: [
+                'seconds' => $seconds,
+                'attempt_limit' => $attemptLimit,
+            ],
+        );
 
         throw ValidationException::withMessages([
             'email' => trans('auth.throttle', [

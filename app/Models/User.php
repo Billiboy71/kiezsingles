@@ -34,6 +34,8 @@ class User extends Authenticatable implements MustVerifyEmail
 
         // Protected admin (DB-only flag; no UI toggle)
         'is_protected_admin',
+        'is_frozen',
+        'banned_at',
 
         // B4 – Moderation
         'moderation_warned_at',
@@ -56,6 +58,8 @@ class User extends Authenticatable implements MustVerifyEmail
 
         // Protected admin (DB-only flag; no UI toggle)
         'is_protected_admin'           => 'boolean',
+        'is_frozen'                    => 'boolean',
+        'banned_at'                    => 'datetime',
 
         // B4 – Moderation
         'moderation_warned_at'         => 'datetime',

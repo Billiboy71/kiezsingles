@@ -6,29 +6,33 @@
 
 namespace App\Listeners;
 
-use App\Models\SecurityEvent;
+use App\Services\Security\SecurityEventLogger;
 use Illuminate\Auth\Events\PasswordReset;
 
 class LogPasswordResetCompleted
 {
+    public function __construct(
+        private readonly SecurityEventLogger $securityEventLogger,
+    ) {}
+
     public function handle(PasswordReset $event): void
     {
         if (!app()->bound('request')) {
             return;
         }
 
-        $ip = request()->ip();
+        $request = request();
+        $ip = $request->ip();
 
         if (empty($ip)) {
             return;
         }
 
-        SecurityEvent::create([
-            'user_id'    => $event->user?->id,
-            'event_type' => 'password_reset_completed',
-            'ip'         => $ip,
-            'user_agent' => request()->userAgent(),
-            'metadata'   => [],
-        ]);
+        $this->securityEventLogger->log(
+            type: 'password_reset_completed',
+            ip: $ip,
+            userId: $event->user?->id,
+            email: $event->user?->email,
+        );
     }
 }

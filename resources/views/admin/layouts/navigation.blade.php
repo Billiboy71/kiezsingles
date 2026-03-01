@@ -75,6 +75,7 @@ Version: 2.5
         'tickets' => 40,
         'moderation' => 50,
         'roles' => 60,
+        'security' => 70,
     ];
 
     usort($adminNavItems, function ($a, $b) use ($orderMap) {

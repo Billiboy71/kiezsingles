@@ -30,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Route middleware aliases (Laravel 11/12 bootstrap registration).
         $middleware->alias([
+            'ensure.not.banned.ip' => \App\Http\Middleware\EnsureNotBannedIp::class,
+            'ensure.admin.stepup' => \App\Http\Middleware\EnsureAdminStepUp::class,
+
             // Superadmin-only
             'superadmin' => \App\Http\Middleware\EnsureSuperadmin::class,
 
