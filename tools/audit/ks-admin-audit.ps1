@@ -2065,7 +2065,14 @@ foreach ($step in $plan) {
         if ($effectiveExportLogs) {
             try {
                 $runStamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
-                $checkName = Convert-ToSafeFileSegment ("" + $res.id)
+                $checkNameSource = ""
+                try { $checkNameSource = ("" + $res.title).Trim() } catch { $checkNameSource = "" }
+                if ($checkNameSource -eq "") {
+                    try { $checkNameSource = ("" + $res.id).Trim() } catch { $checkNameSource = "check" }
+                }
+                # Remove common numbering prefixes like "1) ", "2a) ", "X) ".
+                $checkNameSource = ($checkNameSource -replace '^(?i:\s*[0-9x]+[a-z]?\)\s*)', '')
+                $checkName = Convert-ToSafeFileSegment $checkNameSource
                 $exportName = ("{0}_security-abuse_{1}.log" -f $runStamp, $checkName)
                 $exportPath = Join-Path $effectiveExportFolder $exportName
                 $exportLines = @($logSliceArr)
