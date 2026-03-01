@@ -653,9 +653,9 @@ function Show-AuditGui() {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = ("KiezSingles Admin Audit v" + $uiVersion)
     $form.Width = 1180
-    $form.Height = 1200
+    $form.Height = 1360
     $form.StartPosition = "CenterScreen"
-    $form.MinimumSize = New-Object System.Drawing.Size(980, 1040)
+    $form.MinimumSize = New-Object System.Drawing.Size(980, 1200)
 
     $toolTip = New-Object System.Windows.Forms.ToolTip
     $toolTip.AutoPopDelay = 12000
@@ -728,38 +728,6 @@ function Show-AuditGui() {
     $lblSwitches.Left = 10
     $lblSwitches.Top = 44
     $panelLeft.Controls.Add($lblSwitches)
-
-    $lblPerCheckCols = New-Object System.Windows.Forms.Label
-    $lblPerCheckCols.AutoSize = $true
-    $lblPerCheckCols.Text = "D/E"
-    $lblPerCheckCols.Left = 304
-    $lblPerCheckCols.Top = 44
-    $panelLeft.Controls.Add($lblPerCheckCols)
-
-    $perCheckRows = New-Object System.Collections.Generic.List[object]
-    function Add-PerCheckInlineToggles([string]$checkId, [int]$top, [bool]$detailsDefault = $false, [bool]$exportDefault = $false) {
-        $chkD = New-Object System.Windows.Forms.CheckBox
-        $chkD.Left = 300
-        $chkD.Top = $top
-        $chkD.Width = 24
-        $chkD.Text = "D"
-        $chkD.Checked = [bool]$detailsDefault
-        $panelLeft.Controls.Add($chkD)
-
-        $chkE = New-Object System.Windows.Forms.CheckBox
-        $chkE.Left = 326
-        $chkE.Top = $top
-        $chkE.Width = 24
-        $chkE.Text = "E"
-        $chkE.Checked = [bool]$exportDefault
-        $panelLeft.Controls.Add($chkE)
-
-        $perCheckRows.Add([pscustomobject]@{
-            id = ("" + $checkId).Trim().ToLowerInvariant()
-            chkDetails = $chkD
-            chkExport = $chkE
-        }) | Out-Null
-    }
 
     # Global Base URL (applies to all checks that use BaseUrl)
     $lblBaseUrlGlobal = New-Object System.Windows.Forms.Label
@@ -853,7 +821,6 @@ function Show-AuditGui() {
     $chkHttpProbe.Text = "1) HTTP-Probe (nutzt Pfade oben)"
     $chkHttpProbe.Checked = [bool]$HttpProbe
     $panelLeft.Controls.Add($chkHttpProbe)
-    Add-PerCheckInlineToggles -checkId "http_probe" -top 302
 
     # 2) TailLog (Konsole -Wait) -> separate Konsole, blockiert GUI nicht
     $chkTailLog = New-Object System.Windows.Forms.CheckBox
@@ -863,7 +830,6 @@ function Show-AuditGui() {
     $chkTailLog.Text = "2) TailLog (separates Fenster)"
     $chkTailLog.Checked = [bool]$TailLog
     $panelLeft.Controls.Add($chkTailLog)
-    Add-PerCheckInlineToggles -checkId "tail_log" -top 332
 
     # TailLogMode (unter 2)
     $lblTailMode = New-Object System.Windows.Forms.Label
@@ -894,7 +860,6 @@ function Show-AuditGui() {
     $chkRoutesVerbose.Text = "3) RoutesVerbose"
     $chkRoutesVerbose.Checked = [bool]$RoutesVerbose
     $panelLeft.Controls.Add($chkRoutesVerbose)
-    Add-PerCheckInlineToggles -checkId "routes_verbose" -top 408
 
     # 4) RouteListFindstrAdmin
     $chkRouteListFindstrAdmin = New-Object System.Windows.Forms.CheckBox
@@ -904,7 +869,6 @@ function Show-AuditGui() {
     $chkRouteListFindstrAdmin.Text = "4) RouteListFindstrAdmin"
     $chkRouteListFindstrAdmin.Checked = [bool]$RouteListFindstrAdmin
     $panelLeft.Controls.Add($chkRouteListFindstrAdmin)
-    Add-PerCheckInlineToggles -checkId "routes_findstr_admin" -top 432
 
     # 5) SuperadminCount
     $chkSuperadminCount = New-Object System.Windows.Forms.CheckBox
@@ -914,7 +878,6 @@ function Show-AuditGui() {
     $chkSuperadminCount.Text = "5) SuperadminCount (deterministisch; ks:audit:superadmin)"
     $chkSuperadminCount.Checked = [bool]$SuperadminCount
     $panelLeft.Controls.Add($chkSuperadminCount)
-    Add-PerCheckInlineToggles -checkId "governance_superadmin" -top 456
 
     # 6) Laravel log snapshot history
     $lblLaravelLogHistory = New-Object System.Windows.Forms.Label
@@ -923,7 +886,6 @@ function Show-AuditGui() {
     $lblLaravelLogHistory.Left = 10
     $lblLaravelLogHistory.Top = 480
     $panelLeft.Controls.Add($lblLaravelLogHistory)
-    Add-PerCheckInlineToggles -checkId "log_snapshot" -top 480
 
     $cmbLaravelLogHistory = New-Object System.Windows.Forms.ComboBox
     $cmbLaravelLogHistory.Left = 10
@@ -958,7 +920,6 @@ function Show-AuditGui() {
     $chkLogClearBefore.Text = "7) LogClearBefore (laravel.log rotieren/neu vor Audit)"
     $chkLogClearBefore.Checked = [bool]$LogClearBefore
     $panelLeft.Controls.Add($chkLogClearBefore)
-    Add-PerCheckInlineToggles -checkId "log_clear_before" -top 528
 
     # 8) Log clear after
     $chkLogClearAfter = New-Object System.Windows.Forms.CheckBox
@@ -968,7 +929,6 @@ function Show-AuditGui() {
     $chkLogClearAfter.Text = "8) LogClearAfter (laravel.log rotieren/neu nach Audit)"
     $chkLogClearAfter.Checked = [bool]$LogClearAfter
     $panelLeft.Controls.Add($chkLogClearAfter)
-    Add-PerCheckInlineToggles -checkId "log_clear_after" -top 552
 
     # 9) Login CSRF Probe
     $chkLoginCsrfProbe = New-Object System.Windows.Forms.CheckBox
@@ -978,7 +938,6 @@ function Show-AuditGui() {
     $chkLoginCsrfProbe.Text = "9) LoginCsrfProbe (GET/POST /login)"
     $chkLoginCsrfProbe.Checked = [bool]$LoginCsrfProbe
     $panelLeft.Controls.Add($chkLoginCsrfProbe)
-    Add-PerCheckInlineToggles -checkId "login_csrf_probe" -top 576
 
     # 10) Role Smoke Test
     $chkRoleSmokeTest = New-Object System.Windows.Forms.CheckBox
@@ -988,7 +947,6 @@ function Show-AuditGui() {
     $chkRoleSmokeTest.Text = "10) RoleSmokeTest (GET-only)"
     $chkRoleSmokeTest.Checked = [bool]$RoleSmokeTest
     $panelLeft.Controls.Add($chkRoleSmokeTest)
-    Add-PerCheckInlineToggles -checkId "role_smoke_test" -top 600
 
     # Credentials grid
     $lblRoleCreds = New-Object System.Windows.Forms.Label
@@ -1114,49 +1072,70 @@ function Show-AuditGui() {
     $chkSessionCsrfBaseline.Text = "11) SessionCsrfBaseline (read-only)"
     $chkSessionCsrfBaseline.Checked = [bool]$SessionCsrfBaseline
     $panelLeft.Controls.Add($chkSessionCsrfBaseline)
-    Add-PerCheckInlineToggles -checkId "session_csrf_baseline" -top 806
 
-    # 12) Always-on checks
-    $lblAlwaysOn = New-Object System.Windows.Forms.Label
-    $lblAlwaysOn.AutoSize = $true
-    $lblAlwaysOn.Left = 10
-    $lblAlwaysOn.Top = 830
-    $lblAlwaysOn.Text = "12) Always-on checks (D/E)"
-    $panelLeft.Controls.Add($lblAlwaysOn)
+    # 12) Per-check Details / Export toggles
+    $lblPerCheck = New-Object System.Windows.Forms.Label
+    $lblPerCheck.AutoSize = $true
+    $lblPerCheck.Left = 10
+    $lblPerCheck.Top = 830
+    $lblPerCheck.Text = "12) Per-Check: Details / Export"
+    $panelLeft.Controls.Add($lblPerCheck)
 
-    $lblAlwaysA = New-Object System.Windows.Forms.Label
-    $lblAlwaysA.Left = 10
-    $lblAlwaysA.Top = 850
-    $lblAlwaysA.Width = 286
-    $lblAlwaysA.Text = "Cache clear"
-    $panelLeft.Controls.Add($lblAlwaysA)
-    Add-PerCheckInlineToggles -checkId "cache_clear" -top 850
+    $perCheckRows = New-Object System.Collections.Generic.List[object]
+    $perCheckDefs = @(
+        @{ id = "cache_clear"; label = "Cache clear" },
+        @{ id = "routes"; label = "Routes" },
+        @{ id = "route_list_option_scan"; label = "Route option scan" },
+        @{ id = "http_probe"; label = "HTTP probe" },
+        @{ id = "login_csrf_probe"; label = "Login CSRF probe" },
+        @{ id = "role_smoke_test"; label = "Role smoke test" },
+        @{ id = "governance_superadmin"; label = "Superadmin count" },
+        @{ id = "session_csrf_baseline"; label = "Session/CSRF baseline" },
+        @{ id = "security_abuse"; label = "Security/Abuse" },
+        @{ id = "routes_verbose"; label = "Routes verbose" },
+        @{ id = "routes_findstr_admin"; label = "Route findstr admin" },
+        @{ id = "log_snapshot"; label = "Log snapshot" },
+        @{ id = "tail_log"; label = "Tail log" },
+        @{ id = "log_clear_before"; label = "Log clear before" },
+        @{ id = "log_clear_after"; label = "Log clear after" }
+    )
 
-    $lblAlwaysRoutes = New-Object System.Windows.Forms.Label
-    $lblAlwaysRoutes.Left = 10
-    $lblAlwaysRoutes.Top = 872
-    $lblAlwaysRoutes.Width = 286
-    $lblAlwaysRoutes.Text = "Routes"
-    $panelLeft.Controls.Add($lblAlwaysRoutes)
-    Add-PerCheckInlineToggles -checkId "routes" -top 872
+    $matrixStartY = 850
+    $matrixRowH = 22
+    for ($i = 0; $i -lt $perCheckDefs.Count; $i++) {
+        $d = $perCheckDefs[$i]
+        $col = ($i % 2)
+        $row = [int]([Math]::Floor($i / 2))
+        $baseX = $(if ($col -eq 0) { 10 } else { 182 })
+        $y = $matrixStartY + ($row * $matrixRowH)
 
-    $lblAlwaysRouteScan = New-Object System.Windows.Forms.Label
-    $lblAlwaysRouteScan.Left = 10
-    $lblAlwaysRouteScan.Top = 894
-    $lblAlwaysRouteScan.Width = 286
-    $lblAlwaysRouteScan.Text = "Route option scan"
-    $panelLeft.Controls.Add($lblAlwaysRouteScan)
-    Add-PerCheckInlineToggles -checkId "route_list_option_scan" -top 894
+        $lbl = New-Object System.Windows.Forms.Label
+        $lbl.Left = $baseX
+        $lbl.Top = $y + 4
+        $lbl.Width = 86
+        $lbl.Text = ("" + $d.label)
+        $panelLeft.Controls.Add($lbl)
 
-    $lblAlwaysB = New-Object System.Windows.Forms.Label
-    $lblAlwaysB.Left = 10
-    $lblAlwaysB.Top = 916
-    $lblAlwaysB.Width = 286
-    $lblAlwaysB.Text = "Security/Abuse"
-    $panelLeft.Controls.Add($lblAlwaysB)
-    Add-PerCheckInlineToggles -checkId "security_abuse" -top 916
+        $chkD = New-Object System.Windows.Forms.CheckBox
+        $chkD.Left = $baseX + 90
+        $chkD.Top = $y + 2
+        $chkD.Width = 38
+        $chkD.Text = "D"
+        $chkD.Checked = $false
+        $panelLeft.Controls.Add($chkD)
 
-    $globalBlockTop = 940
+        $chkE = New-Object System.Windows.Forms.CheckBox
+        $chkE.Left = $baseX + 128
+        $chkE.Top = $y + 2
+        $chkE.Width = 38
+        $chkE.Text = "E"
+        $chkE.Checked = $false
+        $panelLeft.Controls.Add($chkE)
+
+        $perCheckRows.Add([pscustomobject]@{ id = ("" + $d.id); label = ("" + $d.label); chkDetails = $chkD; chkExport = $chkE }) | Out-Null
+    }
+
+    $globalBlockTop = 1032
 
     # 13) Master switches (optional, apply to all per-check toggles)
     $chkShowCheckDetails = New-Object System.Windows.Forms.CheckBox
@@ -1236,7 +1215,7 @@ function Show-AuditGui() {
     $btnRun.Width = 82
     $btnRun.Height = 32
     $btnRun.Left = 10
-    $btnRun.Top = 1054
+    $btnRun.Top = 1162
     $panelLeft.Controls.Add($btnRun)
 
     $btnCopy = New-Object System.Windows.Forms.Button
@@ -1244,7 +1223,7 @@ function Show-AuditGui() {
     $btnCopy.Width = 90
     $btnCopy.Height = 32
     $btnCopy.Left = 98
-    $btnCopy.Top = 1054
+    $btnCopy.Top = 1162
     $btnCopy.Enabled = $false
     $panelLeft.Controls.Add($btnCopy)
 
@@ -1253,13 +1232,13 @@ function Show-AuditGui() {
     $btnClear.Width = 60
     $btnClear.Height = 32
     $btnClear.Left = 192
-    $btnClear.Top = 1054
+    $btnClear.Top = 1162
     $panelLeft.Controls.Add($btnClear)
 
     $lblStatus = New-Object System.Windows.Forms.Label
     $lblStatus.AutoSize = $true
     $lblStatus.Left = 10
-    $lblStatus.Top = 1094
+    $lblStatus.Top = 1202
     $lblStatus.Width = 340
     $lblStatus.Text = ""
     $panelLeft.Controls.Add($lblStatus)
