@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 18:45 (Europe/Berlin)
-# Version: 7.6
+# Changed: 01-03-2026 19:25 (Europe/Berlin)
+# Version: 7.7
 # =============================================================================
 
 [CmdletBinding()]
@@ -178,6 +178,33 @@ function Normalize-BaseUrl([string]$s) {
     } catch { }
 
     return $t
+}
+
+function Resolve-ExportFolderAbsolute([string]$ProjectRoot, [string]$FolderValue) {
+    $candidate = ""
+    try { $candidate = ("" + $FolderValue).Trim() } catch { $candidate = "" }
+    if ($candidate -eq "") { $candidate = "tools/audit/output" }
+
+    try {
+        if (-not [System.IO.Path]::IsPathRooted($candidate)) {
+            $candidate = Join-Path $ProjectRoot $candidate
+        }
+    } catch {
+        $candidate = Join-Path $ProjectRoot "tools/audit/output"
+    }
+
+    try {
+        if (-not (Test-Path -LiteralPath $candidate)) {
+            New-Item -ItemType Directory -Path $candidate -Force | Out-Null
+        }
+    } catch { }
+
+    try {
+        $resolved = Resolve-Path -LiteralPath $candidate -ErrorAction Stop | Select-Object -ExpandProperty Path
+        if ($resolved -and ("" + $resolved).Trim() -ne "") { return ("" + $resolved).Trim() }
+    } catch { }
+
+    return $candidate
 }
 
 function ConvertTo-NormalizedText([string]$s) {
@@ -573,7 +600,9 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "7.6"
+    $uiVersion = "7.7"
+    $uiResolvedExportFolder = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $ExportFolder
+    try { $script:ExportFolder = $uiResolvedExportFolder } catch { }
     $form = New-Object System.Windows.Forms.Form
     $form.Text = ("KiezSingles Admin Audit v" + $uiVersion)
     $form.Width = 1180
@@ -1050,7 +1079,7 @@ function Show-AuditGui() {
     $txtExportFolder.Left = 120
     $txtExportFolder.Top = 896
     $txtExportFolder.Width = 230
-    $txtExportFolder.Text = ("" + $ExportFolder)
+    $txtExportFolder.Text = ("" + $uiResolvedExportFolder)
     $panelLeft.Controls.Add($txtExportFolder)
 
     $chkAutoOpenExportFolder = New-Object System.Windows.Forms.CheckBox
@@ -1675,7 +1704,9 @@ function Show-AuditGui() {
 
         $exportFolderUi = ""
         try { $exportFolderUi = ("" + $txtExportFolder.Text).Trim() } catch { $exportFolderUi = "" }
-        if ($exportFolderUi -eq "") { $exportFolderUi = "tools/audit/output" }
+        $exportFolderUi = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $exportFolderUi
+        try { $txtExportFolder.Text = $exportFolderUi } catch { }
+        try { $script:ExportFolder = $exportFolderUi } catch { }
         $argsList.Add("-ExportFolder") | Out-Null
         $argsList.Add($exportFolderUi) | Out-Null
 
@@ -2048,7 +2079,8 @@ $argList.Add(("" + $expLines)) | Out-Null
 
 $expFolder = ""
 try { $expFolder = ("" + $ExportFolder).Trim() } catch { $expFolder = "" }
-if ($expFolder -eq "") { $expFolder = "tools/audit/output" }
+$expFolder = Resolve-ExportFolderAbsolute -ProjectRoot $projectRoot -FolderValue $expFolder
+try { $script:ExportFolder = $expFolder } catch { }
 $argList.Add("-ExportFolder") | Out-Null
 $argList.Add($expFolder) | Out-Null
 
