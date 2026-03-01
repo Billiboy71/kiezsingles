@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 20:11 (Europe/Berlin)
-# Version: 4.0
+# Changed: 01-03-2026 20:34 (Europe/Berlin)
+# Version: 4.1
 # =============================================================================
 
 [CmdletBinding()]
@@ -97,6 +97,12 @@ param(
 
     # If true, opens ExportFolder in Explorer after the run (when exports exist).
     [string]$AutoOpenExportFolder = "false",
+
+    # Optional JSON map of per-check detail toggles, keyed by check id.
+    [string]$PerCheckDetails = "",
+
+    # Optional JSON map of per-check export toggles, keyed by check id.
+    [string]$PerCheckExport = "",
 
     # If set, core will NOT call 'exit'. Instead it returns the exit code as an integer.
     # This is required for running the core in-process from the GUI without terminating the GUI host.
@@ -239,6 +245,8 @@ function Test-KnownValueParam([string]$name) {
         "-ExportLogsLines" { return $true }
         "-ExportFolder" { return $true }
         "-AutoOpenExportFolder" { return $true }
+        "-PerCheckDetails" { return $true }
+        "-PerCheckExport" { return $true }
         "-Gui" { return $true }
         default { return $false }
     }
@@ -295,6 +303,8 @@ if (Test-RecoverArgsNeeded) {
     $recExportLogsLines = 200
     $recExportFolder = "tools/audit/output"
     $recAutoOpenExportFolder = $false
+    $recPerCheckDetails = ""
+    $recPerCheckExport = ""
     $recNoExit = $false
     $recSuperadminEmail = ""
     $recSuperadminPassword = ""
@@ -451,6 +461,31 @@ if (Test-RecoverArgsNeeded) {
             }
 
             $i++
+            continue
+        }
+
+        if ($name -eq "-PerCheckDetails" -or $name -eq "-PerCheckExport") {
+            $inlineVal = Get-ArgValueFromToken $t
+            $val = ""
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                $val = ("" + $inlineVal).Trim()
+                $i++
+            } else {
+                if (($i + 1) -lt $tokens.Count) {
+                    $nv = ("" + $tokens[$i + 1]).Trim()
+                    if ($nv -notmatch '^-') {
+                        $val = $nv
+                        $i += 2
+                    } else {
+                        $i++
+                    }
+                } else {
+                    $i++
+                }
+            }
+
+            if ($name -eq "-PerCheckDetails") { $recPerCheckDetails = $val }
+            if ($name -eq "-PerCheckExport") { $recPerCheckExport = $val }
             continue
         }
 
@@ -650,6 +685,8 @@ if (Test-RecoverArgsNeeded) {
     $ExportLogsLines = [int]$recExportLogsLines
     if ($recExportFolder -ne "") { $ExportFolder = $recExportFolder }
     $AutoOpenExportFolder = [bool]$recAutoOpenExportFolder
+    if ($recPerCheckDetails -ne "") { $PerCheckDetails = $recPerCheckDetails }
+    if ($recPerCheckExport -ne "") { $PerCheckExport = $recPerCheckExport }
     if ($recNoExit) { $NoExit = $true }
     if ($recSuperadminEmail -ne "") { $SuperadminEmail = $recSuperadminEmail }
     if ($recSuperadminPassword -ne "") { $SuperadminPassword = $recSuperadminPassword }
@@ -1308,6 +1345,38 @@ function Convert-ToSafeFileSegment([string]$Value) {
     return $s
 }
 
+function Convert-PerCheckSettingMap([string]$JsonText) {
+    $out = @{}
+    $raw = ""
+    try { $raw = ("" + $JsonText).Trim() } catch { $raw = "" }
+    if ($raw -eq "") { return $out }
+
+    try {
+        $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+        if ($null -eq $obj) { return $out }
+
+        foreach ($p in @($obj.PSObject.Properties)) {
+            $k = ""
+            try { $k = ("" + $p.Name).Trim().ToLowerInvariant() } catch { $k = "" }
+            if ($k -eq "") { continue }
+            $out[$k] = (Convert-ToBooleanSafe $p.Value $false)
+        }
+    } catch { }
+
+    return $out
+}
+
+function Get-PerCheckEnabled([hashtable]$Map, [string]$CheckId, [bool]$Default = $false) {
+    if ($null -eq $Map) { return $Default }
+    $k = ""
+    try { $k = ("" + $CheckId).Trim().ToLowerInvariant() } catch { $k = "" }
+    if ($k -eq "") { return $Default }
+    try {
+        if ($Map.Contains($k)) { return (Convert-ToBooleanSafe $Map[$k] $Default) }
+    } catch { }
+    return $Default
+}
+
 function Try-ParseLaravelLogTimestamp([string]$Line) {
     if ($null -eq $Line) { return $null }
     try {
@@ -1558,6 +1627,8 @@ $effectiveExportLogsLines = Convert-ToIntSafe $ExportLogsLines 200
 if ($effectiveExportLogsLines -lt 1) { $effectiveExportLogsLines = 200 }
 $effectiveExportFolder = Resolve-AuditExportFolder -ProjectRoot $projectRoot -FolderValue $ExportFolder
 $effectiveAutoOpenExportFolder = Convert-ToBooleanSafe $AutoOpenExportFolder $false
+$effectivePerCheckDetailsMap = Convert-PerCheckSettingMap $PerCheckDetails
+$effectivePerCheckExportMap = Convert-PerCheckSettingMap $PerCheckExport
 $effectiveLogFilePath = Get-LaravelLogPath $projectRoot
 
 # Resolve TailLogMode for checks (prefer env var)
@@ -2096,14 +2167,16 @@ foreach ($step in $plan) {
     $checkFinishedAt = Get-Date
 
     if ($null -ne $res) {
-        $isSecurityCheck = $false
-        try { $isSecurityCheck = ((("" + $res.id).Trim().ToLowerInvariant()) -eq "security_abuse") } catch { $isSecurityCheck = $false }
+        $checkId = ""
+        try { $checkId = ("" + $res.id).Trim().ToLowerInvariant() } catch { $checkId = "" }
+        $detailsEnabledForThisCheck = ($effectiveShowCheckDetails -and (Get-PerCheckEnabled -Map $effectivePerCheckDetailsMap -CheckId $checkId -Default $false))
+        $exportEnabledForThisCheck = ($effectiveExportLogs -and (Get-PerCheckEnabled -Map $effectivePerCheckExportMap -CheckId $checkId -Default $false))
 
         if ($null -eq $res.data) { $res.data = @{} }
         try { $res.data["check_started_at"] = $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
         try { $res.data["check_finished_at"] = $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
 
-        if ($isSecurityCheck) {
+        if ($detailsEnabledForThisCheck -or $exportEnabledForThisCheck) {
             $computedDetailsText = ""
             try { $computedDetailsText = ("" + $res.details_text) } catch { $computedDetailsText = "" }
             if ($computedDetailsText.Trim() -eq "") {
@@ -2136,7 +2209,7 @@ foreach ($step in $plan) {
             foreach ($e in $sliceEvidenceArr) { $evidenceCombined.Add(("" + $e)) | Out-Null }
             try { $res.evidence = @($evidenceCombined.ToArray()) } catch { }
 
-            if ($effectiveExportLogs) {
+            if ($exportEnabledForThisCheck) {
                 try {
                     $runStamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
                     $checkNameSource = ""
@@ -2175,7 +2248,7 @@ foreach ($step in $plan) {
         Write-Host ""
         Write-Host ((Format-StatusTag $res.status) + " " + $res.title + " - " + $res.summary + " (" + $res.duration_ms + "ms)")
 
-        if ($effectiveShowCheckDetails -and $isSecurityCheck) {
+        if ($detailsEnabledForThisCheck) {
             $detailsToPrint = Get-DetailsForOutput $res
             $detailsToPrintArr = ConvertTo-SafeStringArray $detailsToPrint
             $evToPrint = @()

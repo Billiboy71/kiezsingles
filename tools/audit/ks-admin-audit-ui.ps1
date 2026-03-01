@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 19:42 (Europe/Berlin)
-# Version: 7.8
+# Changed: 01-03-2026 20:34 (Europe/Berlin)
+# Version: 7.9
 # =============================================================================
 
 [CmdletBinding()]
@@ -636,7 +636,7 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "7.8"
+    $uiVersion = "7.9"
     $uiSettingsFile = Join-Path $uiProjectRoot "tools\audit\ks-admin-audit-ui.settings.json"
     $uiSettings = $null
     try { $uiSettings = Get-KsAuditUiSettings -SettingsPath $uiSettingsFile } catch { $uiSettings = $null }
@@ -653,9 +653,9 @@ function Show-AuditGui() {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = ("KiezSingles Admin Audit v" + $uiVersion)
     $form.Width = 1180
-    $form.Height = 1200
+    $form.Height = 1360
     $form.StartPosition = "CenterScreen"
-    $form.MinimumSize = New-Object System.Drawing.Size(980, 1040)
+    $form.MinimumSize = New-Object System.Drawing.Size(980, 1200)
 
     $toolTip = New-Object System.Windows.Forms.ToolTip
     $toolTip.AutoPopDelay = 12000
@@ -1073,33 +1073,98 @@ function Show-AuditGui() {
     $chkSessionCsrfBaseline.Checked = [bool]$SessionCsrfBaseline
     $panelLeft.Controls.Add($chkSessionCsrfBaseline)
 
-    # 12) Optional detail view + log export artifacts
+    # 12) Per-check Details / Export toggles
+    $lblPerCheck = New-Object System.Windows.Forms.Label
+    $lblPerCheck.AutoSize = $true
+    $lblPerCheck.Left = 10
+    $lblPerCheck.Top = 830
+    $lblPerCheck.Text = "12) Per-Check: Details / Export"
+    $panelLeft.Controls.Add($lblPerCheck)
+
+    $perCheckRows = New-Object System.Collections.Generic.List[object]
+    $perCheckDefs = @(
+        @{ id = "cache_clear"; label = "Cache clear" },
+        @{ id = "routes"; label = "Routes" },
+        @{ id = "route_list_option_scan"; label = "Route option scan" },
+        @{ id = "http_probe"; label = "HTTP probe" },
+        @{ id = "login_csrf_probe"; label = "Login CSRF probe" },
+        @{ id = "role_smoke_test"; label = "Role smoke test" },
+        @{ id = "governance_superadmin"; label = "Superadmin count" },
+        @{ id = "session_csrf_baseline"; label = "Session/CSRF baseline" },
+        @{ id = "security_abuse"; label = "Security/Abuse" },
+        @{ id = "routes_verbose"; label = "Routes verbose" },
+        @{ id = "routes_findstr_admin"; label = "Route findstr admin" },
+        @{ id = "log_snapshot"; label = "Log snapshot" },
+        @{ id = "tail_log"; label = "Tail log" },
+        @{ id = "log_clear_before"; label = "Log clear before" },
+        @{ id = "log_clear_after"; label = "Log clear after" }
+    )
+
+    $matrixStartY = 850
+    $matrixRowH = 22
+    for ($i = 0; $i -lt $perCheckDefs.Count; $i++) {
+        $d = $perCheckDefs[$i]
+        $col = ($i % 2)
+        $row = [int]([Math]::Floor($i / 2))
+        $baseX = $(if ($col -eq 0) { 10 } else { 182 })
+        $y = $matrixStartY + ($row * $matrixRowH)
+
+        $lbl = New-Object System.Windows.Forms.Label
+        $lbl.Left = $baseX
+        $lbl.Top = $y + 4
+        $lbl.Width = 86
+        $lbl.Text = ("" + $d.label)
+        $panelLeft.Controls.Add($lbl)
+
+        $chkD = New-Object System.Windows.Forms.CheckBox
+        $chkD.Left = $baseX + 90
+        $chkD.Top = $y + 2
+        $chkD.Width = 38
+        $chkD.Text = "D"
+        $chkD.Checked = $false
+        $panelLeft.Controls.Add($chkD)
+
+        $chkE = New-Object System.Windows.Forms.CheckBox
+        $chkE.Left = $baseX + 128
+        $chkE.Top = $y + 2
+        $chkE.Width = 38
+        $chkE.Text = "E"
+        $chkE.Checked = $false
+        $panelLeft.Controls.Add($chkE)
+
+        $perCheckRows.Add([pscustomobject]@{ id = ("" + $d.id); label = ("" + $d.label); chkDetails = $chkD; chkExport = $chkE }) | Out-Null
+    }
+
+    $globalBlockTop = 1032
+
+    # 13) Master switches (optional, apply to all per-check toggles)
     $chkShowCheckDetails = New-Object System.Windows.Forms.CheckBox
     $chkShowCheckDetails.Left = 10
-    $chkShowCheckDetails.Top = 830
+    $chkShowCheckDetails.Top = $globalBlockTop
     $chkShowCheckDetails.Width = 340
-    $chkShowCheckDetails.Text = "12) ShowCheckDetails (Evidence/LogSlice)"
+    $chkShowCheckDetails.Text = "13) ShowCheckDetails (Master)"
     $chkShowCheckDetails.Checked = [bool]$ShowCheckDetails
     $panelLeft.Controls.Add($chkShowCheckDetails)
 
     $chkExportLogs = New-Object System.Windows.Forms.CheckBox
     $chkExportLogs.Left = 10
-    $chkExportLogs.Top = 854
+    $chkExportLogs.Top = ($globalBlockTop + 24)
     $chkExportLogs.Width = 340
-    $chkExportLogs.Text = "13) ExportLogs (per-check .log)"
+    $chkExportLogs.Text = "14) ExportLogs (Master)"
     $chkExportLogs.Checked = [bool]$ExportLogs
     $panelLeft.Controls.Add($chkExportLogs)
 
+    # Global shared log settings
     $lblExportLogsLines = New-Object System.Windows.Forms.Label
     $lblExportLogsLines.AutoSize = $true
     $lblExportLogsLines.Text = "ExportLogsLines"
     $lblExportLogsLines.Left = 10
-    $lblExportLogsLines.Top = 878
+    $lblExportLogsLines.Top = ($globalBlockTop + 48)
     $panelLeft.Controls.Add($lblExportLogsLines)
 
     $cmbExportLogsLines = New-Object System.Windows.Forms.ComboBox
     $cmbExportLogsLines.Left = 10
-    $cmbExportLogsLines.Top = 896
+    $cmbExportLogsLines.Top = ($globalBlockTop + 66)
     $cmbExportLogsLines.Width = 100
     $cmbExportLogsLines.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
     [void]$cmbExportLogsLines.Items.Add("50")
@@ -1119,28 +1184,28 @@ function Show-AuditGui() {
     $lblExportFolder.AutoSize = $true
     $lblExportFolder.Text = "ExportFolder"
     $lblExportFolder.Left = 120
-    $lblExportFolder.Top = 878
+    $lblExportFolder.Top = ($globalBlockTop + 48)
     $panelLeft.Controls.Add($lblExportFolder)
 
     $txtExportFolder = New-Object System.Windows.Forms.TextBox
     $txtExportFolder.Left = 120
-    $txtExportFolder.Top = 896
+    $txtExportFolder.Top = ($globalBlockTop + 66)
     $txtExportFolder.Width = 206
     $txtExportFolder.Text = ("" + $uiResolvedExportFolder)
     $panelLeft.Controls.Add($txtExportFolder)
 
     $btnSaveExportFolder = New-Object System.Windows.Forms.Button
     $btnSaveExportFolder.Left = 330
-    $btnSaveExportFolder.Top = 896
+    $btnSaveExportFolder.Top = ($globalBlockTop + 66)
     $btnSaveExportFolder.Text = "S"
     Set-RoundButtonShape -Button $btnSaveExportFolder
     $panelLeft.Controls.Add($btnSaveExportFolder)
 
     $chkAutoOpenExportFolder = New-Object System.Windows.Forms.CheckBox
     $chkAutoOpenExportFolder.Left = 10
-    $chkAutoOpenExportFolder.Top = 924
+    $chkAutoOpenExportFolder.Top = ($globalBlockTop + 94)
     $chkAutoOpenExportFolder.Width = 340
-    $chkAutoOpenExportFolder.Text = "14) AutoOpenExportFolder"
+    $chkAutoOpenExportFolder.Text = "AutoOpenExportFolder"
     $chkAutoOpenExportFolder.Checked = [bool]$AutoOpenExportFolder
     $panelLeft.Controls.Add($chkAutoOpenExportFolder)
 
@@ -1150,7 +1215,7 @@ function Show-AuditGui() {
     $btnRun.Width = 82
     $btnRun.Height = 32
     $btnRun.Left = 10
-    $btnRun.Top = 956
+    $btnRun.Top = 1162
     $panelLeft.Controls.Add($btnRun)
 
     $btnCopy = New-Object System.Windows.Forms.Button
@@ -1158,7 +1223,7 @@ function Show-AuditGui() {
     $btnCopy.Width = 90
     $btnCopy.Height = 32
     $btnCopy.Left = 98
-    $btnCopy.Top = 956
+    $btnCopy.Top = 1162
     $btnCopy.Enabled = $false
     $panelLeft.Controls.Add($btnCopy)
 
@@ -1167,13 +1232,13 @@ function Show-AuditGui() {
     $btnClear.Width = 60
     $btnClear.Height = 32
     $btnClear.Left = 192
-    $btnClear.Top = 956
+    $btnClear.Top = 1162
     $panelLeft.Controls.Add($btnClear)
 
     $lblStatus = New-Object System.Windows.Forms.Label
     $lblStatus.AutoSize = $true
     $lblStatus.Left = 10
-    $lblStatus.Top = 996
+    $lblStatus.Top = 1202
     $lblStatus.Width = 340
     $lblStatus.Text = ""
     $panelLeft.Controls.Add($lblStatus)
@@ -1647,6 +1712,16 @@ function Show-AuditGui() {
         $txtExportFolder.Enabled = $expOn
         $btnSaveExportFolder.Enabled = $expOn
         $chkAutoOpenExportFolder.Enabled = $expOn
+        foreach ($r in @($perCheckRows.ToArray())) {
+            try { $r.chkExport.Enabled = $expOn } catch { }
+        }
+    }
+
+    function Sync-DetailsFieldsEnabled() {
+        $detOn = [bool]$chkShowCheckDetails.Checked
+        foreach ($r in @($perCheckRows.ToArray())) {
+            try { $r.chkDetails.Enabled = $detOn } catch { }
+        }
     }
 
     $chkHttpProbe.add_CheckedChanged({ Sync-HttpFieldsEnabled })
@@ -1661,6 +1736,9 @@ function Show-AuditGui() {
 
     $chkExportLogs.add_CheckedChanged({ Sync-ExportFieldsEnabled })
     Sync-ExportFieldsEnabled
+
+    $chkShowCheckDetails.add_CheckedChanged({ Sync-DetailsFieldsEnabled })
+    Sync-DetailsFieldsEnabled
 
     function Get-UiArgs() {
         $argsList = New-Object System.Collections.Generic.List[string]
@@ -1767,6 +1845,26 @@ function Show-AuditGui() {
 
         $argsList.Add("-AutoOpenExportFolder") | Out-Null
         $argsList.Add(("" + [bool]$chkAutoOpenExportFolder.Checked).ToLowerInvariant()) | Out-Null
+
+        $perCheckDetailsMap = [ordered]@{}
+        $perCheckExportMap = [ordered]@{}
+        foreach ($r in @($perCheckRows.ToArray())) {
+            $id = ""
+            try { $id = ("" + $r.id).Trim().ToLowerInvariant() } catch { $id = "" }
+            if ($id -eq "") { continue }
+            $perCheckDetailsMap[$id] = [bool]$r.chkDetails.Checked
+            $perCheckExportMap[$id] = [bool]$r.chkExport.Checked
+        }
+
+        $perCheckDetailsJson = "{}"
+        $perCheckExportJson = "{}"
+        try { $perCheckDetailsJson = ($perCheckDetailsMap | ConvertTo-Json -Compress) } catch { $perCheckDetailsJson = "{}" }
+        try { $perCheckExportJson = ($perCheckExportMap | ConvertTo-Json -Compress) } catch { $perCheckExportJson = "{}" }
+
+        $argsList.Add("-PerCheckDetails") | Out-Null
+        $argsList.Add($perCheckDetailsJson) | Out-Null
+        $argsList.Add("-PerCheckExport") | Out-Null
+        $argsList.Add($perCheckExportJson) | Out-Null
 
         if ($chkRoleSmokeTest.Checked) {
             $rsLines = @()
@@ -2155,6 +2253,26 @@ $argList.Add($expFolder) | Out-Null
 
 $argList.Add("-AutoOpenExportFolder") | Out-Null
 $argList.Add(("" + [bool]$AutoOpenExportFolder).ToLowerInvariant()) | Out-Null
+
+$defaultPerCheckIds = @(
+    "cache_clear","routes","route_list_option_scan","http_probe","login_csrf_probe","role_smoke_test",
+    "governance_superadmin","session_csrf_baseline","security_abuse","routes_verbose","routes_findstr_admin",
+    "log_snapshot","tail_log","log_clear_before","log_clear_after"
+)
+$consoleDetailsMap = [ordered]@{}
+$consoleExportMap = [ordered]@{}
+foreach ($id in $defaultPerCheckIds) {
+    $consoleDetailsMap[$id] = [bool]$ShowCheckDetails
+    $consoleExportMap[$id] = [bool]$ExportLogs
+}
+$consolePerCheckDetailsJson = "{}"
+$consolePerCheckExportJson = "{}"
+try { $consolePerCheckDetailsJson = ($consoleDetailsMap | ConvertTo-Json -Compress) } catch { $consolePerCheckDetailsJson = "{}" }
+try { $consolePerCheckExportJson = ($consoleExportMap | ConvertTo-Json -Compress) } catch { $consolePerCheckExportJson = "{}" }
+$argList.Add("-PerCheckDetails") | Out-Null
+$argList.Add($consolePerCheckDetailsJson) | Out-Null
+$argList.Add("-PerCheckExport") | Out-Null
+$argList.Add($consolePerCheckExportJson) | Out-Null
 
 if ($LogSnapshot) {
     $argList.Add("-LogSnapshot") | Out-Null
