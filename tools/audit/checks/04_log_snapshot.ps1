@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\04_log_snapshot.ps1
 # Purpose: Audit check - Laravel log snapshot (tail; informative)
 # Created: 21-02-2026 00:25 (Europe/Berlin)
-# Changed: 23-02-2026 03:28 (Europe/Berlin)
-# Version: 0.7
+# Changed: 01-03-2026 13:49 (Europe/Berlin)
+# Version: 0.9
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -24,7 +24,26 @@ function Invoke-KsAuditCheck_LogSnapshot {
     & $Context.Helpers.WriteSection "4) Laravel log snapshot"
 
     $logPath = Join-Path $root "storage\logs\laravel.log"
+    $snapshotSource = $logPath
+    try {
+        if (($Context | Get-Member -Name "LogClearBefore" -MemberType NoteProperty,Property -ErrorAction SilentlyContinue) -and [bool]$Context.LogClearBefore) {
+            $backupCreated = $false
+            $backupPath = ""
+            try { $backupCreated = [bool]$Context.LogCleanupBeforeBackupCreated } catch { $backupCreated = $false }
+            try { $backupPath = ("" + $Context.LogCleanupBeforeBackupPath).Trim() } catch { $backupPath = "" }
+
+            if ($backupCreated -and $backupPath -ne "" -and $backupPath -ne "-" -and (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
+                $snapshotSource = $backupPath
+            }
+        }
+    } catch { $snapshotSource = $logPath }
     $tailLines = 200
+    try {
+        if ($Context -and ($Context | Get-Member -Name "LogSnapshotLines" -MemberType NoteProperty,Property -ErrorAction SilentlyContinue)) {
+            $tl = [int]$Context.LogSnapshotLines
+            if ($tl -gt 0) { $tailLines = $tl }
+        }
+    } catch { $tailLines = 200 }
 
     # Deterministic default: snapshot is informational and should not turn the whole audit into WARN.
     # Optional override via Context.LogSnapshotWarnOnLocalError = $true
@@ -43,13 +62,13 @@ function Invoke-KsAuditCheck_LogSnapshot {
         }
     } catch { $auditStartedAt = $null }
 
-    if (-not (Test-Path $logPath)) {
+    if (-not (Test-Path -LiteralPath $snapshotSource -PathType Leaf)) {
         $sw.Stop()
-        return & $new -Id "log_snapshot" -Title "4) Laravel log snapshot" -Status "WARN" -Summary "laravel.log not found." -Details @("Expected: " + $logPath) -Data @{ path = $logPath } -DurationMs ([int]$sw.ElapsedMilliseconds)
+        return & $new -Id "log_snapshot" -Title "4) Laravel log snapshot" -Status "WARN" -Summary "laravel.log not found." -Details @("Expected: " + $snapshotSource, "SnapshotSource: " + $snapshotSource) -Data @{ path = $snapshotSource; snapshot_source = $snapshotSource } -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
     try {
-        $lines = Get-Content -LiteralPath $logPath -Tail $tailLines -ErrorAction Stop
+        $lines = Get-Content -LiteralPath $snapshotSource -Tail $tailLines -ErrorAction Stop
 
         $errorCount = 0
         $newErrorCount = 0
@@ -63,11 +82,13 @@ function Invoke-KsAuditCheck_LogSnapshot {
             route_list_columns = 0
             route_list_format = 0
             cache_rename_access_denied = 0
+            admin_audit_meta_array_to_string = 0
         }
         $knownLegacySinceAuditCounts = @{
             route_list_columns = 0
             route_list_format = 0
             cache_rename_access_denied = 0
+            admin_audit_meta_array_to_string = 0
         }
 
         # Laravel log lines typically start with:
@@ -88,6 +109,10 @@ function Invoke-KsAuditCheck_LogSnapshot {
             # rename(...bootstrap\cache\pacXXXX.tmp,...bootstrap\cache\packages.php): Zugriff verweigert (code: 5)
             if ($l -match '(?i)\brename\(' -and $l -match '(?i)bootstrap\\cache\\.*packages\.php' -and $l -match '(?i)Zugriff\s+verweigert\s+\(code:\s*5\)') {
                 return "cache_rename_access_denied"
+            }
+
+            if ($l -match '(?i)Array to string conversion' -and $l -match '(?i)admin_audit_logs\.meta|WriteAdminAuditLog\.php:23') {
+                return "admin_audit_meta_array_to_string"
             }
 
             return ""
@@ -141,6 +166,7 @@ function Invoke-KsAuditCheck_LogSnapshot {
         $sw.Stop()
 
         $details = @()
+        $details += ("SnapshotSource: " + $snapshotSource)
         $details += ("=== Laravel Log Tail (last " + $tailLines + " lines) ===")
         $details += @($lines)
 
@@ -160,14 +186,20 @@ function Invoke-KsAuditCheck_LogSnapshot {
             $details += ("Known legacy patterns in tail (overall): " +
                 "route_list(--columns)=" + [int]$knownLegacyCounts["route_list_columns"] + " | " +
                 "route_list(--format)=" + [int]$knownLegacyCounts["route_list_format"] + " | " +
-                "bootstrap/cache access_denied(rename packages.php)=" + [int]$knownLegacyCounts["cache_rename_access_denied"]
+                "bootstrap/cache access_denied(rename packages.php)=" + [int]$knownLegacyCounts["cache_rename_access_denied"] + " | " +
+                "admin_audit_logs.meta ArrayToString=" + [int]$knownLegacyCounts["admin_audit_meta_array_to_string"]
             )
 
             $details += ("Known legacy patterns since AuditStartedAt: " +
                 "route_list(--columns)=" + [int]$knownLegacySinceAuditCounts["route_list_columns"] + " | " +
                 "route_list(--format)=" + [int]$knownLegacySinceAuditCounts["route_list_format"] + " | " +
-                "bootstrap/cache access_denied(rename packages.php)=" + [int]$knownLegacySinceAuditCounts["cache_rename_access_denied"]
+                "bootstrap/cache access_denied(rename packages.php)=" + [int]$knownLegacySinceAuditCounts["cache_rename_access_denied"] + " | " +
+                "admin_audit_logs.meta ArrayToString=" + [int]$knownLegacySinceAuditCounts["admin_audit_meta_array_to_string"]
             )
+
+            if ([int]$knownLegacyCounts["admin_audit_meta_array_to_string"] -gt 0) {
+                $details += "KNOWN ISSUE: 'Array to string conversion' around admin_audit_logs.meta (e.g., WriteAdminAuditLog.php:23) detected in log tail."
+            }
 
             if ($newErrorCount -eq 0 -and $errorCount -gt 0) {
                 $details += "INFO: local.ERROR lines exist in the tail, but none are newer than AuditStartedAt (likely historical noise)."
@@ -175,12 +207,14 @@ function Invoke-KsAuditCheck_LogSnapshot {
         }
 
         $data = @{
-            path = $logPath
+            path = $snapshotSource
+            snapshot_source = $snapshotSource
             tail_lines = $tailLines
             local_error_count = $errorCount
             known_legacy_route_list_columns_count = [int]$knownLegacyCounts["route_list_columns"]
             known_legacy_route_list_format_count = [int]$knownLegacyCounts["route_list_format"]
             known_legacy_cache_rename_access_denied_count = [int]$knownLegacyCounts["cache_rename_access_denied"]
+            known_issue_admin_audit_meta_array_to_string_count = [int]$knownLegacyCounts["admin_audit_meta_array_to_string"]
         }
 
         if ($null -ne $auditStartedAt) {
@@ -189,6 +223,7 @@ function Invoke-KsAuditCheck_LogSnapshot {
             $data["known_legacy_route_list_columns_since_audit_start"] = [int]$knownLegacySinceAuditCounts["route_list_columns"]
             $data["known_legacy_route_list_format_since_audit_start"] = [int]$knownLegacySinceAuditCounts["route_list_format"]
             $data["known_legacy_cache_rename_access_denied_since_audit_start"] = [int]$knownLegacySinceAuditCounts["cache_rename_access_denied"]
+            $data["known_issue_admin_audit_meta_array_to_string_since_audit_start"] = [int]$knownLegacySinceAuditCounts["admin_audit_meta_array_to_string"]
         }
 
         if ($warnOnLocalError -and ($errorCount -gt 0)) {
@@ -216,6 +251,6 @@ function Invoke-KsAuditCheck_LogSnapshot {
         return & $new -Id "log_snapshot" -Title "4) Laravel log snapshot" -Status "OK" -Summary $summary -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     } catch {
         $sw.Stop()
-        return & $new -Id "log_snapshot" -Title "4) Laravel log snapshot" -Status "WARN" -Summary ("Failed to read laravel.log: " + $_.Exception.Message) -Details @() -Data @{ path = $logPath } -DurationMs ([int]$sw.ElapsedMilliseconds)
+        return & $new -Id "log_snapshot" -Title "4) Laravel log snapshot" -Status "WARN" -Summary ("Failed to read laravel.log: " + $_.Exception.Message) -Details @("SnapshotSource: " + $snapshotSource) -Data @{ path = $snapshotSource; snapshot_source = $snapshotSource } -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 }

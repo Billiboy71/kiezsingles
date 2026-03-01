@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 23-02-2026 03:40 (Europe/Berlin)
-# Version: 3.1
+# Changed: 01-03-2026 14:25 (Europe/Berlin)
+# Version: 3.3
 # =============================================================================
 
 [CmdletBinding()]
@@ -29,8 +29,31 @@ param(
     # If set, runs governance check: superadmin count (deterministic; via artisan command)
     [switch]$SuperadminCount,
 
+    # If set, runs login CSRF/session probe (GET /login + POST /login)
+    [switch]$LoginCsrfProbe,
+
+    # If set, runs role access smoke test (GET-only, role credentials required)
+    [switch]$RoleSmokeTest,
+
+    # Role smoke credentials
+    [string]$SuperadminEmail = "",
+    [string]$SuperadminPassword = "",
+    [string]$AdminEmail = "",
+    [string]$AdminPassword = "",
+    [string]$ModeratorEmail = "",
+    [string]$ModeratorPassword = "",
+
+    # Role smoke paths (used by -RoleSmokeTest)
+    [string[]]$RoleSmokePaths = @("/admin", "/admin/users", "/admin/moderation", "/admin/tickets", "/admin/maintenance", "/admin/debug", "/admin/develop", "/admin/status"),
+
+    # If set, prints session/CSRF baseline (read-only)
+    [switch]$SessionCsrfBaseline,
+
     # If set, appends Laravel log snapshot (tail) to output
     [switch]$LogSnapshot,
+
+    # Line count for Laravel log snapshot (used when -LogSnapshot is set)
+    [string]$LogSnapshotLines = "200",
 
     # If set, clears/rotates laravel.log BEFORE the audit (only if file exists).
     [switch]$LogClearBefore,
@@ -148,6 +171,9 @@ function Test-KnownSwitch([string]$name) {
         "-RoutesVerbose" { return $true }
         "-RouteListFindstrAdmin" { return $true }
         "-SuperadminCount" { return $true }
+        "-LoginCsrfProbe" { return $true }
+        "-RoleSmokeTest" { return $true }
+        "-SessionCsrfBaseline" { return $true }
         "-LogSnapshot" { return $true }
         "-LogClearBefore" { return $true }
         "-LogClearAfter" { return $true }
@@ -161,6 +187,14 @@ function Test-KnownValueParam([string]$name) {
     switch ($name) {
         "-BaseUrl" { return $true }
         "-ProbePaths" { return $true }
+        "-SuperadminEmail" { return $true }
+        "-SuperadminPassword" { return $true }
+        "-AdminEmail" { return $true }
+        "-AdminPassword" { return $true }
+        "-ModeratorEmail" { return $true }
+        "-ModeratorPassword" { return $true }
+        "-RoleSmokePaths" { return $true }
+        "-LogSnapshotLines" { return $true }
         "-Gui" { return $true }
         default { return $false }
     }
@@ -190,18 +224,30 @@ if (Test-RecoverArgsNeeded) {
     try { if ($null -ne $ProbePaths) { $tokens += @($ProbePaths | ForEach-Object { "" + $_ }) } } catch { }
     try { if ($null -ne $IgnoredArgs) { $tokens += @($IgnoredArgs | ForEach-Object { "" + $_ }) } } catch { }
 
-    $recBaseUrl = "http://127.0.0.1:8000"
+    $recBaseUrl = ""
+    $recBaseUrlSet = $false
     $recProbePaths = New-Object System.Collections.Generic.List[string]
     $recHttpProbe = $false
     $recTailLog = $false
     $recRoutesVerbose = $false
     $recRouteListFindstrAdmin = $false
     $recSuperadminCount = $false
+    $recLoginCsrfProbe = $false
+    $recRoleSmokeTest = $false
+    $recSessionCsrfBaseline = $false
     $recLogSnapshot = $false
+    $recLogSnapshotLines = 200
     $recLogClearBefore = $false
     $recLogClearAfter = $false
     $recRouteListOptionScanFullProject = $false
     $recNoExit = $false
+    $recSuperadminEmail = ""
+    $recSuperadminPassword = ""
+    $recAdminEmail = ""
+    $recAdminPassword = ""
+    $recModeratorEmail = ""
+    $recModeratorPassword = ""
+    $recRoleSmokePaths = New-Object System.Collections.Generic.List[string]
     $recGui = ""
 
     $i = 0
@@ -216,12 +262,14 @@ if (Test-RecoverArgsNeeded) {
             $inlineVal = Get-ArgValueFromToken $t
             if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
                 $recBaseUrl = ("" + $inlineVal).Trim()
+                $recBaseUrlSet = $true
                 $i++
                 continue
             }
 
             if (($i + 1) -lt $tokens.Count) {
                 $recBaseUrl = ("" + $tokens[$i + 1]).Trim()
+                $recBaseUrlSet = $true
                 $i += 2
                 continue
             }
@@ -255,6 +303,83 @@ if (Test-RecoverArgsNeeded) {
             continue
         }
 
+        if ($name -eq "-RoleSmokePaths") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                $recRoleSmokePaths.Add((("" + $inlineVal).Trim())) | Out-Null
+                $i++
+                continue
+            }
+
+            $i++
+            while ($i -lt $tokens.Count) {
+                $p = ("" + $tokens[$i]).Trim()
+                if ($p -eq "") { $i++; continue }
+
+                $pName = Get-ArgNameFromToken $p
+                if ($p -match '^-') {
+                    if (Test-KnownSwitch $pName -or Test-KnownValueParam $pName) { break }
+                    break
+                }
+
+                $recRoleSmokePaths.Add($p) | Out-Null
+                $i++
+            }
+            continue
+        }
+
+        if ($name -eq "-SuperadminEmail" -or $name -eq "-SuperadminPassword" -or $name -eq "-AdminEmail" -or $name -eq "-AdminPassword" -or $name -eq "-ModeratorEmail" -or $name -eq "-ModeratorPassword") {
+            $val = Get-ArgValueFromToken $t
+            if ($null -eq $val -or (("" + $val).Trim() -eq "")) {
+                if (($i + 1) -lt $tokens.Count) {
+                    $n = ("" + $tokens[$i + 1]).Trim()
+                    if ($n -notmatch '^-') { $val = $n; $i += 2 } else { $val = ""; $i++ }
+                } else {
+                    $val = ""
+                    $i++
+                }
+            } else {
+                $i++
+            }
+
+            switch ($name) {
+                "-SuperadminEmail" { $recSuperadminEmail = ("" + $val) }
+                "-SuperadminPassword" { $recSuperadminPassword = ("" + $val) }
+                "-AdminEmail" { $recAdminEmail = ("" + $val) }
+                "-AdminPassword" { $recAdminPassword = ("" + $val) }
+                "-ModeratorEmail" { $recModeratorEmail = ("" + $val) }
+                "-ModeratorPassword" { $recModeratorPassword = ("" + $val) }
+            }
+            continue
+        }
+
+        if ($name -eq "-LogSnapshotLines") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                try {
+                    $n = [int](("" + $inlineVal).Trim())
+                    if ($n -gt 0) { $recLogSnapshotLines = $n }
+                } catch { }
+                $i++
+                continue
+            }
+
+            if (($i + 1) -lt $tokens.Count) {
+                $nv = ("" + $tokens[$i + 1]).Trim()
+                if ($nv -notmatch '^-') {
+                    try {
+                        $n = [int]$nv
+                        if ($n -gt 0) { $recLogSnapshotLines = $n }
+                    } catch { }
+                    $i += 2
+                    continue
+                }
+            }
+
+            $i++
+            continue
+        }
+
         if (Test-KnownSwitch $name) {
             switch ($name) {
                 "-HttpProbe" { $recHttpProbe = $true }
@@ -262,6 +387,9 @@ if (Test-RecoverArgsNeeded) {
                 "-RoutesVerbose" { $recRoutesVerbose = $true }
                 "-RouteListFindstrAdmin" { $recRouteListFindstrAdmin = $true }
                 "-SuperadminCount" { $recSuperadminCount = $true }
+                "-LoginCsrfProbe" { $recLoginCsrfProbe = $true }
+                "-RoleSmokeTest" { $recRoleSmokeTest = $true }
+                "-SessionCsrfBaseline" { $recSessionCsrfBaseline = $true }
                 "-LogSnapshot" { $recLogSnapshot = $true }
                 "-LogClearBefore" { $recLogClearBefore = $true }
                 "-LogClearAfter" { $recLogClearAfter = $true }
@@ -297,7 +425,7 @@ if (Test-RecoverArgsNeeded) {
         $i++
     }
 
-    if ($recBaseUrl -and ($recBaseUrl.Trim() -ne "") -and ($recBaseUrl.Trim() -notmatch '^-')) {
+    if ($recBaseUrlSet -and $recBaseUrl -and ($recBaseUrl.Trim() -ne "") -and ($recBaseUrl.Trim() -notmatch '^-')) {
         $BaseUrl = $recBaseUrl
     }
 
@@ -310,11 +438,22 @@ if (Test-RecoverArgsNeeded) {
     if ($recRoutesVerbose) { $RoutesVerbose = $true }
     if ($recRouteListFindstrAdmin) { $RouteListFindstrAdmin = $true }
     if ($recSuperadminCount) { $SuperadminCount = $true }
+    if ($recLoginCsrfProbe) { $LoginCsrfProbe = $true }
+    if ($recRoleSmokeTest) { $RoleSmokeTest = $true }
+    if ($recSessionCsrfBaseline) { $SessionCsrfBaseline = $true }
     if ($recLogSnapshot) { $LogSnapshot = $true }
+    $LogSnapshotLines = [int]$recLogSnapshotLines
     if ($recLogClearBefore) { $LogClearBefore = $true }
     if ($recLogClearAfter) { $LogClearAfter = $true }
     if ($recRouteListOptionScanFullProject) { $RouteListOptionScanFullProject = $true }
     if ($recNoExit) { $NoExit = $true }
+    if ($recSuperadminEmail -ne "") { $SuperadminEmail = $recSuperadminEmail }
+    if ($recSuperadminPassword -ne "") { $SuperadminPassword = $recSuperadminPassword }
+    if ($recAdminEmail -ne "") { $AdminEmail = $recAdminEmail }
+    if ($recAdminPassword -ne "") { $AdminPassword = $recAdminPassword }
+    if ($recModeratorEmail -ne "") { $ModeratorEmail = $recModeratorEmail }
+    if ($recModeratorPassword -ne "") { $ModeratorPassword = $recModeratorPassword }
+    if ($recRoleSmokePaths.Count -gt 0) { $RoleSmokePaths = @($recRoleSmokePaths.ToArray()) }
 
     if ($null -ne $recGui) { $Gui = $recGui }
 
@@ -453,6 +592,23 @@ if ($null -ne $ProbePaths -and @($ProbePaths).Count -gt 0) {
     }
     $ProbePaths = @($dedup.ToArray())
 }
+
+$RoleSmokePaths = ConvertTo-NormalizedProbePaths $RoleSmokePaths
+if ($null -ne $RoleSmokePaths -and @($RoleSmokePaths).Count -gt 0) {
+    $seenRole = @{}
+    $dedupRole = New-Object System.Collections.Generic.List[string]
+    foreach ($p in @($RoleSmokePaths)) {
+        $s = ("" + $p).Trim()
+        if ($s -eq "") { continue }
+        if ($seenRole.ContainsKey($s)) { continue }
+        $seenRole[$s] = $true
+        $dedupRole.Add($s) | Out-Null
+    }
+    $RoleSmokePaths = @($dedupRole.ToArray())
+}
+
+$effectiveLoginCsrfProbe = ([bool]$LoginCsrfProbe -or [bool]$RoleSmokeTest)
+$effectiveSessionCsrfBaseline = ([bool]$SessionCsrfBaseline -or [bool]$RoleSmokeTest)
 
 # --- Helpers (kept minimal; no GUI logic)
 function Write-Section([string]$Title) {
@@ -771,7 +927,19 @@ $tailOnly = [bool]$TailLog `
     -and (-not [bool]$RoutesVerbose) `
     -and (-not [bool]$RouteListFindstrAdmin) `
     -and (-not [bool]$SuperadminCount) `
+    -and (-not [bool]$LoginCsrfProbe) `
+    -and (-not [bool]$RoleSmokeTest) `
+    -and (-not [bool]$SessionCsrfBaseline) `
     -and (-not [bool]$LogSnapshot)
+
+$effectiveLogSnapshotLines = 200
+try {
+    $n = [int]$LogSnapshotLines
+    if ($n -gt 0) { $effectiveLogSnapshotLines = $n }
+} catch { $effectiveLogSnapshotLines = 200 }
+
+$logSnapshotLinesHeader = "-"
+if ([bool]$LogSnapshot) { $logSnapshotLinesHeader = ("" + [int]$effectiveLogSnapshotLines) }
 
 # Resolve TailLogMode for checks (prefer env var)
 $tailMode = "history"
@@ -786,10 +954,22 @@ $context = [pscustomobject]@{
     ProjectRoot = $projectRoot
     BaseUrl = $BaseUrl
     ProbePaths = $ProbePaths
+    RoleSmokePaths = $RoleSmokePaths
+    SuperadminEmail = $SuperadminEmail
+    SuperadminPassword = $SuperadminPassword
+    AdminEmail = $AdminEmail
+    AdminPassword = $AdminPassword
+    ModeratorEmail = $ModeratorEmail
+    ModeratorPassword = $ModeratorPassword
     ExpectedUnauthedHttpCodes = @(302, 401, 403)
     HttpTimeoutSec = 12
     TailLogMode = $tailMode
     AuditStartedAt = $auditStartedAt
+    LogSnapshotLines = [int]$effectiveLogSnapshotLines
+    LogClearBefore = [bool]$LogClearBefore
+    LogClearAfter = [bool]$LogClearAfter
+    LogCleanupBeforeBackupCreated = $false
+    LogCleanupBeforeBackupPath = "-"
     RouteListOptionScanFullProject = [bool]$RouteListOptionScanFullProject
     Helpers = [pscustomobject]@{
         WriteSection = ${function:Write-Section}
@@ -865,9 +1045,14 @@ if ($missingRequired.Count -gt 0) {
     Write-Host ("RoutesVerbose: " + [bool]$RoutesVerbose)
     Write-Host ("RouteListFindstrAdmin: " + [bool]$RouteListFindstrAdmin)
     Write-Host ("SuperadminCount: " + [bool]$SuperadminCount)
+    Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + ")")
+    Write-Host ("RoleSmokeTest: " + [bool]$RoleSmokeTest)
+    Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + ")")
     Write-Host ("LogSnapshot: " + [bool]$LogSnapshot)
+    Write-Host ("LogSnapshotLines: " + $logSnapshotLinesHeader)
     Write-Host ("LogClearBefore: " + [bool]$LogClearBefore)
     Write-Host ("LogClearAfter: " + [bool]$LogClearAfter)
+    if ([bool]$LogClearBefore -or [bool]$LogClearAfter) { Write-Host "Hinweis: laravel.log wird rotiert; .bak-* vorhanden" }
     Write-Host ("RouteListOptionScanFullProject: " + [bool]$RouteListOptionScanFullProject)
     Write-Host ("ChecksSource: " + $checksSourceLabel + " (" + $checksRoot + ")")
 
@@ -1124,12 +1309,42 @@ if ($HttpProbe) {
     }
 }
 
+if ($effectiveLoginCsrfProbe) {
+    if (Test-FunctionExists "Invoke-KsAuditCheck_LoginCsrfProbe") {
+        $plan.Add({ Invoke-KsAuditCheck_LoginCsrfProbe -Context $context }) | Out-Null
+    } else {
+        $plan.Add({
+            New-AuditResult -Id "missing_check" -Title "2a) Login CSRF probe" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_LoginCsrfProbe" -Details @() -Data @{} -DurationMs 0
+        }) | Out-Null
+    }
+}
+
+if ($RoleSmokeTest) {
+    if (Test-FunctionExists "Invoke-KsAuditCheck_RoleSmokeTest") {
+        $plan.Add({ Invoke-KsAuditCheck_RoleSmokeTest -Context $context }) | Out-Null
+    } else {
+        $plan.Add({
+            New-AuditResult -Id "missing_check" -Title "2b) Role access smoke test (GET-only)" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_RoleSmokeTest" -Details @() -Data @{} -DurationMs 0
+        }) | Out-Null
+    }
+}
+
 if ($SuperadminCount) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_GovernanceSuperadmin") {
         $plan.Add({ Invoke-KsAuditCheck_GovernanceSuperadmin -Context $context }) | Out-Null
     } else {
         $plan.Add({
             New-AuditResult -Id "missing_check" -Title "3) Governance: superadmin fail-safe (deterministic)" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_GovernanceSuperadmin" -Details @() -Data @{} -DurationMs 0
+        }) | Out-Null
+    }
+}
+
+if ($effectiveSessionCsrfBaseline) {
+    if (Test-FunctionExists "Invoke-KsAuditCheck_SessionCsrfBaseline") {
+        $plan.Add({ Invoke-KsAuditCheck_SessionCsrfBaseline -Context $context }) | Out-Null
+    } else {
+        $plan.Add({
+            New-AuditResult -Id "missing_check" -Title "3a) Session/CSRF baseline (read-only)" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_SessionCsrfBaseline" -Details @() -Data @{} -DurationMs 0
         }) | Out-Null
     }
 }
@@ -1190,9 +1405,14 @@ Write-Host ("TailLog:     " + [bool]$TailLog)
 Write-Host ("RoutesVerbose: " + [bool]$RoutesVerbose)
 Write-Host ("RouteListFindstrAdmin: " + [bool]$RouteListFindstrAdmin)
 Write-Host ("SuperadminCount: " + [bool]$SuperadminCount)
+Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + ")")
+Write-Host ("RoleSmokeTest: " + [bool]$RoleSmokeTest)
+Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + ")")
 Write-Host ("LogSnapshot: " + [bool]$LogSnapshot)
+Write-Host ("LogSnapshotLines: " + $logSnapshotLinesHeader)
 Write-Host ("LogClearBefore: " + [bool]$LogClearBefore)
 Write-Host ("LogClearAfter: " + [bool]$LogClearAfter)
+if ([bool]$LogClearBefore -or [bool]$LogClearAfter) { Write-Host "Hinweis: laravel.log wird rotiert; .bak-* vorhanden" }
 Write-Host ("RouteListOptionScanFullProject: " + [bool]$RouteListOptionScanFullProject)
 Write-Host ("ChecksSource: " + $checksSourceLabel + " (" + $checksRoot + ")")
 

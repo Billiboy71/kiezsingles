@@ -179,7 +179,12 @@ function Invoke-KsAuditCheck_GovernanceSuperadmin {
             return & $new -Id "governance_superadmin" -Title "3) Governance: superadmin fail-safe" -Status "CRITICAL" -Summary ("Superadmins: " + $count + " (exit code mismatch)") -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
         }
 
-        return & $new -Id "governance_superadmin" -Title "3) Governance: superadmin fail-safe" -Status "OK" -Summary ("Superadmins: " + $count + " | Admins: " + $admins + " | Moderators: " + $moderators) -Details @() -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+        $okDetails = @()
+        $okDetails += "INFO: Role-assignment surface should be verified via -RoleSmokeTest (GET-only)."
+        $okDetails += "INFO: is_protected_admin destructive checks are intentionally not executed in default audit."
+        $okDetails += "INFO: users.role backdoor checks should rely on role-system SSOT inspection (Spatie relation/API if enabled)."
+
+        return & $new -Id "governance_superadmin" -Title "3) Governance: superadmin fail-safe" -Status "OK" -Summary ("Superadmins: " + $count + " | Admins: " + $admins + " | Moderators: " + $moderators) -Details $okDetails -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     } catch {
         $sw.Stop()
         $details = @()

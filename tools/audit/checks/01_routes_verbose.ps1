@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_routes_verbose.ps1
 # Purpose: Audit check - verbose route inspection (informative)
 # Created: 21-02-2026 00:10 (Europe/Berlin)
-# Changed: 23-02-2026 01:11 (Europe/Berlin)
-# Version: 0.5
+# Changed: 01-03-2026 16:35 (Europe/Berlin)
+# Version: 0.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -163,10 +163,11 @@ function Invoke-KsAuditCheck_RoutesVerbose {
                 }
 
                 $missing = @()
+                $skipEnsureSectionAccessRequirement = (($name -ieq "admin.settings.layout_outlines") -or ($uri -ieq "admin/settings/layout-outlines"))
 
                 if (-not $hasAuth) { $missing += "missing: Authenticate" }
                 if (-not $hasMaintenance) { $missing += "missing: MaintenanceMode" }
-                if ($section -eq "") { $missing += "missing: EnsureSectionAccess:<section>" }
+                if ($section -eq "" -and -not $skipEnsureSectionAccessRequirement) { $missing += "missing: EnsureSectionAccess:<section>" }
 
                 if ($section -ne "") {
                     if ($section -eq "overview" -or $section -eq "tickets") {

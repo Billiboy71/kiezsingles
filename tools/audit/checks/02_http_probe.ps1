@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\02_http_probe.ps1
 # Purpose: Audit check - HTTP exposure probe (deterministic interpretation)
 # Created: 21-02-2026 00:18 (Europe/Berlin)
-# Changed: 23-02-2026 03:24 (Europe/Berlin)
-# Version: 1.5
+# Changed: 01-03-2026 14:01 (Europe/Berlin)
+# Version: 1.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -184,6 +184,11 @@ function Invoke-KsAuditCheck_HttpProbe {
                         }
                     } catch { }
                 }
+            } else {
+                try {
+                    $vals = $Headers.GetValues($Name)
+                    if ($vals) { return Get-ValuesAsString $vals }
+                } catch { }
             }
         } catch { }
 

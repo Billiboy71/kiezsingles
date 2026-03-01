@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_routes.ps1
 # Purpose: Audit check - routes / collisions / admin scope (deterministic)
 # Created: 21-02-2026 00:06 (Europe/Berlin)
-# Changed: 21-02-2026 01:07 (Europe/Berlin)
-# Version: 0.2
+# Changed: 01-03-2026 12:33 (Europe/Berlin)
+# Version: 0.3
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -61,6 +61,7 @@ function Invoke-KsAuditCheck_Routes {
     # Collect route names and admin URIs from table lines.
     $names = New-Object System.Collections.Generic.List[string]
     $uris  = New-Object System.Collections.Generic.List[string]
+    $methodUriKeys = New-Object System.Collections.Generic.List[string]
     $nonAdminUris = New-Object System.Collections.Generic.List[string]
 
     foreach ($raw in $lines) {
@@ -75,10 +76,20 @@ function Invoke-KsAuditCheck_Routes {
         }
 
         # URI: line starts with methods then whitespace then "admin..."
-        if ($flat -match "^(GET\|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)\s+(?<uri>\S+)\s") {
+        if ($flat -match "^(?<methods>(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)(?:\|(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS))*)\s+(?<uri>\S+)\s") {
+            $methodsRaw = ("" + $Matches["methods"]).Trim()
             $u = $Matches["uri"]
             if ($u) {
                 $uris.Add($u) | Out-Null
+
+                $methodParts = @()
+                try { $methodParts = @($methodsRaw -split '\|') } catch { $methodParts = @($methodsRaw) }
+                foreach ($m in @($methodParts)) {
+                    $mm = ("" + $m).Trim().ToUpper()
+                    if ($mm -eq "") { continue }
+                    $methodUriKeys.Add(($mm + "|" + $u)) | Out-Null
+                }
+
                 if (-not ($u -like "admin*")) {
                     $nonAdminUris.Add($u) | Out-Null
                 }
@@ -102,7 +113,16 @@ function Invoke-KsAuditCheck_Routes {
     }
 
     $dupNames = Get-DupGroups ($names.ToArray())
-    $dupUris  = Get-DupGroups ($uris.ToArray())
+    $dupMethodUris = Get-DupGroups ($methodUriKeys.ToArray())
+
+    $dupAdminUsersUserCount = 0
+    foreach ($g in @($dupMethodUris)) {
+        $n = ("" + $g.Name).Trim()
+        if ($n -match '^[A-Z]+\|admin/users/\{user\}$') {
+            $dupAdminUsersUserCount = [int]$g.Count
+            break
+        }
+    }
 
     $details = @()
     $data = @{
@@ -110,7 +130,8 @@ function Invoke-KsAuditCheck_Routes {
         admin_routes_parsed  = [int]($uris.Count)
         admin_names_parsed   = [int]($names.Count)
         dup_name_count       = [int](@($dupNames).Count)
-        dup_uri_count        = [int](@($dupUris).Count)
+        dup_method_uri_count = [int](@($dupMethodUris).Count)
+        dup_admin_users_user_count = [int]$dupAdminUsersUserCount
         non_admin_uri_count  = [int]($nonAdminUris.Count)
     }
 
@@ -131,12 +152,27 @@ function Invoke-KsAuditCheck_Routes {
         if (@($dupNames).Count -gt 12) { $details += ("  ... (" + (@($dupNames).Count - 12) + " more)") }
     }
 
-    if (@($dupUris).Count -gt 0) {
-        $details += "Duplicate URIs detected:"
-        foreach ($g in (@($dupUris) | Select-Object -First 12)) {
-            $details += ("  " + $g.Name + " (x" + $g.Count + ")")
+    if (@($dupMethodUris).Count -gt 0) {
+        $details += "Duplicate Method+URI pairs detected:"
+        foreach ($g in (@($dupMethodUris) | Select-Object -First 12)) {
+            $pair = ("" + $g.Name)
+            $method = ""
+            $uri = $pair
+            if ($pair -match '^(?<method>[A-Z]+)\|(?<uri>.+)$') {
+                $method = ("" + $Matches["method"]).Trim()
+                $uri = ("" + $Matches["uri"]).Trim()
+            }
+            if ($method -ne "") {
+                $details += ("  " + $method + " " + $uri + " (x" + $g.Count + ")")
+            } else {
+                $details += ("  " + $pair + " (x" + $g.Count + ")")
+            }
         }
-        if (@($dupUris).Count -gt 12) { $details += ("  ... (" + (@($dupUris).Count - 12) + " more)") }
+        if (@($dupMethodUris).Count -gt 12) { $details += ("  ... (" + (@($dupMethodUris).Count - 12) + " more)") }
+    }
+
+    if ($dupAdminUsersUserCount -ge 2) {
+        $details += ("WARN: duplicate Method+URI for 'admin/users/{user}' detected (x" + $dupAdminUsersUserCount + ").")
     }
 
     $sw.Stop()
@@ -146,8 +182,8 @@ function Invoke-KsAuditCheck_Routes {
         return & $new -Id "routes" -Title "1) Routes / collisions / admin scope" -Status "FAIL" -Summary "Admin route scope mismatch detected." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
-    if (@($dupNames).Count -gt 0 -or @($dupUris).Count -gt 0) {
-        return & $new -Id "routes" -Title "1) Routes / collisions / admin scope" -Status "FAIL" -Summary "Route collisions detected (duplicate names and/or URIs)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
+    if (@($dupNames).Count -gt 0 -or @($dupMethodUris).Count -gt 0) {
+        return & $new -Id "routes" -Title "1) Routes / collisions / admin scope" -Status "FAIL" -Summary "Route collisions detected (duplicate names and/or Method+URI)." -Details $details -Data $data -DurationMs ([int]$sw.ElapsedMilliseconds)
     }
 
     if ($uris.Count -le 0) {

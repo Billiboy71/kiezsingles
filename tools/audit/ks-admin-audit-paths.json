@@ -1,0 +1,19 @@
+{
+  "probe_paths": [
+    "/admin",
+    "/admin/status",
+    "/admin/moderation",
+    "/admin/maintenance",
+    "/admin/debug"
+  ],
+  "role_smoke_paths": [
+    "/admin",
+    "/admin/users",
+    "/admin/moderation",
+    "/admin/tickets",
+    "/admin/maintenance",
+    "/admin/debug",
+    "/admin/develop",
+    "/admin/status"
+  ]
+}
