@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 20:21 (Europe/Berlin)
-# Version: 8.1
+# Changed: 01-03-2026 20:24 (Europe/Berlin)
+# Version: 8.2
 # =============================================================================
 
 [CmdletBinding()]
@@ -636,7 +636,7 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "8.1"
+    $uiVersion = "8.2"
     $uiSettingsFile = Join-Path $uiProjectRoot "tools\audit\ks-admin-audit-ui.settings.json"
     $uiSettings = $null
     try { $uiSettings = Get-KsAuditUiSettings -SettingsPath $uiSettingsFile } catch { $uiSettings = $null }
@@ -1078,7 +1078,7 @@ function Show-AuditGui() {
     $lblPerCheck = New-Object System.Windows.Forms.Label
     $lblPerCheck.AutoSize = $true
     $lblPerCheck.Left = 10
-    $lblPerCheck.Top = 950
+    $lblPerCheck.Top = 858
     $lblPerCheck.Text = "12) Per-Check: Details / Export"
     $panelLeft.Controls.Add($lblPerCheck)
 
@@ -1101,7 +1101,7 @@ function Show-AuditGui() {
         @{ id = "log_clear_after"; label = "Log clear after" }
     )
 
-    $matrixStartY = 970
+    $matrixStartY = 878
     $matrixRowH = 22
     for ($i = 0; $i -lt $perCheckDefs.Count; $i++) {
         $d = $perCheckDefs[$i]
@@ -1136,12 +1136,13 @@ function Show-AuditGui() {
         $perCheckRows.Add([pscustomobject]@{ id = ("" + $d.id); label = ("" + $d.label); chkDetails = $chkD; chkExport = $chkE }) | Out-Null
     }
 
-    $globalBlockTop = 830
+    $detailsMasterTop = 830
+    $globalBlockTop = 1060
 
     # 13) Master switches (optional, apply to all per-check toggles)
     $chkShowCheckDetails = New-Object System.Windows.Forms.CheckBox
     $chkShowCheckDetails.Left = 10
-    $chkShowCheckDetails.Top = $globalBlockTop
+    $chkShowCheckDetails.Top = $detailsMasterTop
     $chkShowCheckDetails.Width = 340
     $chkShowCheckDetails.Text = "13) ShowCheckDetails (Master)"
     $chkShowCheckDetails.Checked = [bool]$ShowCheckDetails
