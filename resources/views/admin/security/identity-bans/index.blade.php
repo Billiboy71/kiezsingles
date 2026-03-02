@@ -1,3 +1,12 @@
+<?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\resources\views\admin\security\identity-bans\index.blade.php
+// Purpose: Admin Security - Manage identity bans (email-based bans with optional TTL)
+// Changed: 02-03-2026 01:20 (Europe/Berlin)
+// Version: 0.4
+// ============================================================================
+
+?>
 @extends('admin.layouts.admin')
 
 @section('content')
@@ -9,22 +18,49 @@
 
     <form method="POST" action="{{ route('admin.security.identity_bans.store') }}" class="ks-card mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
         @csrf
-        <div><label>Email</label><input class="w-full" type="email" name="email" required></div>
+        <div class="md:col-span-3 flex items-start justify-between gap-3">
+            <h3>Identitäts-Sperre anlegen</h3>
+            <x-ui.help-popover id="security-identity-bans-help" title="Hilfe: Identitäts-Sperren">
+                <ul>
+                    <li>Ein Identity-Ban sperrt eine konkrete E-Mail-Adresse fur Login und Registrierung.</li>
+                    <li>Die Sperre ist IP-unabhangig und greift auch bei wechselnder Verbindung.</li>
+                    <li>TTL ist optional: leer bedeutet unbefristet, sonst automatische Freigabe nach Ablauf.</li>
+                    <li>Der Grund dokumentiert den Hintergrund fur das Team und hilft bei Nachverfolgung.</li>
+                    <li>Die Identitäts-Sperre ist getrennt vom Account-Freeze: bestehende Accounts konnen separat eingefroren sein.</li>
+                </ul>
+            </x-ui.help-popover>
+        </div>
+        <div><label>E-Mail</label><input class="w-full" type="email" name="email" required></div>
         <div><label>TTL Sekunden (optional)</label><input class="w-full" type="number" min="1" name="ttl_seconds"></div>
-        <div><label>Reason</label><input class="w-full" type="text" name="reason"></div>
-        <div><button class="ks-btn" type="submit">Identity Ban speichern</button></div>
+        <div><label>Grund</label><input class="w-full" type="text" name="reason"></div>
+        <div><button class="ks-btn" type="submit">Identitäts-Sperre speichern</button></div>
     </form>
 
     <div class="ks-card">
-        <table class="w-full text-sm">
-            <thead><tr><th class="text-left">Email</th><th class="text-left">Reason</th><th class="text-left">Until</th><th class="text-left">Action</th></tr></thead>
+        <div class="flex items-center justify-end mb-2">
+            <form method="GET" action="{{ route('admin.security.identity_bans.index') }}" class="flex items-center gap-2 text-xs">
+                <select class="w-[75px] py-1 text-xs" name="per_page" onchange="this.form.submit()">
+                    <option value="20" {{ (int) $perPage === 20 ? 'selected' : '' }}>20</option>
+                    <option value="50" {{ (int) $perPage === 50 ? 'selected' : '' }}>50</option>
+                    <option value="100" {{ (int) $perPage === 100 ? 'selected' : '' }}>100</option>
+                </select>
+
+                <noscript>
+                    <button class="ks-btn" type="submit">OK</button>
+                </noscript>
+            </form>
+        </div>
+
+        <div class="overflow-x-auto">
+        <table class="w-full min-w-[860px] text-sm">
+            <thead><tr><th class="text-left px-3 py-2">E-Mail</th><th class="text-left px-3 py-2">Grund</th><th class="text-left px-3 py-2 whitespace-nowrap">Bis</th><th class="text-left px-3 py-2 whitespace-nowrap">Aktion</th></tr></thead>
             <tbody>
             @forelse($identityBans as $ban)
                 <tr>
-                    <td>{{ $ban->email }}</td>
-                    <td>{{ $ban->reason }}</td>
-                    <td>{{ $ban->banned_until }}</td>
-                    <td>
+                    <td class="px-3 py-2 align-top">{{ $ban->email }}</td>
+                    <td class="px-3 py-2 align-top max-w-[420px] break-words">{{ $ban->reason }}</td>
+                    <td class="px-3 py-2 align-top whitespace-nowrap">{{ $ban->banned_until }}</td>
+                    <td class="px-3 py-2 align-top whitespace-nowrap">
                         <form method="POST" action="{{ route('admin.security.identity_bans.destroy', $ban->id) }}">
                             @csrf
                             @method('DELETE')
@@ -33,11 +69,12 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="4">Keine Identity-Bans vorhanden.</td></tr>
+                <tr><td colspan="4" class="px-3 py-3">Keine Identitäts-Sperren vorhanden.</td></tr>
             @endforelse
             </tbody>
         </table>
+        </div>
 
-        <div class="mt-3">{{ $identityBans->links() }}</div>
+        <div class="mt-3">{{ $identityBans->appends(request()->query())->links('vendor.pagination.tailwind') }}</div>
     </div>
 @endsection

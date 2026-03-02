@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Services\Security\SecuritySettingsService.php
+// Purpose: Ensure deterministic single-row SSOT for security settings
+// Changed: 02-03-2026 01:43 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 namespace App\Services\Security;
 

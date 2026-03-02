@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Models\SecurityIpBan.php
+// Purpose: Eloquent model for IP bans
+// Changed: 02-03-2026 01:43 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 namespace App\Models;
 

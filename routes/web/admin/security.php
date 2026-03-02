@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\routes\web\admin\security.php
+// Purpose: Admin Security routes (overview, events, bans, settings)
+// Changed: 01-03-2026 23:22 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 use App\Http\Controllers\Admin\AdminSecurityController;
 use Illuminate\Support\Facades\Route;
@@ -8,6 +14,10 @@ Route::get('security', [AdminSecurityController::class, 'overview'])
 
 Route::get('security/events', [AdminSecurityController::class, 'events'])
     ->name('security.events.index');
+
+Route::post('security/events/purge', [AdminSecurityController::class, 'purgeEvents'])
+    ->middleware('ensure.admin.stepup')
+    ->name('security.events.purge');
 
 Route::get('security/ip-bans', [AdminSecurityController::class, 'ipBans'])
     ->name('security.ip_bans.index');

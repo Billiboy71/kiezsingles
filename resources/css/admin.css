@@ -76,6 +76,17 @@ Version: 0.5
     .ks-btn:hover { background:#f8fafc; }
     .ks-btn:active { background:#f1f5f9; }
     .ks-btn:disabled { opacity:.45; cursor:not-allowed; }
+    .ks-btn--tab {
+        padding:8px 16px;
+        border-radius:6px;
+        font-weight:600;
+        font-size:12px;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+        line-height:1.2;
+    }
+    .ks-btn--active { background:#111; color:#fff; border-color:#111; }
+    .ks-btn--active:hover { background:#111; }
 
     .ks-card {
         border:1px solid #e5e7eb;
@@ -96,6 +107,45 @@ Version: 0.5
 
     .ks-status-card--maintenance { border-color:#fecaca; background:#fff5f5; }
     .ks-status-card--live { border-color:#bbf7d0; background:#f0fff4; }
+
+    .ks-help-wrap { position:relative; }
+    .ks-help-btn {
+        width:26px;
+        height:26px;
+        border-radius:999px;
+        border:1px solid #cbd5e1;
+        background:#fff;
+        color:#111;
+        font-weight:700;
+        font-size:14px;
+        line-height:1;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        cursor:pointer;
+    }
+    .ks-help-btn:hover { background:#f8fafc; }
+    .ks-help-btn:focus-visible { outline:2px solid #111; outline-offset:1px; }
+
+    .ks-help-popover {
+        position:absolute;
+        top:34px;
+        right:0;
+        z-index:40;
+        width:min(420px, 80vw);
+        max-width:420px;
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        background:#fff;
+        padding:12px;
+        box-shadow:0 12px 30px rgba(2, 6, 23, 0.14);
+        color:#1f2937;
+        font-size:13px;
+        line-height:1.45;
+    }
+    .ks-help-popover__title { font-size:14px; font-weight:700; margin:0 0 6px 0; }
+    .ks-help-popover__body ul { margin:0; padding-left:16px; }
+    .ks-help-popover__body li + li { margin-top:4px; }
 
     /* =========================================================================
        Admin Ticket Detail – small alignment fixes (scoped)

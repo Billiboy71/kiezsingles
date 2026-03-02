@@ -1,43 +1,111 @@
+<?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\resources\views\admin\security\ip-bans\index.blade.php
+// Purpose: Admin Security - Manage IP bans (manual bans with optional TTL)
+// Changed: 02-03-2026 01:14 (Europe/Berlin)
+// Version: 0.6
+// ============================================================================
+
+?>
 @extends('admin.layouts.admin')
 
 @section('content')
     @include('admin.security._tabs')
 
     @if(session('admin_notice'))
-        <div class="ks-notice p-3 rounded-lg border mb-3">{{ session('admin_notice') }}</div>
+        <div class="ks-notice p-3 rounded-lg border mb-3">
+            {{ session('admin_notice') }}
+        </div>
     @endif
 
-    <form method="POST" action="{{ route('admin.security.ip_bans.store') }}" class="ks-card mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-        @csrf
-        <div><label>IP</label><input class="w-full" type="text" name="ip" required></div>
-        <div><label>TTL Sekunden (optional)</label><input class="w-full" type="number" min="1" name="ttl_seconds"></div>
-        <div><label>Reason</label><input class="w-full" type="text" name="reason"></div>
-        <div><button class="ks-btn" type="submit">IP Ban speichern</button></div>
-    </form>
+    <div class="ks-card mb-4 p-3">
+        <div class="flex items-start justify-between gap-3 mb-3">
+            <h3>IP-Sperre hinzufügen</h3>
+
+            <x-ui.help-popover id="security-ip-bans-help" title="Hilfe: IP-Sperren">
+                <ul>
+                    <li>Eine IP-Sperre blockiert Anfragen einer konkreten IP in geschützten Bereichen (Login/Admin etc.).</li>
+                    <li>Die IP findest du typischerweise in der Ereignisse-Seite.</li>
+                    <li>TTL Sekunden ist optional. Leer bedeutet permanent.</li>
+                    <li>Der Grund dient nur zur internen Dokumentation.</li>
+                </ul>
+            </x-ui.help-popover>
+        </div>
+
+        <form method="POST" action="{{ route('admin.security.ip_bans.store') }}" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            @csrf
+
+            <div>
+                <label>IP</label>
+                <input class="w-full" type="text" name="ip" required>
+            </div>
+
+            <div>
+                <label>TTL Sekunden (optional)</label>
+                <input class="w-full" type="number" min="1" name="ttl_seconds">
+            </div>
+
+            <div>
+                <label>Grund</label>
+                <input class="w-full" type="text" name="reason">
+            </div>
+
+            <div>
+                <button class="ks-btn" type="submit">IP-Sperre speichern</button>
+            </div>
+        </form>
+    </div>
 
     <div class="ks-card">
-        <table class="w-full text-sm">
-            <thead><tr><th class="text-left">IP</th><th class="text-left">Reason</th><th class="text-left">Until</th><th class="text-left">Action</th></tr></thead>
-            <tbody>
-            @forelse($ipBans as $ban)
+        <div class="flex items-center justify-end mb-2">
+            <form method="GET" action="{{ route('admin.security.ip_bans.index') }}" class="flex items-center gap-2">
+                
+                <select class="w-[75px] text-xs py-1" name="per_page" onchange="this.form.submit()">
+                    <option value="20" {{ (int) $perPage === 20 ? 'selected' : '' }}>20</option>
+                    <option value="50" {{ (int) $perPage === 50 ? 'selected' : '' }}>50</option>
+                    <option value="100" {{ (int) $perPage === 100 ? 'selected' : '' }}>100</option>
+                </select>
+                <noscript>
+                    <button class="ks-btn" type="submit">Anwenden</button>
+                </noscript>
+            </form>
+        </div>
+
+        <div class="overflow-x-auto">
+        <table class="w-full min-w-[760px] text-sm">
+            <thead>
                 <tr>
-                    <td>{{ $ban->ip }}</td>
-                    <td>{{ $ban->reason }}</td>
-                    <td>{{ $ban->banned_until }}</td>
-                    <td>
-                        <form method="POST" action="{{ route('admin.security.ip_bans.destroy', $ban->id) }}">
-                            @csrf
-                            @method('DELETE')
-                            <button class="ks-btn" type="submit">Entfernen</button>
-                        </form>
-                    </td>
+                    <th class="text-left px-3 py-2">IP</th>
+                    <th class="text-left px-3 py-2">Grund</th>
+                    <th class="text-left px-3 py-2 whitespace-nowrap">Bis</th>
+                    <th class="text-left px-3 py-2 whitespace-nowrap">Aktion</th>
                 </tr>
-            @empty
-                <tr><td colspan="4">Keine IP-Bans vorhanden.</td></tr>
-            @endforelse
+            </thead>
+            <tbody>
+                @forelse($ipBans as $ban)
+                    <tr>
+                        <td class="px-3 py-2 align-top">{{ $ban->ip }}</td>
+                        <td class="px-3 py-2 align-top max-w-[420px] break-words">{{ $ban->reason }}</td>
+                        <td class="px-3 py-2 align-top whitespace-nowrap">{{ $ban->banned_until }}</td>
+                        <td class="px-3 py-2 align-top whitespace-nowrap">
+                            <form method="POST" action="{{ route('admin.security.ip_bans.destroy', $ban->id) }}">
+                                @csrf
+                                @method('DELETE')
+                                <button class="ks-btn" type="submit">Entfernen</button>
+                            </form>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" class="px-3 py-3">Keine IP-Bans vorhanden.</td>
+                    </tr>
+                @endforelse
             </tbody>
         </table>
+        </div>
 
-        <div class="mt-3">{{ $ipBans->links() }}</div>
+        <div class="mt-3">
+            {{ $ipBans->links('vendor.pagination.tailwind') }}
+        </div>
     </div>
 @endsection

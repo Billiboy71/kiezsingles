@@ -1351,4 +1351,70 @@
             window.location.assign(href);
         });
     })();
+
+    // ------------------------------------------------------------------------
+    // 8) Security help popovers (delegated)
+    // ------------------------------------------------------------------------
+    (function initHelpPopovers() {
+        var activePopover = null;
+        var activeTrigger = null;
+
+        function closeActive() {
+            if (!activePopover || !activeTrigger) return;
+
+            activePopover.hidden = true;
+            activePopover.setAttribute('aria-hidden', 'true');
+            activeTrigger.setAttribute('aria-expanded', 'false');
+
+            activePopover = null;
+            activeTrigger = null;
+        }
+
+        function openFor(trigger) {
+            if (!trigger) return;
+
+            var id = (trigger.getAttribute('data-ks-help-open') || '').trim();
+            if (id === '') return;
+
+            var popover = document.querySelector('[data-ks-help="' + id + '"]');
+            if (!popover) return;
+
+            if (activePopover === popover) {
+                closeActive();
+                return;
+            }
+
+            closeActive();
+
+            popover.hidden = false;
+            popover.setAttribute('aria-hidden', 'false');
+            trigger.setAttribute('aria-expanded', 'true');
+
+            activePopover = popover;
+            activeTrigger = trigger;
+        }
+
+        document.addEventListener('click', function (e) {
+            var target = e.target;
+            if (!target || !target.closest) return;
+
+            var trigger = target.closest('[data-ks-help-open]');
+            if (trigger) {
+                e.preventDefault();
+                openFor(trigger);
+                return;
+            }
+
+            if (!activePopover) return;
+            if (target.closest('[data-ks-help]')) return;
+
+            closeActive();
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (!e) return;
+            if (e.key !== 'Escape') return;
+            closeActive();
+        });
+    })();
 })();

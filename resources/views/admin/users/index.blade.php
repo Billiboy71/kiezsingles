@@ -40,7 +40,7 @@ Version: 0.3
 
                 <div>
                     <label for="per_page" class="mb-1 block text-xs font-semibold text-gray-600">Pro Seite</label>
-                    <select id="per_page" name="per_page" class="rounded-md border border-gray-300 px-3 py-2 text-sm">
+                    <select id="per_page" name="per_page" class="w-24 rounded-md border border-gray-300 px-3 py-2 pr-8 text-sm">
                         <option value="50" @selected((int) ($perPage ?? 50) === 50)>50</option>
                         <option value="100" @selected((int) ($perPage ?? 50) === 100)>100</option>
                         <option value="150" @selected((int) ($perPage ?? 50) === 150)>150</option>

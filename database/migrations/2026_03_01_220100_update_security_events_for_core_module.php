@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\database\migrations\2026_03_01_220100_update_security_events_for_core_module.php
+// Purpose: Align security_events schema with security core module requirements
+// Changed: 02-03-2026 01:43 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;

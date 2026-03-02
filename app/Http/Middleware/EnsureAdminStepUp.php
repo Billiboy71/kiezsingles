@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureAdminStepUp.php
+// Purpose: Require recent password confirmation for critical admin actions
+// Changed: 02-03-2026 01:43 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 namespace App\Http\Middleware;
 

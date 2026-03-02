@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedIp.php
+// Purpose: Block requests for active IP bans and log blocking events
+// Changed: 02-03-2026 01:49 (Europe/Berlin)
+// Version: 0.3
+// ============================================================================
 
 namespace App\Http\Middleware;
 
@@ -52,7 +58,14 @@ class EnsureNotBannedIp
             ], 403);
         }
 
-        abort(403, 'Your IP is banned.');
+        return redirect()
+            ->route('login')
+            ->withErrors([
+                'email' => __('auth.ip_banned'),
+            ])
+            ->withInput([
+                'email' => (string) $request->input('email', ''),
+            ]);
     }
 
     private function normalizedEmail(string $email): ?string

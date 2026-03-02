@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Events\Security\SecurityEventTriggered.php
+// Purpose: Internal event DTO for normalized security event logging
+// Changed: 02-03-2026 01:43 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 namespace App\Events\Security;
 

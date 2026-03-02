@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Services\Security\DeviceHashService.php
+// Purpose: Build stable device hash from request fingerprint inputs
+// Changed: 02-03-2026 01:43 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 namespace App\Services\Security;
 

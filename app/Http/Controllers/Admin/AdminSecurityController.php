@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminSecurityController.php
+// Purpose: Admin Security controller (overview, events, bans, settings, event purge)
+// Changed: 02-03-2026 01:09 (Europe/Berlin)
+// Version: 0.2
+// ============================================================================
 
 namespace App\Http\Controllers\Admin;
 
@@ -63,6 +69,11 @@ class AdminSecurityController extends Controller
 
     public function events(Request $request): View
     {
+        $perPage = (int) $request->query('per_page', 20);
+        if (!in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
+
         $query = SecurityEvent::query()->latest('id');
 
         $type = trim((string) $request->query('type', ''));
@@ -96,11 +107,12 @@ class AdminSecurityController extends Controller
             $query->whereDate('created_at', '<=', $dateTo);
         }
 
-        $events = $query->paginate(50)->withQueryString();
+        $events = $query->paginate($perPage)->appends($request->query())->onEachSide(2);
 
         return view('admin.security.events.index', [
             'adminTab' => 'security',
             'events' => $events,
+            'perPage' => $perPage,
             'filters' => [
                 'type' => $type,
                 'ip' => $ip,
@@ -112,13 +124,77 @@ class AdminSecurityController extends Controller
         ]);
     }
 
+    public function purgeEvents(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'confirm' => ['required', 'string'],
+            'type' => ['nullable', 'string', 'max:100'],
+            'ip' => ['nullable', 'string', 'max:100'],
+            'email' => ['nullable', 'string', 'max:255'],
+            'device_hash' => ['nullable', 'string', 'max:128'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+        ]);
+
+        if (trim((string) $validated['confirm']) !== 'DELETE') {
+            return redirect()->route('admin.security.events.index')->with('admin_notice', 'Löschen abgebrochen (Confirm muss "DELETE" sein).');
+        }
+
+        $query = SecurityEvent::query();
+
+        $type = trim((string) ($validated['type'] ?? ''));
+        $ip = trim((string) ($validated['ip'] ?? ''));
+        $email = mb_strtolower(trim((string) ($validated['email'] ?? '')));
+        $deviceHash = trim((string) ($validated['device_hash'] ?? ''));
+        $dateFrom = trim((string) ($validated['date_from'] ?? ''));
+        $dateTo = trim((string) ($validated['date_to'] ?? ''));
+
+        if ($type !== '') {
+            $query->where('type', $type);
+        }
+
+        if ($ip !== '') {
+            $query->where('ip', $ip);
+        }
+
+        if ($email !== '') {
+            $query->where('email', $email);
+        }
+
+        if ($deviceHash !== '') {
+            $query->where('device_hash', $deviceHash);
+        }
+
+        if ($dateFrom !== '') {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+
+        if ($dateTo !== '') {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+
+        $deleted = (int) $query->delete();
+
+        return redirect()->route('admin.security.events.index')->with('admin_notice', 'Security-Events gelöscht: '.$deleted);
+    }
+
     public function ipBans(): View
     {
-        $ipBans = SecurityIpBan::query()->latest('id')->paginate(25);
+        $perPage = (int) request()->query('per_page', 20);
+        if (!in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
+
+        $ipBans = SecurityIpBan::query()
+            ->latest('id')
+            ->paginate($perPage)
+            ->appends(request()->query())
+            ->onEachSide(2);
 
         return view('admin.security.ip-bans.index', [
             'adminTab' => 'security',
             'ipBans' => $ipBans,
+            'perPage' => $perPage,
         ]);
     }
 
@@ -151,11 +227,21 @@ class AdminSecurityController extends Controller
 
     public function identityBans(): View
     {
-        $identityBans = SecurityIdentityBan::query()->latest('id')->paginate(25);
+        $perPage = (int) request()->query('per_page', 20);
+        if (!in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
+
+        $identityBans = SecurityIdentityBan::query()
+            ->latest('id')
+            ->paginate($perPage)
+            ->appends(request()->query())
+            ->onEachSide(2);
 
         return view('admin.security.identity-bans.index', [
             'adminTab' => 'security',
             'identityBans' => $identityBans,
+            'perPage' => $perPage,
         ]);
     }
 
