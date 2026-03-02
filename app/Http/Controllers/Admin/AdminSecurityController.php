@@ -2,13 +2,14 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminSecurityController.php
 // Purpose: Admin Security controller (overview, events, bans, settings, event purge)
-// Changed: 02-03-2026 01:09 (Europe/Berlin)
-// Version: 0.2
+// Changed: 02-03-2026 14:57 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\SecurityDeviceBan;
 use App\Models\SecurityEvent;
 use App\Models\SecurityIdentityBan;
 use App\Models\SecurityIpBan;
@@ -34,6 +35,7 @@ class AdminSecurityController extends Controller
         $activeIpBans = SecurityIpBan::query()->active()->count();
 
         $activeIdentityBans = SecurityIdentityBan::query()->active()->count();
+        $activeDeviceBans = SecurityDeviceBan::query()->active()->count();
 
         $frozenAccounts = User::query()->where('is_frozen', true)->count();
 
@@ -61,6 +63,7 @@ class AdminSecurityController extends Controller
             'failedLogins24h' => $failedLogins24h,
             'activeIpBans' => $activeIpBans,
             'activeIdentityBans' => $activeIdentityBans,
+            'activeDeviceBans' => $activeDeviceBans,
             'frozenAccounts' => $frozenAccounts,
             'topSuspiciousIps' => $topSuspiciousIps,
             'topDeviceHashes' => $topDeviceHashes,
@@ -272,6 +275,61 @@ class AdminSecurityController extends Controller
         return redirect()->route('admin.security.identity_bans.index')->with('admin_notice', 'Identity-Ban entfernt.');
     }
 
+    public function deviceBans(): View
+    {
+        $perPage = (int) request()->query('per_page', 20);
+        if (!in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
+
+        $deviceBans = SecurityDeviceBan::query()
+            ->latest('id')
+            ->paginate($perPage)
+            ->appends(request()->query())
+            ->onEachSide(2);
+
+        return view('admin.security.device-bans.index', [
+            'adminTab' => 'security',
+            'deviceBans' => $deviceBans,
+            'perPage' => $perPage,
+        ]);
+    }
+
+    public function storeDeviceBan(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'device_hash' => ['required', 'string', 'size:64'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+            'ttl_seconds' => ['nullable', 'integer', 'min:1', 'max:31536000'],
+        ]);
+
+        $ttlSeconds = isset($validated['ttl_seconds']) ? (int) $validated['ttl_seconds'] : null;
+
+        SecurityDeviceBan::query()->create([
+            'device_hash' => trim((string) $validated['device_hash']),
+            'reason' => $validated['reason'] ?? null,
+            'banned_until' => $ttlSeconds !== null ? now()->addSeconds($ttlSeconds) : null,
+            'is_active' => true,
+            'created_by' => auth()->id(),
+        ]);
+
+        return redirect()->route('admin.security.device_bans.index')->with('admin_notice', 'Geräte-Sperre gespeichert.');
+    }
+
+    public function destroyDeviceBan(int $id): RedirectResponse
+    {
+        $ban = SecurityDeviceBan::query()->whereKey($id)->first();
+
+        if ($ban) {
+            $ban->fill([
+                'is_active' => false,
+                'revoked_at' => now(),
+            ])->save();
+        }
+
+        return redirect()->route('admin.security.device_bans.index')->with('admin_notice', 'Geräte-Sperre entfernt.');
+    }
+
     public function editSettings(): View
     {
         return view('admin.security.settings.edit', [
@@ -288,6 +346,9 @@ class AdminSecurityController extends Controller
             'ip_autoban_enabled' => ['sometimes', 'boolean'],
             'ip_autoban_fail_threshold' => ['required', 'integer', 'min:1', 'max:100000'],
             'ip_autoban_seconds' => ['required', 'integer', 'min:60', 'max:31536000'],
+            'device_autoban_enabled' => ['sometimes', 'boolean'],
+            'device_autoban_fail_threshold' => ['required', 'integer', 'min:1', 'max:100000'],
+            'device_autoban_seconds' => ['required', 'integer', 'min:60', 'max:31536000'],
             'admin_stricter_limits_enabled' => ['sometimes', 'boolean'],
             'stepup_required_enabled' => ['sometimes', 'boolean'],
         ]);
@@ -300,6 +361,9 @@ class AdminSecurityController extends Controller
             'ip_autoban_enabled' => $request->boolean('ip_autoban_enabled'),
             'ip_autoban_fail_threshold' => (int) $validated['ip_autoban_fail_threshold'],
             'ip_autoban_seconds' => (int) $validated['ip_autoban_seconds'],
+            'device_autoban_enabled' => $request->boolean('device_autoban_enabled'),
+            'device_autoban_fail_threshold' => (int) $validated['device_autoban_fail_threshold'],
+            'device_autoban_seconds' => (int) $validated['device_autoban_seconds'],
             'admin_stricter_limits_enabled' => $request->boolean('admin_stricter_limits_enabled'),
             'stepup_required_enabled' => $request->boolean('stepup_required_enabled'),
         ]);

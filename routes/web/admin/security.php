@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\security.php
 // Purpose: Admin Security routes (overview, events, bans, settings)
-// Changed: 01-03-2026 23:22 (Europe/Berlin)
-// Version: 0.1
+// Changed: 02-03-2026 14:00 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminSecurityController;
@@ -36,6 +36,15 @@ Route::post('security/identity-bans', [AdminSecurityController::class, 'storeIde
 
 Route::delete('security/identity-bans/{id}', [AdminSecurityController::class, 'destroyIdentityBan'])
     ->name('security.identity_bans.destroy');
+
+Route::get('security/device-bans', [AdminSecurityController::class, 'deviceBans'])
+    ->name('security.device_bans.index');
+
+Route::post('security/device-bans', [AdminSecurityController::class, 'storeDeviceBan'])
+    ->name('security.device_bans.store');
+
+Route::delete('security/device-bans/{id}', [AdminSecurityController::class, 'destroyDeviceBan'])
+    ->name('security.device_bans.destroy');
 
 Route::get('security/settings', [AdminSecurityController::class, 'editSettings'])
     ->name('security.settings.edit');

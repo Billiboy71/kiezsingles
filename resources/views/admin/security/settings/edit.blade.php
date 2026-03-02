@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\settings\edit.blade.php
 // Purpose: Admin Security - Security settings (SSOT configuration)
-// Changed: 02-03-2026 00:52 (Europe/Berlin)
-// Version: 0.2
+// Changed: 02-03-2026 14:57 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 ?>
@@ -26,6 +26,7 @@
                     <li>Max. Fehlversuche (Login): zulässige Fehlversuche pro Kombination aus IP und E-Mail.</li>
                     <li>Sperrdauer (Sekunden): Dauer der Sperre, nachdem das Limit erreicht wurde.</li>
                     <li>Automatische IP-Sperre aktiv / Fehlversuche bis IP-Sperre / Dauer der IP-Sperre (Sekunden): Steuerung der Auto-Sperre bei Missbrauch.</li>
+                    <li>Automatische Geräte-Sperre aktiv / Fehlversuche bis Geräte-Sperre / Dauer der Geräte-Sperre (Sekunden): Auto-Sperre auf Geräte-Hash-Basis.</li>
                     <li>Strengere Regeln für Admins aktiv: schärfere Limits für sensible Admin-Pfade.</li>
                     <li>Zusätzliche Bestätigung erforderlich (Step-Up): Passwort-Bestätigung für kritische Admin-Aktionen.</li>
                     <li>Alle Änderungen wirken serverseitig sofort und löschen keine bestehenden Ereignisse oder Sperren.</li>
@@ -57,10 +58,28 @@
                    value="{{ old('ip_autoban_seconds', $settings->ip_autoban_seconds) }}" required>
         </div>
 
+        <div>
+            <label>Fehlversuche bis Geräte-Sperre</label>
+            <input class="w-full" type="number" min="1" name="device_autoban_fail_threshold"
+                   value="{{ old('device_autoban_fail_threshold', $settings->device_autoban_fail_threshold) }}" required>
+        </div>
+
+        <div>
+            <label>Dauer der Geräte-Sperre (Sekunden)</label>
+            <input class="w-full" type="number" min="60" name="device_autoban_seconds"
+                   value="{{ old('device_autoban_seconds', $settings->device_autoban_seconds) }}" required>
+        </div>
+
         <label>
             <input type="checkbox" name="ip_autoban_enabled" value="1"
                 {{ old('ip_autoban_enabled', $settings->ip_autoban_enabled) ? 'checked' : '' }}>
             Automatische IP-Sperre aktiv
+        </label>
+
+        <label>
+            <input type="checkbox" name="device_autoban_enabled" value="1"
+                {{ old('device_autoban_enabled', $settings->device_autoban_enabled) ? 'checked' : '' }}>
+            Automatische Geräte-Sperre aktiv
         </label>
 
         <label>

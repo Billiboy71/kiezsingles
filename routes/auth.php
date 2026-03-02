@@ -2,6 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\auth.php
 // Purpose: Auth routes (guest/auth) incl. email verification
+// Changed: 02-03-2026 03:39 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -13,6 +15,8 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Middleware\EnsureNotBannedDevice;
+use App\Http\Middleware\EnsureNotBannedEmail;
 use App\Http\Middleware\EnsureNotBannedIdentity;
 use Illuminate\Support\Facades\Route;
 
@@ -22,18 +26,29 @@ Route::middleware('guest')->group(function () {
         ->name('verification.send.guest');
 
     Route::get('register', [RegisteredUserController::class, 'create'])
-        ->middleware('ensure.not.banned.ip')
+        ->middleware(['ensure.not.banned.ip', EnsureNotBannedEmail::class, EnsureNotBannedDevice::class])
         ->name('register');
 
     Route::post('register', [RegisteredUserController::class, 'store'])
-        ->middleware(['ensure.not.banned.ip', EnsureNotBannedIdentity::class, 'throttle:3,1']);
+        ->middleware([
+            'ensure.not.banned.ip',
+            EnsureNotBannedEmail::class,
+            EnsureNotBannedDevice::class,
+            EnsureNotBannedIdentity::class,
+            'throttle:3,1'
+        ]);
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
-        ->middleware('ensure.not.banned.ip')
+        ->middleware(['ensure.not.banned.ip', EnsureNotBannedEmail::class, EnsureNotBannedDevice::class])
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
-        ->middleware(['ensure.not.banned.ip', EnsureNotBannedIdentity::class]);
+        ->middleware([
+            'ensure.not.banned.ip',
+            EnsureNotBannedEmail::class,
+            EnsureNotBannedDevice::class,
+            EnsureNotBannedIdentity::class
+        ]);
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');

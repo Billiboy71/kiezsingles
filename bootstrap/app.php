@@ -2,11 +2,12 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\bootstrap\app.php
 // Purpose: Application bootstrap & middleware registration
-// Changed: 25-02-2026 12:25 (Europe/Berlin)
-// Version: 1.4
+// Changed: 02-03-2026 12:44 (Europe/Berlin)
+// Version: 1.5
 // ============================================================================
 
 use App\Http\Middleware\MaintenanceMode;
+use App\Http\Middleware\SetSessionLifetimeByRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Do NOT register it as global middleware.
         $middleware->web(append: [
             MaintenanceMode::class,
+            SetSessionLifetimeByRole::class,
         ]);
 
         // Route middleware aliases (Laravel 11/12 bootstrap registration).

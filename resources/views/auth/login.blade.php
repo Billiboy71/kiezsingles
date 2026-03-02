@@ -1,13 +1,27 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\login.blade.php       --}}
-{{-- Changed: 28-02-2026 02:40 (Europe/Berlin)                                 --}}
-{{-- Version: 0.4                                                              --}}
+{{-- Changed: 02-03-2026 17:42 (Europe/Berlin)                                 --}}
+{{-- Version: 0.5                                                              --}}
 {{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
 {{-- ========================================================================= --}}
 
 <x-guest-layout>
     <!-- Session Status (BLEIBT) -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
+
+    @if (session('security_ban_support_ref'))
+        <div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+            <div class="font-medium text-center">
+                Anmeldung aktuell nicht möglich.
+            </div>
+            <div class="mt-1 text-center">
+                Referenz: {{ session('security_ban_support_ref') }}
+            </div>
+            <div class="mt-1 text-center">
+                Bitte melde dich mit dieser Referenz beim Support.
+            </div>
+        </div>
+    @endif
 
     @if (session('maintenance_login_blocked'))
         <div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">

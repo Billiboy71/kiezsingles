@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedIp.php
 // Purpose: Block requests for active IP bans and log blocking events
-// Changed: 02-03-2026 01:49 (Europe/Berlin)
-// Version: 0.3
+// Changed: 02-03-2026 17:35 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -13,6 +13,7 @@ use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureNotBannedIp
@@ -40,29 +41,24 @@ class EnsureNotBannedIp
             return $next($request);
         }
 
+        $supportRef = $this->generateSupportReference();
+
         $this->securityEventLogger->log(
             type: 'ip_blocked',
             ip: $ip,
             email: $this->normalizedEmail((string) $request->input('email', '')),
             deviceHash: $this->deviceHashService->forRequest($request),
             meta: [
+                'support_ref' => $supportRef,
                 'reason' => $activeBan->reason,
                 'banned_until' => $activeBan->banned_until?->toIso8601String(),
                 'path' => $request->path(),
             ],
         );
 
-        if ($request->expectsJson()) {
-            return response()->json([
-                'message' => 'Your IP is banned.',
-            ], 403);
-        }
-
         return redirect()
             ->route('login')
-            ->withErrors([
-                'email' => __('auth.ip_banned'),
-            ])
+            ->with('security_ban_support_ref', $supportRef)
             ->withInput([
                 'email' => (string) $request->input('email', ''),
             ]);
@@ -73,5 +69,10 @@ class EnsureNotBannedIp
         $value = mb_strtolower(trim($email));
 
         return $value !== '' ? $value : null;
+    }
+
+    private function generateSupportReference(): string
+    {
+        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
     }
 }

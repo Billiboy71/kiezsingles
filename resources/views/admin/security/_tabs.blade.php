@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\_tabs.blade.php
 // Purpose: Admin Security - Tabs navigation (active tab styled like header)
-// Changed: 02-03-2026 00:52 (Europe/Berlin)
-// Version: 0.2
+// Changed: 02-03-2026 14:00 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 $route = request()->route()?->getName();
@@ -29,6 +29,11 @@ $route = request()->route()?->getName();
     <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.identity_bans.index' ? 'ks-btn--active' : '' }}"
        href="{{ route('admin.security.identity_bans.index') }}">
         Identitäts-Sperren
+    </a>
+
+    <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.device_bans.index' ? 'ks-btn--active' : '' }}"
+       href="{{ route('admin.security.device_bans.index') }}">
+        Geräte-Sperren
     </a>
 
     <a class="ks-btn ks-btn--tab {{ in_array($route, ['admin.security.settings.edit', 'admin.security.settings.update'], true) ? 'ks-btn--active' : '' }}"

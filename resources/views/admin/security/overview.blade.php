@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\overview.blade.php
 // Purpose: Admin Security - Overview dashboard (24h aggregates, top IPs/device hashes)
-// Changed: 02-03-2026 00:52 (Europe/Berlin)
-// Version: 0.2
+// Changed: 02-03-2026 14:00 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 ?>
@@ -20,9 +20,9 @@
                     <li>Die Kennzahlen laufen in einem rollenden 24h-Fenster und beziehen sich immer auf jetzt minus 24 Stunden.</li>
                     <li>Es gibt keinen manuellen Reset. Bei sinkender Aktivität gehen Werte von allein wieder runter.</li>
                     <li>Fehlgeschlagene Logins, auffällige IPs und Geräte-Hashes kommen aus den Sicherheitsereignissen.</li>
-                    <li>Aktive IP-Sperren und aktive Identitäts-Sperren kommen aus den aktiven Sperr-Einträgen (TTL offen oder noch nicht abgelaufen).</li>
+                    <li>Aktive IP-, Identitäts- und Geräte-Sperren kommen aus den aktiven Sperr-Einträgen (TTL offen oder noch nicht abgelaufen).</li>
                     <li>Gesperrte Konten zeigt die Anzahl von Nutzern mit aktivem Freeze-Flag.</li>
-                    <li>Diese Seite ist nur zur Analyse. Sperren und Entsperren passiert in IP-Sperren oder Identitäts-Sperren.</li>
+                    <li>Diese Seite ist nur zur Analyse. Sperren und Entsperren passiert in den jeweiligen Sperren-Tabs.</li>
                 </ul>
             </x-ui.help-popover>
         </div>
@@ -32,6 +32,7 @@
         <div class="ks-card"><h3>Fehlgeschlagene Logins (24h)</h3><p class="text-2xl font-semibold">{{ $failedLogins24h }}</p></div>
         <div class="ks-card"><h3>Aktive IP-Sperren</h3><p class="text-2xl font-semibold">{{ $activeIpBans }}</p></div>
         <div class="ks-card"><h3>Aktive Identitäts-Sperren</h3><p class="text-2xl font-semibold">{{ $activeIdentityBans }}</p></div>
+        <div class="ks-card"><h3>Aktive Geräte-Sperren</h3><p class="text-2xl font-semibold">{{ $activeDeviceBans }}</p></div>
         <div class="ks-card"><h3>Gesperrte Konten</h3><p class="text-2xl font-semibold">{{ $frozenAccounts }}</p></div>
     </div>
 

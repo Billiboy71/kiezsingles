@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedIdentity.php
 // Purpose: Block requests for active identity bans (email-based)
-// Changed: 02-03-2026 01:43 (Europe/Berlin)
-// Version: 0.1
+// Changed: 02-03-2026 14:00 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -13,6 +13,7 @@ use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureNotBannedIdentity
@@ -40,12 +41,15 @@ class EnsureNotBannedIdentity
             return $next($request);
         }
 
+        $supportRef = $this->generateSupportReference();
+
         $this->securityEventLogger->log(
             type: 'identity_blocked',
             ip: $request->ip(),
             email: $email,
             deviceHash: $this->deviceHashService->forRequest($request),
             meta: [
+                'support_ref' => $supportRef,
                 'reason' => $activeBan->reason,
                 'banned_until' => $activeBan->banned_until?->toIso8601String(),
                 'path' => $request->path(),
@@ -53,10 +57,15 @@ class EnsureNotBannedIdentity
         );
 
         if ($request->expectsJson()) {
-            return response()->json(['message' => 'This identity is banned.'], 403);
+            return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        abort(403, 'This identity is banned.');
+        return redirect()
+            ->route('login')
+            ->with('security_ban_support_ref', $supportRef)
+            ->withInput([
+                'email' => (string) $request->input('email', ''),
+            ]);
     }
 
     private function normalizedEmail(string $email): ?string
@@ -64,5 +73,10 @@ class EnsureNotBannedIdentity
         $value = mb_strtolower(trim($email));
 
         return $value !== '' ? $value : null;
+    }
+
+    private function generateSupportReference(): string
+    {
+        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
     }
 }

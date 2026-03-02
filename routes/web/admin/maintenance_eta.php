@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\maintenance_eta.php
 // Purpose: Admin maintenance (GET /admin/maintenance) + ETA routes (AJAX + form)
-// Changed: 27-02-2026 19:15 (Europe/Berlin)
-// Version: 1.8
+// Changed: 02-03-2026 14:44 (Europe/Berlin)
+// Version: 1.9
 // ============================================================================
 
 use App\Support\KsMaintenance;
@@ -114,6 +114,7 @@ $buildMaintenanceContext = function (): array {
     $adminDebugUrl = url('/admin/debug');
     $adminTicketsUrl = url('/admin/tickets');
     $adminModerationUrl = url('/admin/moderation');
+    $adminSecurityUrl = url('/admin/security');
 
     // Canonical order: Übersicht, Wartung, Debug, Tickets, Moderation
     $adminNavItems = [
@@ -147,6 +148,12 @@ $buildMaintenanceContext = function (): array {
         'key' => 'moderation',
         'label' => 'Moderation',
         'url' => $adminModerationUrl,
+    ];
+
+    $adminNavItems[] = [
+        'key' => 'security',
+        'label' => 'Security',
+        'url' => $adminSecurityUrl,
     ];
 
     $localRouteDebug = null;
@@ -202,6 +209,7 @@ $buildMaintenanceContext = function (): array {
         'adminDebugUrl' => $adminDebugUrl,
         'adminTicketsUrl' => $adminTicketsUrl,
         'adminModerationUrl' => $adminModerationUrl,
+        'adminSecurityUrl' => $adminSecurityUrl,
 
         'adminShowDebugTab' => $debugTabVisibleFlag,
 
@@ -499,5 +507,4 @@ Route::post('/maintenance/eta/clear', function () {
 })
     ->defaults('adminTab', 'maintenance')
     ->name('maintenance.eta.clear');
-
 

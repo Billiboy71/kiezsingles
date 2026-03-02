@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\Security\SecuritySettingsService.php
 // Purpose: Ensure deterministic single-row SSOT for security settings
-// Changed: 02-03-2026 01:43 (Europe/Berlin)
-// Version: 0.1
+// Changed: 02-03-2026 14:57 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Services\Security;
@@ -55,6 +55,9 @@ class SecuritySettingsService
             'ip_autoban_enabled' => false,
             'ip_autoban_fail_threshold' => 100,
             'ip_autoban_seconds' => 3600,
+            'device_autoban_enabled' => false,
+            'device_autoban_fail_threshold' => 100,
+            'device_autoban_seconds' => 3600,
             'admin_stricter_limits_enabled' => true,
             'stepup_required_enabled' => true,
         ];

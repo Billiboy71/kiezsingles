@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Models\SecuritySetting.php
 // Purpose: Eloquent model for security settings SSOT row
-// Changed: 02-03-2026 01:43 (Europe/Berlin)
-// Version: 0.1
+// Changed: 02-03-2026 14:57 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Models;
@@ -18,6 +18,9 @@ class SecuritySetting extends Model
         'ip_autoban_enabled',
         'ip_autoban_fail_threshold',
         'ip_autoban_seconds',
+        'device_autoban_enabled',
+        'device_autoban_fail_threshold',
+        'device_autoban_seconds',
         'admin_stricter_limits_enabled',
         'stepup_required_enabled',
     ];
@@ -28,6 +31,9 @@ class SecuritySetting extends Model
         'ip_autoban_enabled' => 'boolean',
         'ip_autoban_fail_threshold' => 'integer',
         'ip_autoban_seconds' => 'integer',
+        'device_autoban_enabled' => 'boolean',
+        'device_autoban_fail_threshold' => 'integer',
+        'device_autoban_seconds' => 'integer',
         'admin_stricter_limits_enabled' => 'boolean',
         'stepup_required_enabled' => 'boolean',
     ];
