@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\03a_session_csrf_baseline.ps1
 # Purpose: Audit check - Session/CSRF baseline (read-only)
 # Created: 28-02-2026 (Europe/Berlin)
-# Changed: 01-03-2026 16:42 (Europe/Berlin)
-# Version: 0.3
+# Changed: 03-03-2026 12:00 (Europe/Berlin)
+# Version: 0.4
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -193,8 +193,22 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
             [Parameter(Mandatory = $true)][string]$Method,
             [Parameter(Mandatory = $true)]$Session,
             [Parameter(Mandatory = $false)]$Body,
-            [Parameter(Mandatory = $false)][int]$MaxRedirection = 0
+            [Parameter(Mandatory = $false)][int]$MaxRedirection = 0,
+            [Parameter(Mandatory = $false)][hashtable]$ExtraHeaders = $null
         )
+
+        $headers = @{
+            "Accept"      = "text/html,application/xhtml+xml"
+            "User-Agent"  = "ks-admin-audit/SessionCsrfBaseline"
+        }
+
+        if ($null -ne $ExtraHeaders) {
+            foreach ($k in @($ExtraHeaders.Keys)) {
+                try {
+                    $headers["" + $k] = ("" + $ExtraHeaders[$k])
+                } catch { }
+            }
+        }
 
         $params = @{
             Uri = $Uri
@@ -203,7 +217,7 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
             WebSession = $Session
             TimeoutSec = 12
             ErrorAction = "Stop"
-            Headers = @{ "Accept" = "text/html,application/xhtml+xml" }
+            Headers = $headers
         }
         try {
             $cmd = Get-Command Invoke-WebRequest -ErrorAction Stop
@@ -293,6 +307,29 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
         }
     }
 
+    function Extract-CsrfTokenFromHtml([string]$Html) {
+        $token = ""
+        if ($null -eq $Html) { return "" }
+        $h = "" + $Html
+        if ($h.Trim() -eq "") { return "" }
+
+        # 1) Standard Blade form token: <input ... name="_token" ... value="...">
+        try {
+            $m = [regex]::Match($h, '<input[^>]*\bname\s*=\s*["'']_token["''][^>]*\bvalue\s*=\s*["'']([^"''<>]+)["'']', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            if ($m.Success) { $token = ("" + $m.Groups[1].Value).Trim() }
+        } catch { $token = "" }
+
+        # 2) Attribute order reversed: value before name
+        if ($token -eq "") {
+            try {
+                $m2 = [regex]::Match($h, '<input[^>]*\bvalue\s*=\s*["'']([^"''<>]+)["''][^>]*\bname\s*=\s*["'']_token["'']', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                if ($m2.Success) { $token = ("" + $m2.Groups[1].Value).Trim() }
+            } catch { $token = "" }
+        }
+
+        return $token
+    }
+
     function Login-RoleSession([string]$BaseUrl, [string]$Email, [string]$Password) {
         if (("" + $Email).Trim() -eq "" -or ("" + $Password) -eq "") {
             return [pscustomobject]@{ ok = $false; reason = "missing_credentials"; session = $null }
@@ -303,17 +340,21 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
         if ($null -eq $session) { return [pscustomobject]@{ ok = $false; reason = "session_init_failed"; session = $null } }
 
         $loginUrl = $BaseUrl + "/login"
-        $rGet = Invoke-IwrCapture -Uri $loginUrl -Method "GET" -Session $session -MaxRedirection 20
+
+        $rGet = Invoke-IwrCapture -Uri $loginUrl -Method "GET" -Session $session -MaxRedirection 20 -ExtraHeaders @{ "Referer" = $loginUrl }
         if (-not $rGet.ok) { return [pscustomobject]@{ ok = $false; reason = "login_get_failed"; session = $null } }
 
         $token = ""
-        try {
-            $m = [regex]::Match(("" + $rGet.content), 'name\s*=\s*"[_]?token"\s+value\s*=\s*"([^"]+)"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-            if ($m.Success) { $token = ("" + $m.Groups[1].Value) }
-        } catch { $token = "" }
+        try { $token = Extract-CsrfTokenFromHtml -Html ("" + $rGet.content) } catch { $token = "" }
         if ($token -eq "") { return [pscustomobject]@{ ok = $false; reason = "missing_token"; session = $null } }
 
-        $rPost = Invoke-IwrCapture -Uri $loginUrl -Method "POST" -Session $session -Body @{ _token = $token; email = $Email; password = $Password } -MaxRedirection 1
+        $postHeaders = @{
+            "Referer" = $loginUrl
+            "Origin"  = $BaseUrl
+            "X-CSRF-TOKEN" = $token
+        }
+
+        $rPost = Invoke-IwrCapture -Uri $loginUrl -Method "POST" -Session $session -Body @{ _token = $token; email = $Email; password = $Password } -MaxRedirection 1 -ExtraHeaders $postHeaders
         if (-not $rPost.ok) { return [pscustomobject]@{ ok = $false; reason = "login_post_failed"; session = $null } }
         if ($rPost.status -eq 419) { return [pscustomobject]@{ ok = $false; reason = "csrf_419"; session = $null } }
         if (("" + $rPost.location) -match '(?i)/login(?:$|[/?#])') { return [pscustomobject]@{ ok = $false; reason = "redirect_login"; session = $null } }
@@ -443,10 +484,10 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
 
             foreach ($p in @($pathsSource)) {
                 $url = (("" + $Context.BaseUrl).TrimEnd("/")) + ("" + $p)
-                $res = Invoke-IwrCapture -Uri $url -Method "GET" -Session $login.session -MaxRedirection 0
+                $res = Invoke-IwrCapture -Uri $url -Method "GET" -Session $login.session -MaxRedirection 0 -ExtraHeaders @{ "Referer" = $url }
                 $fallbackFollow = $false
                 if (-not $res.ok) {
-                    $resRetry = Invoke-IwrCapture -Uri $url -Method "GET" -Session $login.session -MaxRedirection 1
+                    $resRetry = Invoke-IwrCapture -Uri $url -Method "GET" -Session $login.session -MaxRedirection 1 -ExtraHeaders @{ "Referer" = $url }
                     if ($resRetry.ok) {
                         $res = $resRetry
                         $fallbackFollow = $true

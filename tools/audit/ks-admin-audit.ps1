@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 21:01 (Europe/Berlin)
-# Version: 4.4
+# Changed: 04-03-2026 01:59 (Europe/Berlin)
+# Version: 5.3
 # =============================================================================
 
 [CmdletBinding()]
@@ -46,6 +46,9 @@ param(
     # Role smoke paths (used by -RoleSmokeTest)
     [string[]]$RoleSmokePaths = @("/admin", "/admin/users", "/admin/moderation", "/admin/tickets", "/admin/maintenance", "/admin/debug", "/admin/develop", "/admin/status"),
 
+    # Optional path config file (compatibility with GUI wrapper)
+    [string]$PathsConfigFile = "",
+
     # If set, prints session/CSRF baseline (read-only)
     [switch]$SessionCsrfBaseline,
 
@@ -81,10 +84,27 @@ param(
     [switch]$SecurityExpect429,
 
     # Lockout keywords used by security probes
-    [string[]]$SecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout"),
+    [string[]]$SecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout","zu viele","versuche"),
+
+    # If set, runs full end-to-end security test flow over HTTP.
+    [switch]$SecurityE2E,
+    [switch]$SecurityE2ELockout,
+    [switch]$SecurityE2EIpAutoban,
+    [switch]$SecurityE2EDeviceAutoban,
+    [switch]$SecurityE2EIdentityBan,
+    [switch]$SecurityE2ESupportRef,
+    [switch]$SecurityE2EEventsCheck,
+    [int]$SecurityE2EAttempts = 10,
+    [int]$SecurityE2EThreshold = 3,
+    [int]$SecurityE2ESeconds = 300,
+    [string]$SecurityE2ELogin = "audit-test@kiezsingles.local",
+    [string]$SecurityE2EPassword = "random",
+    [string]$SecurityE2ECleanup = "true",
+    [string]$SecurityE2EDryRun = "false",
+    [string]$SecurityE2EEnvGate = "true",
 
     # If true, prints optional per-check details/evidence blocks below the status line.
-    [string]$ShowCheckDetails = "true",
+    [string]$ShowCheckDetails = "false",
 
     # If true, exports per-check log slices to files in ExportFolder.
     [string]$ExportLogs = "false",
@@ -116,68 +136,24 @@ param(
     [string[]]$IgnoredArgs
 )
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
-function Get-SafeCount([object]$Value) {
-    try {
-        if ($null -eq $Value) { return 0 }
-
-        if ($Value -is [string]) { return 1 }
-
-        if ($Value -is [System.Collections.IDictionary]) {
-            try { return [int]$Value.Count } catch { return 0 }
-        }
-
-        if ($Value -is [System.Collections.ICollection]) {
-            try { return [int]$Value.Count } catch { return 0 }
-        }
-
-        try {
-            $arr = @($Value)
-            if ($null -eq $arr) { return 0 }
-            try { return [int]$arr.Count } catch { return 0 }
-        } catch {
-            return 0
-        }
-    } catch {
-        return 0
-    }
-}
-
-function ConvertTo-SafeStringArray([object]$Value) {
-    $out = New-Object System.Collections.Generic.List[string]
-    try {
-        if ($null -eq $Value) { return @() }
-
-        if ($Value -is [string]) {
-            $out.Add(("" + $Value)) | Out-Null
-            return @($out.ToArray())
-        }
-
-        $items = @()
-        try { $items = @($Value) } catch { $items = @() }
-
-        foreach ($i in $items) {
-            if ($null -eq $i) { continue }
-            $out.Add(("" + $i)) | Out-Null
-        }
-
-        return @($out.ToArray())
-    } catch {
-        try { return @($out.ToArray()) } catch { return @() }
-    }
-}
-
-function Stop-Program([int]$Code) {
-    if ($NoExit) { return $Code }
-    exit $Code
-}
-
-# Ensure predictable UTF-8 output (no BOM)
+# Ensure predictable UTF-8 output (no BOM) - must run BEFORE Import-Module to avoid mojibake in module import warnings
 try { chcp 65001 | Out-Null } catch { }
 try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
 try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new($false) } catch { }
+
+# Suppress non-approved verb warning from Import-Module (cosmetic; restore afterwards)
+$__origWarningPreference = $WarningPreference
+try {
+    $WarningPreference = "SilentlyContinue"
+    Import-Module "$PSScriptRoot\ks-admin-audit-core.psm1" -Force
+} finally {
+    $WarningPreference = $__origWarningPreference
+    Remove-Variable -Name "__origWarningPreference" -ErrorAction SilentlyContinue
+}
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
 
 # -----------------------------------------------------------------------------
 # Robust parameter recovery (deterministic)
@@ -185,90 +161,7 @@ try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new($false) } catc
 # and/or ProbePaths absorbs tokens. If we detect that, re-parse a deterministic
 # token stream and re-apply sane values.
 # -----------------------------------------------------------------------------
-function Get-ArgValueFromToken([string]$token) {
-    if ($null -eq $token) { return $null }
-    $t = ("" + $token).Trim()
-    if ($t -match '^(?<name>-[A-Za-z][A-Za-z0-9_]*)\s*:\s*(?<val>.*)$') {
-        return $Matches['val']
-    }
-    return $null
-}
 
-function Get-ArgNameFromToken([string]$token) {
-    if ($null -eq $token) { return "" }
-    $t = ("" + $token).Trim()
-    if ($t -match '^(?<name>-[A-Za-z][A-Za-z0-9_]*)(\s*:\s*.*)?$') {
-        return $Matches['name']
-    }
-    return ""
-}
-
-function Test-KnownSwitch([string]$name) {
-    switch ($name) {
-        "-HttpProbe" { return $true }
-        "-TailLog" { return $true }
-        "-RoutesVerbose" { return $true }
-        "-RouteListFindstrAdmin" { return $true }
-        "-SuperadminCount" { return $true }
-        "-LoginCsrfProbe" { return $true }
-        "-RoleSmokeTest" { return $true }
-        "-SessionCsrfBaseline" { return $true }
-        "-LogSnapshot" { return $true }
-        "-LogClearBefore" { return $true }
-        "-LogClearAfter" { return $true }
-        "-RouteListOptionScanFullProject" { return $true }
-        "-SecurityProbe" { return $true }
-        "-SecurityCheckIpBan" { return $true }
-        "-SecurityCheckRegister" { return $true }
-        "-SecurityExpect429" { return $true }
-        "-NoExit" { return $true }
-        default { return $false }
-    }
-}
-
-function Test-KnownValueParam([string]$name) {
-    switch ($name) {
-        "-BaseUrl" { return $true }
-        "-ProbePaths" { return $true }
-        "-SuperadminEmail" { return $true }
-        "-SuperadminPassword" { return $true }
-        "-AdminEmail" { return $true }
-        "-AdminPassword" { return $true }
-        "-ModeratorEmail" { return $true }
-        "-ModeratorPassword" { return $true }
-        "-RoleSmokePaths" { return $true }
-        "-LogSnapshotLines" { return $true }
-        "-SecurityLoginAttempts" { return $true }
-        "-SecurityLockoutKeywords" { return $true }
-        "-ShowCheckDetails" { return $true }
-        "-ExportLogs" { return $true }
-        "-ExportLogsLines" { return $true }
-        "-ExportFolder" { return $true }
-        "-AutoOpenExportFolder" { return $true }
-        "-PerCheckDetails" { return $true }
-        "-PerCheckExport" { return $true }
-        "-Gui" { return $true }
-        default { return $false }
-    }
-}
-
-function Test-RecoverArgsNeeded {
-    try {
-        if ($BaseUrl -and (("" + $BaseUrl).Trim() -match '^-')) { return $true }
-
-        foreach ($v in @($ProbePaths)) {
-            if ($v -and (("" + $v).Trim() -match '^-')) { return $true }
-        }
-
-        foreach ($v in @($IgnoredArgs)) {
-            if ($v -and (("" + $v).Trim() -match '^-')) { return $true }
-        }
-
-        return $false
-    } catch {
-        return $false
-    }
-}
 
 if (Test-RecoverArgsNeeded) {
     $tokens = @()
@@ -298,7 +191,22 @@ if (Test-RecoverArgsNeeded) {
     $recSecurityCheckRegister = $false
     $recSecurityExpect429 = $false
     $recSecurityLockoutKeywords = New-Object System.Collections.Generic.List[string]
-    $recShowCheckDetails = $true
+    $recSecurityE2E = $false
+    $recSecurityE2ELockout = $false
+    $recSecurityE2EIpAutoban = $false
+    $recSecurityE2EDeviceAutoban = $false
+    $recSecurityE2EIdentityBan = $false
+    $recSecurityE2ESupportRef = $false
+    $recSecurityE2EEventsCheck = $false
+    $recSecurityE2EAttempts = 10
+    $recSecurityE2EThreshold = 3
+    $recSecurityE2ESeconds = 300
+    $recSecurityE2ELogin = "audit-test@kiezsingles.local"
+    $recSecurityE2EPassword = "random"
+    $recSecurityE2ECleanup = $true
+    $recSecurityE2EDryRun = $false
+    $recSecurityE2EEnvGate = $true
+    $recShowCheckDetails = $false
     $recExportLogs = $false
     $recExportLogsLines = 200
     $recExportFolder = "tools/audit/output"
@@ -314,6 +222,7 @@ if (Test-RecoverArgsNeeded) {
     $recModeratorPassword = ""
     $recRoleSmokePaths = New-Object System.Collections.Generic.List[string]
     $recGui = ""
+    $recPathsConfigFile = ""
 
     $i = 0
     while ($i -lt $tokens.Count) {
@@ -418,7 +327,7 @@ if (Test-RecoverArgsNeeded) {
             continue
         }
 
-        if ($name -eq "-SuperadminEmail" -or $name -eq "-SuperadminPassword" -or $name -eq "-AdminEmail" -or $name -eq "-AdminPassword" -or $name -eq "-ModeratorEmail" -or $name -eq "-ModeratorPassword") {
+        if ($name -eq "-SuperadminEmail" -or $name -eq "-SuperadminPassword" -or $name -eq "-AdminEmail" -or $name -eq "-AdminPassword" -or $name -eq "-ModeratorEmail" -or $name -eq "-ModeratorPassword" -or $name -eq "-SecurityE2ELogin" -or $name -eq "-SecurityE2EPassword" -or $name -eq "-PathsConfigFile") {
             $val = Get-ArgValueFromToken $t
             if ($null -eq $val -or (("" + $val).Trim() -eq "")) {
                 if (($i + 1) -lt $tokens.Count) {
@@ -439,6 +348,9 @@ if (Test-RecoverArgsNeeded) {
                 "-AdminPassword" { $recAdminPassword = ("" + $val) }
                 "-ModeratorEmail" { $recModeratorEmail = ("" + $val) }
                 "-ModeratorPassword" { $recModeratorPassword = ("" + $val) }
+                "-SecurityE2ELogin" { $recSecurityE2ELogin = ("" + $val) }
+                "-SecurityE2EPassword" { $recSecurityE2EPassword = ("" + $val) }
+                "-PathsConfigFile" { $recPathsConfigFile = ("" + $val) }
             }
             continue
         }
@@ -543,6 +455,41 @@ if (Test-RecoverArgsNeeded) {
             continue
         }
 
+        if ($name -eq "-SecurityE2EAttempts" -or $name -eq "-SecurityE2EThreshold" -or $name -eq "-SecurityE2ESeconds") {
+            $inlineVal = Get-ArgValueFromToken $t
+            $val = ""
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                $val = ("" + $inlineVal).Trim()
+                $i++
+            } else {
+                if (($i + 1) -lt $tokens.Count) {
+                    $nv = ("" + $tokens[$i + 1]).Trim()
+                    if ($nv -notmatch '^-') {
+                        $val = $nv
+                        $i += 2
+                    } else {
+                        $i++
+                    }
+                } else {
+                    $i++
+                }
+            }
+
+            if ($val -ne "") {
+                try {
+                    $n = [int]$val
+                    if ($n -gt 0) {
+                        switch ($name) {
+                            "-SecurityE2EAttempts" { $recSecurityE2EAttempts = $n }
+                            "-SecurityE2EThreshold" { $recSecurityE2EThreshold = $n }
+                            "-SecurityE2ESeconds" { $recSecurityE2ESeconds = $n }
+                        }
+                    }
+                } catch { }
+            }
+            continue
+        }
+
         if ($name -eq "-ExportLogsLines") {
             $inlineVal = Get-ArgValueFromToken $t
             if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
@@ -570,7 +517,7 @@ if (Test-RecoverArgsNeeded) {
             continue
         }
 
-        if ($name -eq "-ShowCheckDetails" -or $name -eq "-ExportLogs" -or $name -eq "-AutoOpenExportFolder") {
+        if ($name -eq "-ShowCheckDetails" -or $name -eq "-ExportLogs" -or $name -eq "-AutoOpenExportFolder" -or $name -eq "-SecurityE2ECleanup" -or $name -eq "-SecurityE2EDryRun" -or $name -eq "-SecurityE2EEnvGate") {
             $inlineVal = Get-ArgValueFromToken $t
             $val = $null
             if ($null -ne $inlineVal) {
@@ -601,6 +548,9 @@ if (Test-RecoverArgsNeeded) {
                 "-ShowCheckDetails" { $recShowCheckDetails = [bool]$parsed }
                 "-ExportLogs" { $recExportLogs = [bool]$parsed }
                 "-AutoOpenExportFolder" { $recAutoOpenExportFolder = [bool]$parsed }
+                "-SecurityE2ECleanup" { $recSecurityE2ECleanup = [bool]$parsed }
+                "-SecurityE2EDryRun" { $recSecurityE2EDryRun = [bool]$parsed }
+                "-SecurityE2EEnvGate" { $recSecurityE2EEnvGate = [bool]$parsed }
             }
             continue
         }
@@ -623,6 +573,13 @@ if (Test-RecoverArgsNeeded) {
                 "-SecurityCheckIpBan" { $recSecurityCheckIpBan = $true }
                 "-SecurityCheckRegister" { $recSecurityCheckRegister = $true }
                 "-SecurityExpect429" { $recSecurityExpect429 = $true }
+                "-SecurityE2E" { $recSecurityE2E = $true }
+                "-SecurityE2ELockout" { $recSecurityE2ELockout = $true }
+                "-SecurityE2EIpAutoban" { $recSecurityE2EIpAutoban = $true }
+                "-SecurityE2EDeviceAutoban" { $recSecurityE2EDeviceAutoban = $true }
+                "-SecurityE2EIdentityBan" { $recSecurityE2EIdentityBan = $true }
+                "-SecurityE2ESupportRef" { $recSecurityE2ESupportRef = $true }
+                "-SecurityE2EEventsCheck" { $recSecurityE2EEventsCheck = $true }
                 "-NoExit" { $recNoExit = $true }
             }
             $i++
@@ -680,6 +637,21 @@ if (Test-RecoverArgsNeeded) {
     if ($recSecurityCheckIpBan) { $SecurityCheckIpBan = $true }
     if ($recSecurityCheckRegister) { $SecurityCheckRegister = $true }
     if ($recSecurityExpect429) { $SecurityExpect429 = $true }
+    if ($recSecurityE2E) { $SecurityE2E = $true }
+    if ($recSecurityE2ELockout) { $SecurityE2ELockout = $true }
+    if ($recSecurityE2EIpAutoban) { $SecurityE2EIpAutoban = $true }
+    if ($recSecurityE2EDeviceAutoban) { $SecurityE2EDeviceAutoban = $true }
+    if ($recSecurityE2EIdentityBan) { $SecurityE2EIdentityBan = $true }
+    if ($recSecurityE2ESupportRef) { $SecurityE2ESupportRef = $true }
+    if ($recSecurityE2EEventsCheck) { $SecurityE2EEventsCheck = $true }
+    $SecurityE2EAttempts = [int]$recSecurityE2EAttempts
+    $SecurityE2EThreshold = [int]$recSecurityE2EThreshold
+    $SecurityE2ESeconds = [int]$recSecurityE2ESeconds
+    if ($recSecurityE2ELogin -ne "") { $SecurityE2ELogin = $recSecurityE2ELogin }
+    if ($recSecurityE2EPassword -ne "") { $SecurityE2EPassword = $recSecurityE2EPassword }
+    $SecurityE2ECleanup = ("" + [bool]$recSecurityE2ECleanup).ToLowerInvariant()
+    $SecurityE2EDryRun = ("" + [bool]$recSecurityE2EDryRun).ToLowerInvariant()
+    $SecurityE2EEnvGate = ("" + [bool]$recSecurityE2EEnvGate).ToLowerInvariant()
     $ShowCheckDetails = [bool]$recShowCheckDetails
     $ExportLogs = [bool]$recExportLogs
     $ExportLogsLines = [int]$recExportLogsLines
@@ -694,85 +666,13 @@ if (Test-RecoverArgsNeeded) {
     if ($recAdminPassword -ne "") { $AdminPassword = $recAdminPassword }
     if ($recModeratorEmail -ne "") { $ModeratorEmail = $recModeratorEmail }
     if ($recModeratorPassword -ne "") { $ModeratorPassword = $recModeratorPassword }
+    if ($recPathsConfigFile -ne "") { $PathsConfigFile = $recPathsConfigFile }
     if ($recRoleSmokePaths.Count -gt 0) { $RoleSmokePaths = @($recRoleSmokePaths.ToArray()) }
     if ($recSecurityLockoutKeywords.Count -gt 0) { $SecurityLockoutKeywords = @($recSecurityLockoutKeywords.ToArray()) }
 
     if ($null -ne $recGui) { $Gui = $recGui }
 
     $IgnoredArgs = @()
-}
-
-function Get-InvocationParameterValues {
-    param(
-        [Parameter(Mandatory = $true)][string]$ParamName
-    )
-
-    $out = New-Object System.Collections.Generic.List[string]
-    $line = ""
-    try { $line = ("" + $MyInvocation.Line) } catch { $line = "" }
-    if ($line.Trim() -eq "") { return @() }
-
-    $tokens = New-Object System.Collections.Generic.List[string]
-    try {
-        $rx = [regex]'("([^"\\]|\\.)*"|''[^'']*''|\S+)'
-        foreach ($m in $rx.Matches($line)) {
-            $t = ("" + $m.Value).Trim()
-            if ($t -eq "") { continue }
-            if (($t.StartsWith('"') -and $t.EndsWith('"')) -or ($t.StartsWith("'") -and $t.EndsWith("'"))) {
-                if ($t.Length -ge 2) { $t = $t.Substring(1, $t.Length - 2) }
-            }
-            $tokens.Add($t) | Out-Null
-        }
-    } catch {
-        return @()
-    }
-
-    if ($tokens.Count -le 0) { return @() }
-
-    $nameNorm = ("-" + ("" + $ParamName).Trim().TrimStart("-"))
-    for ($i = 0; $i -lt $tokens.Count; $i++) {
-        $tok = ("" + $tokens[$i]).Trim()
-        if ($tok -ne $nameNorm) { continue }
-
-        $j = $i + 1
-        while ($j -lt $tokens.Count) {
-            $v = ("" + $tokens[$j]).Trim()
-            if ($v -eq "") { $j++; continue }
-            if ($v.StartsWith("-")) { break }
-            $out.Add($v) | Out-Null
-            $j++
-        }
-    }
-
-    return @($out.ToArray())
-}
-
-function Get-ProcessArgParameterValues {
-    param(
-        [Parameter(Mandatory = $true)][string]$ParamName
-    )
-
-    $out = New-Object System.Collections.Generic.List[string]
-    $argv = @()
-    try { $argv = @([Environment]::GetCommandLineArgs()) } catch { $argv = @() }
-    if ($argv.Count -le 0) { return @() }
-
-    $nameNorm = ("-" + ("" + $ParamName).Trim().TrimStart("-"))
-    for ($i = 0; $i -lt $argv.Count; $i++) {
-        $tok = ("" + $argv[$i]).Trim()
-        if ($tok -ne $nameNorm) { continue }
-
-        $j = $i + 1
-        while ($j -lt $argv.Count) {
-            $v = ("" + $argv[$j]).Trim()
-            if ($v -eq "") { $j++; continue }
-            if ($v.StartsWith("-")) { break }
-            $out.Add($v) | Out-Null
-            $j++
-        }
-    }
-
-    return @($out.ToArray())
 }
 
 # Deterministic HTTP stack preflight
@@ -796,6 +696,12 @@ try {
     # ignore
 }
 
+# -----------------------------------------------------------------------------
+# Deterministic HTTP helper (no redirect; cookie container; stable Status/Location)
+# Used by checks to avoid Invoke-WebRequest edge-cases ("invalid state of object").
+# -----------------------------------------------------------------------------
+
+
 # --- Determine project root (this script lives in tools/audit)
 $scriptDir = $null
 if ($PSScriptRoot -and ($PSScriptRoot.Trim() -ne "")) {
@@ -808,12 +714,7 @@ if ($PSScriptRoot -and ($PSScriptRoot.Trim() -ne "")) {
 
 $projectRoot = Resolve-Path (Join-Path $scriptDir "..\..") | Select-Object -ExpandProperty Path
 
-function Test-ProjectRoot([string]$Root) {
-    $artisan = Join-Path $Root "artisan"
-    if (!(Test-Path $artisan)) {
-        throw "Project root not detected. Expected artisan at: $artisan"
-    }
-}
+
 Test-ProjectRoot $projectRoot
 Set-Location $projectRoot
 
@@ -822,54 +723,7 @@ $auditStartedAt = $null
 try { $auditStartedAt = Get-Date } catch { $auditStartedAt = $null }
 
 # --- Normalize ProbePaths (some launchers accidentally pass them as a single string token)
-function ConvertTo-NormalizedProbePaths([object]$Value) {
-    $out = New-Object System.Collections.Generic.List[string]
-    $seen = @{}
 
-    if ($null -eq $Value) {
-        return @()
-    }
-
-    $vals = @()
-    try { $vals = @($Value) } catch { $vals = @() }
-
-    foreach ($v in $vals) {
-        if ($null -eq $v) { continue }
-        $s = ("" + $v).Trim()
-        if ($s -eq "") { continue }
-
-        $parts = @()
-        if ($s -match "\r?\n" -or $s -match "\s" -or $s -match "[,;]") {
-            try { $parts = @($s -split "[\s,;]+") } catch { $parts = @() }
-        } else {
-            $parts = @($s)
-        }
-
-        foreach ($part in @($parts)) {
-            $x = ("" + $part).Trim()
-            if ($x -eq "") { continue }
-
-            if ($x -match '^(?i)https?://') {
-                try {
-                    $u = $null
-                    $ok = $false
-                    try { $ok = [System.Uri]::TryCreate($x, [System.UriKind]::Absolute, [ref]$u) } catch { $ok = $false }
-                    if ($ok -and $u -and $u.AbsolutePath) { $x = ("" + $u.AbsolutePath).Trim() }
-                } catch { }
-            }
-
-            if ($x -eq "") { continue }
-            if (-not $x.StartsWith("/")) { $x = "/" + $x.TrimStart("/") }
-            if ($x -eq "/") { continue }
-
-            if ($seen.ContainsKey($x)) { continue }
-            $seen[$x] = $true
-            $out.Add($x) | Out-Null
-        }
-    }
-
-    return @($out.ToArray())
-}
 
 $ProbePaths = ConvertTo-NormalizedProbePaths $ProbePaths
 
@@ -955,15 +809,78 @@ if ($null -ne $RoleSmokePaths -and @($RoleSmokePaths).Count -gt 0) {
     $RoleSmokePaths = @($dedupRole.ToArray())
 }
 
-# Recover string/bool value parameters from invocation if host binding shifted.
-function Resolve-ParamValues([string]$Name) {
-    $vals = @()
-    try { $vals = @(Get-InvocationParameterValues -ParamName $Name) } catch { $vals = @() }
-    if ($vals.Count -le 0) {
-        try { $vals = @(Get-ProcessArgParameterValues -ParamName $Name) } catch { $vals = @() }
+# --- FIX 1/2: Recover SecurityLockoutKeywords when runner binds only the first element.
+# Strategy:
+# 1) Try invocation/process arg readers (same as other multi-value params).
+# 2) If still only 0/1 keyword: harvest leftover RemainingArguments tokens that look like keywords.
+try {
+    $SecurityLockoutKeywords = @($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+} catch { }
+
+if (@($SecurityLockoutKeywords).Count -le 1) {
+    $invKw = @()
+    try { $invKw = @(Get-InvocationParameterValues -ParamName "SecurityLockoutKeywords") } catch { $invKw = @() }
+    if ($invKw.Count -le 1) {
+        try { $invKw = @(Get-ProcessArgParameterValues -ParamName "SecurityLockoutKeywords") } catch { $invKw = @() }
     }
-    return @($vals)
+    if ($invKw.Count -gt 1) {
+        try { $SecurityLockoutKeywords = @($invKw | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" }) } catch { }
+    }
 }
+
+if (@($SecurityLockoutKeywords).Count -le 1 -and $null -ne $IgnoredArgs -and @($IgnoredArgs).Count -gt 0) {
+    $defaultKw = @("too many attempts","throttle","locked","lockout","zu viele","versuche")
+    $extraKw = New-Object System.Collections.Generic.List[string]
+
+    foreach ($ia in @($IgnoredArgs)) {
+        if ($null -eq $ia) { continue }
+        $t = ("" + $ia).Trim()
+        if ($t -eq "") { continue }
+
+        $parts = @()
+        if ($t -match "\r?\n" -or $t -match "\s" -or $t -match "[,;]") {
+            try { $parts = @($t -split "[\s,;]+") } catch { $parts = @() }
+        } else {
+            $parts = @($t)
+        }
+
+        foreach ($p in @($parts)) {
+            $x = ("" + $p).Trim()
+            if ($x -eq "") { continue }
+            if ($x.StartsWith("-")) { continue }
+            if ($x.StartsWith("/")) { continue }
+
+            $isKnown = $false
+            foreach ($dk in $defaultKw) {
+                if ($x.Equals($dk, [System.StringComparison]::OrdinalIgnoreCase)) { $isKnown = $true; break }
+            }
+
+            if (-not $isKnown) { continue }
+            $extraKw.Add($x) | Out-Null
+        }
+    }
+
+    if ($extraKw.Count -gt 0) {
+        $merged = New-Object System.Collections.Generic.List[string]
+        foreach ($k in @($SecurityLockoutKeywords)) { if (("" + $k).Trim() -ne "") { $merged.Add((("" + $k).Trim())) | Out-Null } }
+        foreach ($k in @($extraKw.ToArray())) { if (("" + $k).Trim() -ne "") { $merged.Add((("" + $k).Trim())) | Out-Null } }
+
+        # de-dup preserve order
+        $seenKw = @{}
+        $dedupKw = New-Object System.Collections.Generic.List[string]
+        foreach ($k in @($merged.ToArray())) {
+            $s = ("" + $k).Trim()
+            if ($s -eq "") { continue }
+            if ($seenKw.ContainsKey($s.ToLowerInvariant())) { continue }
+            $seenKw[$s.ToLowerInvariant()] = $true
+            $dedupKw.Add($s) | Out-Null
+        }
+        $SecurityLockoutKeywords = @($dedupKw.ToArray())
+    }
+}
+
+# Recover string/bool value parameters from invocation if host binding shifted.
+
 
 $showVals = @(Resolve-ParamValues "ShowCheckDetails")
 if ($showVals.Count -gt 0) { $ShowCheckDetails = ("" + $showVals[$showVals.Count - 1]).Trim() }
@@ -986,694 +903,44 @@ if ($expFolderVals.Count -gt 0) {
 $autoOpenVals = @(Resolve-ParamValues "AutoOpenExportFolder")
 if ($autoOpenVals.Count -gt 0) { $AutoOpenExportFolder = ("" + $autoOpenVals[$autoOpenVals.Count - 1]).Trim() }
 
+$securityE2ECleanupVals = @(Resolve-ParamValues "SecurityE2ECleanup")
+if ($securityE2ECleanupVals.Count -gt 0) { $SecurityE2ECleanup = ("" + $securityE2ECleanupVals[$securityE2ECleanupVals.Count - 1]).Trim() }
+
+$securityE2EDryRunVals = @(Resolve-ParamValues "SecurityE2EDryRun")
+if ($securityE2EDryRunVals.Count -gt 0) { $SecurityE2EDryRun = ("" + $securityE2EDryRunVals[$securityE2EDryRunVals.Count - 1]).Trim() }
+
+$securityE2EEnvGateVals = @(Resolve-ParamValues "SecurityE2EEnvGate")
+if ($securityE2EEnvGateVals.Count -gt 0) { $SecurityE2EEnvGate = ("" + $securityE2EEnvGateVals[$securityE2EEnvGateVals.Count - 1]).Trim() }
+
 $effectiveLoginCsrfProbe = ([bool]$LoginCsrfProbe -or [bool]$RoleSmokeTest)
 $effectiveSessionCsrfBaseline = ([bool]$SessionCsrfBaseline -or [bool]$RoleSmokeTest)
+$loginCsrfProbeEffectiveReason = $(if ([bool]$LoginCsrfProbe) { "as requested" } elseif ([bool]$RoleSmokeTest) { "forced by dependency: RoleSmokeTest=true" } else { "as requested" })
+$sessionCsrfBaselineEffectiveReason = $(if ([bool]$SessionCsrfBaseline) { "as requested" } elseif ([bool]$RoleSmokeTest) { "forced by dependency: RoleSmokeTest=true" } else { "as requested" })
+
+$effectiveSecurityProbe = [bool]$SecurityProbe
+$allowSecurityE2EWithoutProbe = $false
+try { $allowSecurityE2EWithoutProbe = Convert-ToBooleanSafe $env:KS_AUDIT_ALLOW_SECURITY_E2E_WITHOUT_PROBE $false } catch { $allowSecurityE2EWithoutProbe = $false }
+
+$effectiveSecurityE2E = [bool]$SecurityE2E
+$securityE2EEffectiveReason = "as requested"
+if ($effectiveSecurityE2E -and (-not $effectiveSecurityProbe)) {
+    if ($allowSecurityE2EWithoutProbe) {
+        $securityE2EEffectiveReason = "explicitly allowed without SecurityProbe (env:KS_AUDIT_ALLOW_SECURITY_E2E_WITHOUT_PROBE=true)"
+    } else {
+        $effectiveSecurityE2E = $false
+        $securityE2EEffectiveReason = "overridden by dependency: SecurityProbe=false"
+    }
+}
+
+$effectiveSecurityE2ELockout = ([bool]$SecurityE2ELockout -and $effectiveSecurityE2E)
+$effectiveSecurityE2EIpAutoban = ([bool]$SecurityE2EIpAutoban -and $effectiveSecurityE2E)
+$effectiveSecurityE2EDeviceAutoban = ([bool]$SecurityE2EDeviceAutoban -and $effectiveSecurityE2E)
+$effectiveSecurityE2EIdentityBan = ([bool]$SecurityE2EIdentityBan -and $effectiveSecurityE2E)
+$effectiveSecurityE2ESupportRef = ([bool]$SecurityE2ESupportRef -and $effectiveSecurityE2E)
+$effectiveSecurityE2EEventsCheck = ([bool]$SecurityE2EEventsCheck -and $effectiveSecurityE2E)
 
 # --- Helpers (kept minimal; no GUI logic)
-function Write-Section([string]$Title) {
-    Write-Host ""
-    Write-Host ("=" * 78)
-    Write-Host $Title
-    Write-Host ("=" * 78)
-}
 
-function ConvertTo-QuotedArgWindows([string]$s) {
-    if ($null -eq $s) { return '""' }
-
-    $t = "" + $s
-    if ($t -eq "") { return '""' }
-
-    if ($t -match '[\s"]') {
-        $t = $t -replace '(\\*)"', '$1$1\"'
-        $t = $t -replace '(\\+)$', '$1$1'
-        return '"' + $t + '"'
-    }
-
-    return $t
-}
-
-function Invoke-ProcessToFiles(
-    [string]$File,
-    [string[]]$ArgumentList,
-    [int]$TimeoutSeconds = 120,
-    [string]$WorkingDirectory = ""
-) {
-    $stdout = ""
-    $stderr = ""
-
-    try {
-        if ($null -eq $ArgumentList) { $ArgumentList = @() }
-        $ArgumentList = @($ArgumentList | Where-Object { $_ -ne $null })
-
-        $psi = [System.Diagnostics.ProcessStartInfo]::new()
-        $psi.FileName = ("" + $File)
-
-        $quotedArgs = @()
-        foreach ($a in $ArgumentList) {
-            $quotedArgs += (ConvertTo-QuotedArgWindows ("" + $a))
-        }
-        $psi.Arguments = ($quotedArgs -join " ")
-
-        $psi.UseShellExecute = $false
-        $psi.CreateNoWindow = $true
-        $psi.RedirectStandardInput = $true
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
-
-        if ($WorkingDirectory -and ($WorkingDirectory.Trim() -ne "")) {
-            $psi.WorkingDirectory = $WorkingDirectory
-        }
-
-        try { $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
-        try { $psi.StandardErrorEncoding  = [System.Text.Encoding]::UTF8 } catch { }
-
-        $p = [System.Diagnostics.Process]::new()
-        $p.StartInfo = $psi
-
-        $null = $p.Start()
-
-        try {
-            $p.StandardInput.Write("")
-            $p.StandardInput.Close()
-        } catch { }
-
-        $outTask = $p.StandardOutput.ReadToEndAsync()
-        $errTask = $p.StandardError.ReadToEndAsync()
-
-        $exited = $p.WaitForExit($TimeoutSeconds * 1000)
-
-        if (-not $exited) {
-            try { $p.Kill($true) } catch { }
-
-            try { $stdout = $outTask.GetAwaiter().GetResult() } catch { $stdout = "" }
-            try { $stderr = $errTask.GetAwaiter().GetResult() } catch { $stderr = "" }
-
-            $argString = ($ArgumentList -join " ")
-            return [pscustomobject]@{
-                ExitCode = -1
-                StdOut   = $stdout
-                StdErr   = ("TIMEOUT after {0}s while running: {1} {2}" -f $TimeoutSeconds, $File, $argString) + "`n" + $stderr
-            }
-        }
-
-        try { $p.WaitForExit() } catch { }
-
-        try { $stdout = $outTask.GetAwaiter().GetResult() } catch { $stdout = "" }
-        try { $stderr = $errTask.GetAwaiter().GetResult() } catch { $stderr = "" }
-
-        $exitCode = 0
-        try { $exitCode = [int]$p.ExitCode } catch { $exitCode = 0 }
-
-        return [pscustomobject]@{
-            ExitCode = [int]$exitCode
-            StdOut   = $stdout
-            StdErr   = $stderr
-        }
-    } catch {
-        $msg = ""
-        try { $msg = $_.Exception.Message } catch { $msg = "unknown_error" }
-
-        return [pscustomobject]@{
-            ExitCode = 2
-            StdOut   = ""
-            StdErr   = ("PROCESS RUNNER ERROR: " + $msg)
-        }
-    }
-}
-
-function Resolve-PHPExePath {
-    try {
-        $exe = $null
-
-        try {
-            $paths = ("" + $env:PATH).Split(";") | Where-Object { $_ -and ("" + $_).Trim() -ne "" }
-            foreach ($p in $paths) {
-                $candidate = Join-Path ($p.Trim()) "php.exe"
-                if (Test-Path -LiteralPath $candidate) {
-                    $exe = $candidate
-                    break
-                }
-            }
-        } catch { }
-
-        if ($exe -and (("" + $exe).Trim() -ne "")) {
-            return ("" + $exe).Trim()
-        }
-
-        try {
-            $phpApp = Get-Command php -All -ErrorAction SilentlyContinue |
-                Where-Object { $_.CommandType -eq "Application" } |
-                Select-Object -First 1
-
-            if ($phpApp -and $phpApp.Source -and ("" + $phpApp.Source).Trim() -ne "") {
-                return ("" + $phpApp.Source).Trim()
-            }
-        } catch { }
-
-        return "php"
-    } catch {
-        return "php"
-    }
-}
-
-function Invoke-PHPArtisan([string]$Root, [string[]]$ArgumentList, [int]$TimeoutSeconds = 120) {
-    $php = Resolve-PHPExePath
-    $artisan = Join-Path $Root "artisan"
-
-    if ($null -eq $ArgumentList) { $ArgumentList = @() }
-
-    $cmdArgs = @()
-    $cmdArgs += $artisan
-    $cmdArgs += $ArgumentList
-    $cmdArgs = @($cmdArgs | Where-Object { $_ -ne $null })
-
-    return Invoke-ProcessToFiles -File $php -ArgumentList $cmdArgs -TimeoutSeconds $TimeoutSeconds -WorkingDirectory $Root
-}
-
-function New-AuditResult {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)][string]$Id,
-        [Parameter(Mandatory = $true)][string]$Title,
-        [Parameter(Mandatory = $true)][ValidateSet("OK","WARN","FAIL","CRITICAL")][string]$Status,
-        [Parameter(Mandatory = $true)][string]$Summary,
-        [string[]]$Details = @(),
-        [hashtable]$Data = @{},
-        [string]$DetailsText = "",
-        [object[]]$Evidence = @(),
-        [string[]]$LogSlice = @(),
-        [string]$LogExportPath = "",
-        [int]$DurationMs = 0
-    )
-
-    $effectiveDetailsText = $DetailsText
-    if (($effectiveDetailsText -eq "") -and ((Get-SafeCount $Details) -gt 0)) {
-        try { $effectiveDetailsText = ((@($Details) | ForEach-Object { "" + $_ }) -join "`n") } catch { $effectiveDetailsText = "" }
-    }
-
-    return [pscustomobject]@{
-        id = $Id
-        title = $Title
-        status = $Status
-        summary = $Summary
-        details = @($Details)
-        data = $Data
-        details_text = $effectiveDetailsText
-        evidence = @($Evidence)
-        log_slice = @($LogSlice)
-        log_export_path = ("" + $LogExportPath)
-        duration_ms = $DurationMs
-    }
-}
-
-function Get-StatusScore([string]$Status) {
-    switch ($Status) {
-        "OK" { return 0 }
-        "WARN" { return 1 }
-        "FAIL" { return 2 }
-        "CRITICAL" { return 3 }
-        default { return 3 }
-    }
-}
-
-function Format-StatusTag([string]$Status) {
-    switch ($Status) {
-        "OK" { return "[OK]" }
-        "WARN" { return "[WARN]" }
-        "FAIL" { return "[FAIL]" }
-        "CRITICAL" { return "[CRITICAL]" }
-        default { return "[CRITICAL]" }
-    }
-}
-
-function Test-FunctionExists([string]$Name) {
-    try {
-        $c = Get-Command $Name -CommandType Function -ErrorAction SilentlyContinue
-        return ($null -ne $c)
-    } catch {
-        return $false
-    }
-}
-
-function Get-ResultScore($Res) {
-    if ($null -eq $Res) { return 3 }
-
-    try {
-        if (("" + $Res.id) -eq "log_snapshot" -and ("" + $Res.status) -eq "WARN") {
-            return 0
-        }
-    } catch { }
-
-    return Get-StatusScore ("" + $Res.status)
-}
-
-function Get-DetailsForOutput($Res) {
-    try {
-        if ($null -eq $Res) { return @() }
-
-        $detailsArr = ConvertTo-SafeStringArray $Res.details
-        if ((Get-SafeCount $detailsArr) -le 0) { return @() }
-
-        $title = ""
-        try { $title = "" + $Res.title } catch { $title = "" }
-
-        # Cosmetic: suppress Set-Cookie noise in unauthenticated HTTP probe output.
-        if ($title -match 'HTTP exposure probe') {
-            $filtered = New-Object System.Collections.Generic.List[string]
-            foreach ($d in $detailsArr) {
-                $line = ""
-                try { $line = "" + $d } catch { $line = "" }
-                if ($line -match '^(?i:Set-Cookie\s*:)') { continue }
-
-                # Cosmetic: mark "follow" lines as INFO so "200 /login" doesn't look like exposure.
-                if ($line -match '^(?i:FinalStatus\(follow\):)') { $line = "INFO: " + $line }
-                elseif ($line -match '^(?i:FinalUri\(follow\):)') { $line = "INFO: " + $line }
-
-                $filtered.Add($line) | Out-Null
-            }
-            return @($filtered.ToArray())
-        }
-
-        return @($detailsArr)
-    } catch {
-        try { return @(ConvertTo-SafeStringArray $Res.details) } catch { return @() }
-    }
-}
-
-function Get-LaravelLogPath([string]$Root) {
-    try {
-        $logsDir = Join-Path $Root "storage\logs"
-        if (-not (Test-Path -LiteralPath $logsDir -PathType Container)) { return "" }
-
-        $single = Join-Path $logsDir "laravel.log"
-        if (Test-Path -LiteralPath $single -PathType Leaf) { return $single }
-
-        $daily = @()
-        try {
-            $daily = @(Get-ChildItem -LiteralPath $logsDir -File -Filter "laravel-*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
-        } catch { $daily = @() }
-        if ($daily.Count -gt 0) { return ("" + $daily[0].FullName) }
-
-        return ""
-    } catch {
-        return ""
-    }
-}
-
-function Get-ResultLogCandidatePaths([string]$PrimaryLogPath, [int]$MaxCandidates = 2) {
-    $out = New-Object System.Collections.Generic.List[string]
-    try {
-        $primary = ("" + $PrimaryLogPath).Trim()
-        if ($primary -ne "") {
-            $out.Add($primary) | Out-Null
-        }
-
-        if ($out.Count -ge $MaxCandidates) { return @($out.ToArray()) }
-        if ($primary -eq "") { return @($out.ToArray()) }
-
-        $dir = ""
-        try { $dir = [System.IO.Path]::GetDirectoryName($primary) } catch { $dir = "" }
-        if ($dir -eq "" -or -not (Test-Path -LiteralPath $dir -PathType Container)) { return @($out.ToArray()) }
-
-        $daily = @()
-        try {
-            $daily = @(Get-ChildItem -LiteralPath $dir -File -Filter "laravel-*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
-        } catch { $daily = @() }
-
-        foreach ($f in $daily) {
-            if ($out.Count -ge $MaxCandidates) { break }
-            $path = ""
-            try { $path = ("" + $f.FullName).Trim() } catch { $path = "" }
-            if ($path -eq "") { continue }
-            if ($path -ieq $primary) { continue }
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-            $out.Add($path) | Out-Null
-        }
-
-        if ($out.Count -ge $MaxCandidates) { return @($out.ToArray()) }
-
-        $generic = @()
-        try {
-            $generic = @(Get-ChildItem -LiteralPath $dir -File -Filter "*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
-        } catch { $generic = @() }
-
-        foreach ($f in $generic) {
-            if ($out.Count -ge $MaxCandidates) { break }
-            $path = ""
-            try { $path = ("" + $f.FullName).Trim() } catch { $path = "" }
-            if ($path -eq "") { continue }
-            $existsAlready = $false
-            foreach ($existing in @($out.ToArray())) {
-                if ((("" + $existing).Trim()) -ieq $path) { $existsAlready = $true; break }
-            }
-            if ($existsAlready) { continue }
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-            $out.Add($path) | Out-Null
-        }
-    } catch { }
-
-    return @($out.ToArray())
-}
-
-function Test-IsIgnoredAuditNoiseLogLine([string]$Line) {
-    if ($null -eq $Line) { return $false }
-    $l = ""
-    try { $l = ("" + $Line).ToLowerInvariant() } catch { $l = "" }
-    if ($l -eq "") { return $false }
-
-    if ($l -match 'vendor/psy/psysh') { return $true }
-    if ($l -match 'psy\\exception') { return $true }
-    if ($l -match 'psy/shell') { return $true }
-    if ($l -match 'laravel/tinker') { return $true }
-    if ($l -match 'parseerrorexception') { return $true }
-    if ($l -match 'codecleaner\.php') { return $true }
-    if ($l -match '=config\(') { return $true }
-    if ($l -match 'psy\\codecleaner') { return $true }
-    if ($l -match 'psy/shell->') { return $true }
-
-    return $false
-}
-
-function Convert-ToBooleanSafe([object]$Value, [bool]$Default = $false) {
-    try {
-        if ($null -eq $Value) { return $Default }
-        if ($Value -is [bool]) { return [bool]$Value }
-        $s = ("" + $Value).Trim()
-        if ($s -eq "") { return $Default }
-        if ($s -match '^(?i:1|true|\$true|yes|on)$') { return $true }
-        if ($s -match '^(?i:0|false|\$false|no|off)$') { return $false }
-        return [System.Convert]::ToBoolean($Value)
-    } catch {
-        return $Default
-    }
-}
-
-function Convert-ToIntSafe([object]$Value, [int]$Default = 0) {
-    try {
-        if ($null -eq $Value) { return $Default }
-        $n = [int]$Value
-        return $n
-    } catch {
-        return $Default
-    }
-}
-
-function Resolve-AuditExportFolder([string]$ProjectRoot, [string]$FolderValue) {
-    try {
-        $candidate = ("" + $FolderValue).Trim()
-        if ($candidate -eq "") { $candidate = "tools/audit/output" }
-        if (-not [System.IO.Path]::IsPathRooted($candidate)) {
-            return (Join-Path $ProjectRoot $candidate)
-        }
-        return $candidate
-    } catch {
-        return (Join-Path $ProjectRoot "tools/audit/output")
-    }
-}
-
-function Convert-ToSafeFileSegment([string]$Value) {
-    $s = ("" + $Value).Trim().ToLowerInvariant()
-    if ($s -eq "") { $s = "check" }
-    $s = $s -replace '[^a-z0-9\-_]+', '-'
-    $s = $s.Trim('-')
-    if ($s -eq "") { $s = "check" }
-    return $s
-}
-
-function Convert-PerCheckSettingMap([string]$JsonText) {
-    $out = @{}
-    $raw = ""
-    try { $raw = ("" + $JsonText).Trim() } catch { $raw = "" }
-    if ($raw -eq "") { return $out }
-
-    try {
-        $obj = $raw | ConvertFrom-Json -ErrorAction Stop
-        if ($null -eq $obj) { return $out }
-
-        foreach ($p in @($obj.PSObject.Properties)) {
-            $k = ""
-            try { $k = ("" + $p.Name).Trim().ToLowerInvariant() } catch { $k = "" }
-            if ($k -eq "") { continue }
-            $out[$k] = (Convert-ToBooleanSafe $p.Value $false)
-        }
-    } catch { }
-
-    return $out
-}
-
-function Get-PerCheckEnabled([hashtable]$Map, [string]$CheckId, [bool]$Default = $false) {
-    if ($null -eq $Map) { return $Default }
-    $k = ""
-    try { $k = ("" + $CheckId).Trim().ToLowerInvariant() } catch { $k = "" }
-    if ($k -eq "") { return $Default }
-    try {
-        if ($Map.Contains($k)) { return (Convert-ToBooleanSafe $Map[$k] $Default) }
-    } catch { }
-    return $Default
-}
-
-function Try-ParseLaravelLogTimestamp([string]$Line) {
-    if ($null -eq $Line) { return $null }
-    try {
-        if ($Line -match '^\[(?<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]') {
-            return [datetime]::ParseExact($Matches['ts'], 'yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture)
-        }
-    } catch { }
-    return $null
-}
-
-function Get-ValueFromResultData {
-    param(
-        [Parameter(Mandatory = $true)]$Data,
-        [Parameter(Mandatory = $true)][string[]]$Keys
-    )
-    foreach ($k in @($Keys)) {
-        try {
-            if ($Data -is [System.Collections.IDictionary]) {
-                if ($Data.Contains($k)) { return $Data[$k] }
-            }
-            if ($Data.PSObject -and ($Data.PSObject.Properties.Name -contains $k)) {
-                return $Data.$k
-            }
-        } catch { }
-    }
-    return $null
-}
-
-function Get-ResultLogSlice {
-    param(
-        [Parameter(Mandatory = $true)][string]$LogPath,
-        [Parameter(Mandatory = $true)]$Res,
-        [Parameter(Mandatory = $true)][datetime]$CheckStartedAt,
-        [Parameter(Mandatory = $true)][datetime]$CheckFinishedAt,
-        [Parameter(Mandatory = $true)][int]$MaxLines
-    )
-
-    $evidence = New-Object System.Collections.Generic.List[string]
-    $slice = New-Object System.Collections.Generic.List[string]
-
-    if ($LogPath -eq "") {
-        $evidence.Add("No Laravel log file found.") | Out-Null
-        return [pscustomobject]@{
-            lines = @()
-            evidence = @($evidence.ToArray())
-            mode = "missing"
-        }
-    }
-
-    if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) {
-        $evidence.Add("No Laravel log file found.") | Out-Null
-        return [pscustomobject]@{
-            lines = @()
-            evidence = @($evidence.ToArray())
-            mode = "missing"
-        }
-    }
-
-    $all = New-Object System.Collections.Generic.List[string]
-    $readOk = $false
-    $readErrors = New-Object System.Collections.Generic.List[string]
-    $scanPaths = @(Get-ResultLogCandidatePaths -PrimaryLogPath $LogPath -MaxCandidates 2)
-    if ($scanPaths.Count -le 0) { $scanPaths = @($LogPath) }
-    foreach ($scanPath in $scanPaths) {
-        if (-not (Test-Path -LiteralPath $scanPath -PathType Leaf)) { continue }
-        try {
-            $part = @(Get-Content -LiteralPath $scanPath -ErrorAction Stop)
-            foreach ($line in $part) { $all.Add(("" + $line)) | Out-Null }
-            $readOk = $true
-        } catch {
-            $readErrors.Add((("" + $scanPath) + ": " + $_.Exception.Message)) | Out-Null
-        }
-    }
-    if (-not $readOk) {
-        $msg = "LogSlice: failed to read log file."
-        if ($readErrors.Count -gt 0) { $msg = ("LogSlice: failed to read log file (" + (($readErrors.ToArray() | Select-Object -First 1) -join "") + ").") }
-        $evidence.Add($msg) | Out-Null
-        return [pscustomobject]@{
-            lines = @()
-            evidence = @($evidence.ToArray())
-            mode = "read_error"
-        }
-    }
-
-    if ($all.Count -le 0) {
-        $evidence.Add("Log file contains no entries during this run.") | Out-Null
-        return [pscustomobject]@{
-            lines = @()
-            evidence = @($evidence.ToArray())
-            mode = "empty"
-        }
-    }
-
-    $data = $null
-    try { $data = $Res.data } catch { $data = $null }
-
-    $corr = ""
-    if ($null -ne $data) {
-        $corrRaw = Get-ValueFromResultData -Data $data -Keys @("correlation_id","correlationId","request_id","requestId","trace_id","traceId")
-        if ($null -ne $corrRaw) { $corr = ("" + $corrRaw).Trim() }
-    }
-
-    $nonNoise = New-Object System.Collections.Generic.List[string]
-    foreach ($line in $all) {
-        $text = "" + $line
-        if (Test-IsIgnoredAuditNoiseLogLine $text) { continue }
-        $nonNoise.Add($text) | Out-Null
-    }
-    $allFiltered = @($nonNoise.ToArray())
-
-    if ($allFiltered.Count -le 0) {
-        $evidence.Add("Log file contains only Tinker/PsySH noise (ignored).") | Out-Null
-        return [pscustomobject]@{
-            lines = @()
-            evidence = @($evidence.ToArray())
-            mode = "empty_filtered"
-        }
-    }
-
-    if ($corr -ne "") {
-        foreach ($line in $allFiltered) {
-            $text = "" + $line
-            if ($text -like ("*" + $corr + "*")) { $slice.Add($text) | Out-Null }
-        }
-        if ($slice.Count -gt 0) {
-            $evidence.Add("LogSlice mode: correlation_id ($corr)") | Out-Null
-            if ($slice.Count -gt $MaxLines) { $slice = New-Object System.Collections.Generic.List[string] (@($slice.ToArray() | Select-Object -Last $MaxLines)) }
-            return [pscustomobject]@{
-                lines = @($slice.ToArray())
-                evidence = @($evidence.ToArray())
-                mode = "correlation"
-            }
-        }
-    }
-
-    $from = $CheckStartedAt
-    $to = $CheckFinishedAt
-    if ($to -lt $from) { $to = $from }
-    $to = $to.AddSeconds(2)
-
-    $hasParseableTimestamp = $false
-    foreach ($line in $allFiltered) {
-        $text = "" + $line
-        $ts = Try-ParseLaravelLogTimestamp $text
-        if ($null -eq $ts) { continue }
-        $hasParseableTimestamp = $true
-        if ($ts -ge $from -and $ts -le $to) { $slice.Add($text) | Out-Null }
-    }
-
-    if ($slice.Count -gt 0) {
-        $evidence.Add("LogSlice mode: time_window ($($from.ToString('yyyy-MM-dd HH:mm:ss')) .. $($to.ToString('yyyy-MM-dd HH:mm:ss'))).") | Out-Null
-        if ($slice.Count -gt $MaxLines) { $slice = New-Object System.Collections.Generic.List[string] (@($slice.ToArray() | Select-Object -Last $MaxLines)) }
-        return [pscustomobject]@{
-            lines = @($slice.ToArray())
-            evidence = @($evidence.ToArray())
-            mode = "time_window"
-        }
-    }
-
-    if ($hasParseableTimestamp) {
-        $nearSlice = New-Object System.Collections.Generic.List[string]
-        $nearFrom = $from.AddMinutes(-2)
-        $nearTo = $to.AddMinutes(2)
-        foreach ($line in $allFiltered) {
-            $text = "" + $line
-            $ts = Try-ParseLaravelLogTimestamp $text
-            if ($null -eq $ts) { continue }
-            if ($ts -ge $nearFrom -and $ts -le $nearTo) { $nearSlice.Add($text) | Out-Null }
-        }
-
-        if ($nearSlice.Count -gt 0) {
-            $evidence.Add("LogSlice mode: fallback near time window ($($nearFrom.ToString('yyyy-MM-dd HH:mm:ss')) .. $($nearTo.ToString('yyyy-MM-dd HH:mm:ss'))).") | Out-Null
-            if ($nearSlice.Count -gt $MaxLines) { $nearSlice = New-Object System.Collections.Generic.List[string] (@($nearSlice.ToArray() | Select-Object -Last $MaxLines)) }
-            return [pscustomobject]@{
-                lines = @($nearSlice.ToArray())
-                evidence = @($evidence.ToArray())
-                mode = "time_window_fallback_near"
-            }
-        }
-
-        $evidence.Add("LogSlice mode: fallback tail ($MaxLines lines) after empty check window.") | Out-Null
-        $tailAfterWindowMiss = @($allFiltered | Select-Object -Last $MaxLines)
-        return [pscustomobject]@{
-            lines = @($tailAfterWindowMiss)
-            evidence = @($evidence.ToArray())
-            mode = "time_window_empty_tail"
-        }
-    }
-
-    $evidence.Add("LogSlice mode: fallback tail ($MaxLines lines).") | Out-Null
-    $tail = @($allFiltered | Select-Object -Last $MaxLines)
-    return [pscustomobject]@{
-        lines = @($tail)
-        evidence = @($evidence.ToArray())
-        mode = "tail"
-    }
-}
-
-function Invoke-LaravelLogRotateIfExists([string]$Root, [string]$PhaseLabel) {
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-
-    $logPath = ""
-    try { $logPath = Get-LaravelLogPath $Root } catch { $logPath = "" }
-
-    if (-not $logPath -or ("" + $logPath).Trim() -eq "") {
-        $sw.Stop()
-        return (New-AuditResult -Id ("log_clear_" + $PhaseLabel) -Title ("Log cleanup (" + $PhaseLabel + ")") -Status "WARN" -Summary "Could not determine laravel.log path." -Details @() -Data @{} -DurationMs ([int]$sw.ElapsedMilliseconds))
-    }
-
-    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
-        $sw.Stop()
-        return (New-AuditResult -Id ("log_clear_" + $PhaseLabel) -Title ("Log cleanup (" + $PhaseLabel + ")") -Status "OK" -Summary "laravel.log not found; nothing to do." -Details @("Path: " + $logPath) -Data @{ path = $logPath; action = "none"; exists = $false } -DurationMs ([int]$sw.ElapsedMilliseconds))
-    }
-
-    $ts = ""
-    try { $ts = (Get-Date).ToString("yyyyMMdd-HHmmss") } catch { $ts = "unknown" }
-
-    $bakPath = ""
-    try { $bakPath = ($logPath + ".bak-" + $ts) } catch { $bakPath = "" }
-
-    try {
-        Move-Item -LiteralPath $logPath -Destination $bakPath -Force -ErrorAction Stop | Out-Null
-
-        # Recreate empty laravel.log (UTF-8, no BOM)
-        try {
-            $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-            [System.IO.File]::WriteAllText($logPath, "", $utf8NoBom)
-        } catch {
-            # Fallback: create empty file
-            try { New-Item -ItemType File -Path $logPath -Force | Out-Null } catch { }
-        }
-
-        $sw.Stop()
-        return (New-AuditResult -Id ("log_clear_" + $PhaseLabel) -Title ("Log cleanup (" + $PhaseLabel + ")") -Status "OK" -Summary "Rotated laravel.log to backup and recreated empty log." -Details @("Path: " + $logPath, "Backup: " + $bakPath) -Data @{ path = $logPath; backup = $bakPath; action = "rotate" } -DurationMs ([int]$sw.ElapsedMilliseconds))
-    } catch {
-        $msg = ""
-        try { $msg = $_.Exception.Message } catch { $msg = "unknown_error" }
-
-        $sw.Stop()
-        return (New-AuditResult -Id ("log_clear_" + $PhaseLabel) -Title ("Log cleanup (" + $PhaseLabel + ")") -Status "WARN" -Summary ("Failed to rotate laravel.log: " + $msg) -Details @("Path: " + $logPath, "Backup: " + $bakPath) -Data @{ path = $logPath; backup = $bakPath; action = "failed" } -DurationMs ([int]$sw.ElapsedMilliseconds))
-    }
-}
 
 # Tail-only mode:
 $tailOnly = [bool]$TailLog `
@@ -1685,6 +952,7 @@ $tailOnly = [bool]$TailLog `
     -and (-not [bool]$RoleSmokeTest) `
     -and (-not [bool]$SessionCsrfBaseline) `
     -and (-not [bool]$SecurityProbe) `
+    -and (-not [bool]$SecurityE2E) `
     -and (-not [bool]$SecurityCheckIpBan) `
     -and (-not [bool]$SecurityCheckRegister) `
     -and (-not [bool]$SecurityExpect429) `
@@ -1707,13 +975,47 @@ try {
 if ($effectiveSecurityLoginAttempts -gt 10) { $effectiveSecurityLoginAttempts = 10 }
 if ($effectiveSecurityLoginAttempts -lt 1) { $effectiveSecurityLoginAttempts = 1 }
 
-$effectiveSecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout")
+$effectiveSecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout","zu viele","versuche")
 try {
     $kw = @($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
     if ($kw.Count -gt 0) { $effectiveSecurityLockoutKeywords = @($kw) }
 } catch { }
 
-$effectiveShowCheckDetails = Convert-ToBooleanSafe $ShowCheckDetails $true
+$effectiveSecurityE2EAttempts = 10
+try {
+    $n = [int]$SecurityE2EAttempts
+    if ($n -gt 0) { $effectiveSecurityE2EAttempts = $n }
+} catch { $effectiveSecurityE2EAttempts = 10 }
+
+$effectiveSecurityE2EThreshold = 3
+try {
+    $n = [int]$SecurityE2EThreshold
+    if ($n -gt 0) { $effectiveSecurityE2EThreshold = $n }
+} catch { $effectiveSecurityE2EThreshold = 3 }
+
+$effectiveSecurityE2ESeconds = 300
+try {
+    $n = [int]$SecurityE2ESeconds
+    if ($n -gt 0) { $effectiveSecurityE2ESeconds = $n }
+} catch { $effectiveSecurityE2ESeconds = 300 }
+
+$effectiveSecurityE2ELogin = "audit-test@kiezsingles.local"
+try {
+    $v = ("" + $SecurityE2ELogin).Trim()
+    if ($v -ne "") { $effectiveSecurityE2ELogin = $v }
+} catch { $effectiveSecurityE2ELogin = "audit-test@kiezsingles.local" }
+
+$effectiveSecurityE2EPassword = "random"
+try {
+    $v = ("" + $SecurityE2EPassword)
+    if ($v -ne "") { $effectiveSecurityE2EPassword = $v }
+} catch { $effectiveSecurityE2EPassword = "random" }
+
+$effectiveSecurityE2ECleanup = Convert-ToBooleanSafe $SecurityE2ECleanup $true
+$effectiveSecurityE2EDryRun = Convert-ToBooleanSafe $SecurityE2EDryRun $false
+$effectiveSecurityE2EEnvGate = Convert-ToBooleanSafe $SecurityE2EEnvGate $true
+
+$effectiveShowCheckDetails = Convert-ToBooleanSafe $ShowCheckDetails $false
 $effectiveExportLogs = Convert-ToBooleanSafe $ExportLogs $false
 $effectiveExportLogsLines = Convert-ToIntSafe $ExportLogsLines 200
 if ($effectiveExportLogsLines -lt 1) { $effectiveExportLogsLines = 200 }
@@ -1722,6 +1024,12 @@ $effectiveAutoOpenExportFolder = Convert-ToBooleanSafe $AutoOpenExportFolder $fa
 $effectivePerCheckDetailsMap = Convert-PerCheckSettingMap $PerCheckDetails
 $effectivePerCheckExportMap = Convert-PerCheckSettingMap $PerCheckExport
 $effectiveLogFilePath = Get-LaravelLogPath $projectRoot
+
+$hasPerCheckDetailsOverrides = $false
+try { $hasPerCheckDetailsOverrides = ($null -ne $effectivePerCheckDetailsMap -and [int]$effectivePerCheckDetailsMap.Count -gt 0) } catch { $hasPerCheckDetailsOverrides = $false }
+
+$hasPerCheckExportOverrides = $false
+try { $hasPerCheckExportOverrides = ($null -ne $effectivePerCheckExportMap -and [int]$effectivePerCheckExportMap.Count -gt 0) } catch { $hasPerCheckExportOverrides = $false }
 
 # Resolve TailLogMode for checks (prefer env var)
 $tailMode = "history"
@@ -1754,12 +1062,27 @@ $context = [pscustomobject]@{
     LogCleanupBeforeBackupCreated = $false
     LogCleanupBeforeBackupPath = "-"
     RouteListOptionScanFullProject = [bool]$RouteListOptionScanFullProject
-    SecurityProbe = [bool]$SecurityProbe
+    SecurityProbe = [bool]$effectiveSecurityProbe
     SecurityLoginAttempts = [int]$effectiveSecurityLoginAttempts
     SecurityCheckIpBan = [bool]$SecurityCheckIpBan
     SecurityCheckRegister = [bool]$SecurityCheckRegister
     SecurityExpect429 = [bool]$SecurityExpect429
     SecurityLockoutKeywords = @($effectiveSecurityLockoutKeywords)
+    SecurityE2E = [bool]$effectiveSecurityE2E
+    SecurityE2ELockout = [bool]$effectiveSecurityE2ELockout
+    SecurityE2EIpAutoban = [bool]$effectiveSecurityE2EIpAutoban
+    SecurityE2EDeviceAutoban = [bool]$effectiveSecurityE2EDeviceAutoban
+    SecurityE2EIdentityBan = [bool]$effectiveSecurityE2EIdentityBan
+    SecurityE2ESupportRef = [bool]$effectiveSecurityE2ESupportRef
+    SecurityE2EEventsCheck = [bool]$effectiveSecurityE2EEventsCheck
+    SecurityE2EAttempts = [int]$effectiveSecurityE2EAttempts
+    SecurityE2EThreshold = [int]$effectiveSecurityE2EThreshold
+    SecurityE2ESeconds = [int]$effectiveSecurityE2ESeconds
+    SecurityE2ELogin = $effectiveSecurityE2ELogin
+    SecurityE2EPassword = $effectiveSecurityE2EPassword
+    SecurityE2ECleanup = [bool]$effectiveSecurityE2ECleanup
+    SecurityE2EDryRun = [bool]$effectiveSecurityE2EDryRun
+    SecurityE2EEnvGate = [bool]$effectiveSecurityE2EEnvGate
     ShowCheckDetails = [bool]$effectiveShowCheckDetails
     ExportLogs = [bool]$effectiveExportLogs
     ExportLogsLines = [int]$effectiveExportLogsLines
@@ -1769,6 +1092,7 @@ $context = [pscustomobject]@{
         WriteSection = ${function:Write-Section}
         RunPHPArtisan = ${function:Invoke-PHPArtisan}
         NewAuditResult = ${function:New-AuditResult}
+        HttpNoRedirect = ${function:Invoke-KsHttpNoRedirect}
     }
 }
 
@@ -1839,16 +1163,16 @@ if ($missingRequired.Count -gt 0) {
     Write-Host ("RoutesVerbose: " + [bool]$RoutesVerbose)
     Write-Host ("RouteListFindstrAdmin: " + [bool]$RouteListFindstrAdmin)
     Write-Host ("SuperadminCount: " + [bool]$SuperadminCount)
-    Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + ")")
+    Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + "; " + $loginCsrfProbeEffectiveReason + ")")
     Write-Host ("RoleSmokeTest: " + [bool]$RoleSmokeTest)
-    Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + ")")
+    Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + "; " + $sessionCsrfBaselineEffectiveReason + ")")
     Write-Host ("LogSnapshot: " + [bool]$LogSnapshot)
     Write-Host ("LogSnapshotLines: " + $logSnapshotLinesHeader)
     Write-Host ("LogClearBefore: " + [bool]$LogClearBefore)
     Write-Host ("LogClearAfter: " + [bool]$LogClearAfter)
     if ([bool]$LogClearBefore -or [bool]$LogClearAfter) { Write-Host "Hinweis: laravel.log wird rotiert; .bak-* vorhanden" }
     Write-Host ("RouteListOptionScanFullProject: " + [bool]$RouteListOptionScanFullProject)
-    Write-Host ("SecurityProbe: " + [bool]$SecurityProbe)
+    Write-Host ("SecurityProbe: " + [bool]$SecurityProbe + " (effective: " + [bool]$effectiveSecurityProbe + "; as requested)")
     Write-Host ("SecurityLoginAttempts: " + [int]$effectiveSecurityLoginAttempts)
     Write-Host ("SecurityCheckIpBan: " + [bool]$SecurityCheckIpBan)
     Write-Host ("SecurityCheckRegister: " + [bool]$SecurityCheckRegister)
@@ -2157,6 +1481,16 @@ if (Test-FunctionExists "Invoke-KsAuditCheck_SecurityAbuseProtection") {
     }) | Out-Null
 }
 
+if ($effectiveSecurityE2E) {
+    if (Test-FunctionExists "Invoke-KsAuditCheck_SecurityE2E") {
+        $plan.Add({ Invoke-KsAuditCheck_SecurityE2E -Context $context }) | Out-Null
+    } else {
+        $plan.Add({
+            New-AuditResult -Id "missing_check" -Title "X+) Security E2E Test" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_SecurityE2E" -Details @() -Data @{} -DurationMs 0
+        }) | Out-Null
+    }
+}
+
 if ($RoutesVerbose) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_RoutesVerbose") {
         $plan.Add({ Invoke-KsAuditCheck_RoutesVerbose -Context $context }) | Out-Null
@@ -2213,21 +1547,36 @@ Write-Host ("TailLog:     " + [bool]$TailLog)
 Write-Host ("RoutesVerbose: " + [bool]$RoutesVerbose)
 Write-Host ("RouteListFindstrAdmin: " + [bool]$RouteListFindstrAdmin)
 Write-Host ("SuperadminCount: " + [bool]$SuperadminCount)
-Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + ")")
+Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + "; " + $loginCsrfProbeEffectiveReason + ")")
 Write-Host ("RoleSmokeTest: " + [bool]$RoleSmokeTest)
-Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + ")")
+Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + "; " + $sessionCsrfBaselineEffectiveReason + ")")
 Write-Host ("LogSnapshot: " + [bool]$LogSnapshot)
 Write-Host ("LogSnapshotLines: " + $logSnapshotLinesHeader)
 Write-Host ("LogClearBefore: " + [bool]$LogClearBefore)
 Write-Host ("LogClearAfter: " + [bool]$LogClearAfter)
 if ([bool]$LogClearBefore -or [bool]$LogClearAfter) { Write-Host "Hinweis: laravel.log wird rotiert; .bak-* vorhanden" }
 Write-Host ("RouteListOptionScanFullProject: " + [bool]$RouteListOptionScanFullProject)
-Write-Host ("SecurityProbe: " + [bool]$SecurityProbe)
+Write-Host ("SecurityProbe: " + [bool]$SecurityProbe + " (effective: " + [bool]$effectiveSecurityProbe + "; as requested)")
 Write-Host ("SecurityLoginAttempts: " + [int]$effectiveSecurityLoginAttempts)
 Write-Host ("SecurityCheckIpBan: " + [bool]$SecurityCheckIpBan)
 Write-Host ("SecurityCheckRegister: " + [bool]$SecurityCheckRegister)
 Write-Host ("SecurityExpect429: " + [bool]$SecurityExpect429)
 Write-Host ("SecurityLockoutKeywords: " + (($effectiveSecurityLockoutKeywords | ForEach-Object { "" + $_ }) -join ", "))
+Write-Host ("SecurityE2E: " + [bool]$SecurityE2E + " (effective: " + [bool]$effectiveSecurityE2E + "; " + $securityE2EEffectiveReason + ")")
+Write-Host ("SecurityE2ELockout: " + [bool]$SecurityE2ELockout + " (effective: " + [bool]$effectiveSecurityE2ELockout + $(if ([bool]$SecurityE2ELockout -and -not [bool]$effectiveSecurityE2E) { "; overridden by dependency: SecurityE2E=false" } else { "; as requested" }) + ")")
+Write-Host ("SecurityE2EIpAutoban: " + [bool]$SecurityE2EIpAutoban + " (effective: " + [bool]$effectiveSecurityE2EIpAutoban + $(if ([bool]$SecurityE2EIpAutoban -and -not [bool]$effectiveSecurityE2E) { "; overridden by dependency: SecurityE2E=false" } else { "; as requested" }) + ")")
+Write-Host ("SecurityE2EDeviceAutoban: " + [bool]$SecurityE2EDeviceAutoban + " (effective: " + [bool]$effectiveSecurityE2EDeviceAutoban + $(if ([bool]$SecurityE2EDeviceAutoban -and -not [bool]$effectiveSecurityE2E) { "; overridden by dependency: SecurityE2E=false" } else { "; as requested" }) + ")")
+Write-Host ("SecurityE2EIdentityBan: " + [bool]$SecurityE2EIdentityBan + " (effective: " + [bool]$effectiveSecurityE2EIdentityBan + $(if ([bool]$SecurityE2EIdentityBan -and -not [bool]$effectiveSecurityE2E) { "; overridden by dependency: SecurityE2E=false" } else { "; as requested" }) + ")")
+Write-Host ("SecurityE2ESupportRef: " + [bool]$SecurityE2ESupportRef + " (effective: " + [bool]$effectiveSecurityE2ESupportRef + $(if ([bool]$SecurityE2ESupportRef -and -not [bool]$effectiveSecurityE2E) { "; overridden by dependency: SecurityE2E=false" } else { "; as requested" }) + ")")
+Write-Host ("SecurityE2EEventsCheck: " + [bool]$SecurityE2EEventsCheck + " (effective: " + [bool]$effectiveSecurityE2EEventsCheck + $(if ([bool]$SecurityE2EEventsCheck -and -not [bool]$effectiveSecurityE2E) { "; overridden by dependency: SecurityE2E=false" } else { "; as requested" }) + ")")
+Write-Host ("SecurityE2EAttempts: " + [int]$effectiveSecurityE2EAttempts)
+Write-Host ("SecurityE2EThreshold: " + [int]$effectiveSecurityE2EThreshold)
+Write-Host ("SecurityE2ESeconds: " + [int]$effectiveSecurityE2ESeconds)
+Write-Host ("SecurityE2ELogin: " + $effectiveSecurityE2ELogin)
+Write-Host ("SecurityE2EPassword: <redacted>")
+Write-Host ("SecurityE2ECleanup: " + [bool]$effectiveSecurityE2ECleanup)
+Write-Host ("SecurityE2EDryRun: " + [bool]$effectiveSecurityE2EDryRun)
+Write-Host ("SecurityE2EEnvGate: " + [bool]$effectiveSecurityE2EEnvGate)
 Write-Host ("ShowCheckDetails: " + [bool]$effectiveShowCheckDetails)
 Write-Host ("ExportLogs: " + [bool]$effectiveExportLogs)
 Write-Host ("ExportLogsLines: " + [int]$effectiveExportLogsLines)
@@ -2261,8 +1610,24 @@ foreach ($step in $plan) {
     if ($null -ne $res) {
         $checkId = ""
         try { $checkId = ("" + $res.id).Trim().ToLowerInvariant() } catch { $checkId = "" }
-        $detailsEnabledForThisCheck = ($effectiveShowCheckDetails -and (Get-PerCheckEnabled -Map $effectivePerCheckDetailsMap -CheckId $checkId -Default $false))
-        $exportEnabledForThisCheck = ($effectiveExportLogs -and (Get-PerCheckEnabled -Map $effectivePerCheckExportMap -CheckId $checkId -Default $false))
+
+        $detailsEnabledForThisCheck = $false
+        if ($effectiveShowCheckDetails) {
+            if (-not $hasPerCheckDetailsOverrides) {
+                $detailsEnabledForThisCheck = $true
+            } else {
+                $detailsEnabledForThisCheck = (Get-PerCheckEnabled -Map $effectivePerCheckDetailsMap -CheckId $checkId -Default $false)
+            }
+        }
+
+        $exportEnabledForThisCheck = $false
+        if ($effectiveExportLogs) {
+            if (-not $hasPerCheckExportOverrides) {
+                $exportEnabledForThisCheck = $true
+            } else {
+                $exportEnabledForThisCheck = (Get-PerCheckEnabled -Map $effectivePerCheckExportMap -CheckId $checkId -Default $false)
+            }
+        }
 
         if ($null -eq $res.data) { $res.data = @{} }
         try { $res.data["check_started_at"] = $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
@@ -2312,25 +1677,51 @@ foreach ($step in $plan) {
                     # Remove common numbering prefixes like "1) ", "2a) ", "X) ".
                     $checkNameSource = ($checkNameSource -replace '^(?i:\s*[0-9x]+[a-z]?\)\s*)', '')
                     $checkName = Convert-ToSafeFileSegment $checkNameSource
-                    $exportName = ("{0}_security-abuse_{1}.log" -f $runStamp, $checkName)
+                    $exportName = ("{0}_audit_{1}.log" -f $runStamp, $checkName)
                     $exportPath = Join-Path $effectiveExportFolder $exportName
-                    $exportLines = @($logSliceArr)
-                    if ($exportLines.Count -le 0) {
-                        $modeHint = ""
-                        try { $modeHint = ("" + $res.data["log_slice_mode"]).Trim() } catch { $modeHint = "" }
-                        $fallback = New-Object System.Collections.Generic.List[string]
-                        $fallback.Add("# No log lines matched for this check.") | Out-Null
-                        $fallback.Add("# Check: " + ("" + $res.id)) | Out-Null
-                        $fallback.Add("# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
-                        $fallback.Add("# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
-                        if ($modeHint -ne "") { $fallback.Add("# LogSliceMode: " + $modeHint) | Out-Null }
-                        foreach ($ev in $sliceEvidenceArr) {
-                            $t = ("" + $ev).Trim()
-                            if ($t -ne "") { $fallback.Add("# Evidence: " + $t) | Out-Null }
-                        }
-                        $exportLines = @($fallback.ToArray())
+
+                    $modeHint = ""
+                    try { $modeHint = ("" + $res.data["log_slice_mode"]).Trim() } catch { $modeHint = "" }
+
+                    $exportLinesList = New-Object System.Collections.Generic.List[string]
+                    $exportLinesList.Add("# KiezSingles Admin Audit - Per-Check Report") | Out-Null
+                    $exportLinesList.Add("# CheckId: " + ("" + $res.id)) | Out-Null
+                    $exportLinesList.Add("# Title: " + ("" + $res.title)) | Out-Null
+                    $exportLinesList.Add("# Status: " + ("" + $res.status)) | Out-Null
+                    $exportLinesList.Add("# Summary: " + ("" + $res.summary)) | Out-Null
+                    $exportLinesList.Add("# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
+                    $exportLinesList.Add("# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
+                    if ($modeHint -ne "") { $exportLinesList.Add("# LogSliceMode: " + $modeHint) | Out-Null }
+
+                    $exportLinesList.Add("") | Out-Null
+                    $exportLinesList.Add("Evidence:") | Out-Null
+                    $evExport = @()
+                    try { $evExport = @(ConvertTo-SafeStringArray $res.evidence) } catch { $evExport = @() }
+                    if ($evExport.Count -le 0) {
+                        $exportLinesList.Add("  (none)") | Out-Null
+                    } else {
+                        foreach ($ev in $evExport) { $exportLinesList.Add("  - " + ("" + $ev)) | Out-Null }
                     }
-                    [System.IO.File]::WriteAllLines($exportPath, @($exportLines), [System.Text.UTF8Encoding]::new($false))
+
+                    $exportLinesList.Add("") | Out-Null
+                    $exportLinesList.Add("Details:") | Out-Null
+                    $detExport = @()
+                    try { $detExport = @(ConvertTo-SafeStringArray (Get-DetailsForOutput $res)) } catch { $detExport = @() }
+                    if ($detExport.Count -le 0) {
+                        $exportLinesList.Add("  (none)") | Out-Null
+                    } else {
+                        foreach ($d in $detExport) { $exportLinesList.Add("  " + ("" + $d)) | Out-Null }
+                    }
+
+                    $exportLinesList.Add("") | Out-Null
+                    $exportLinesList.Add(("LogSlice (max {0} lines):" -f [int]$effectiveExportLogsLines)) | Out-Null
+                    if ($logSliceArr.Count -le 0) {
+                        $exportLinesList.Add("  (no lines)") | Out-Null
+                    } else {
+                        foreach ($l in $logSliceArr) { $exportLinesList.Add("  " + ("" + $l)) | Out-Null }
+                    }
+
+                    [System.IO.File]::WriteAllLines($exportPath, @($exportLinesList.ToArray()), [System.Text.UTF8Encoding]::new($false))
                     $exports.Add($exportPath) | Out-Null
                     try { $res.log_export_path = $exportPath } catch { }
                     try { $res.data["log_export_path"] = $exportPath } catch { }
