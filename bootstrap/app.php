@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\bootstrap\app.php
 // Purpose: Application bootstrap & middleware registration
-// Changed: 02-03-2026 12:44 (Europe/Berlin)
-// Version: 1.5
+// Changed: 05-03-2026 22:14 (Europe/Berlin)
+// Version: 1.8
 // ============================================================================
 
 use App\Http\Middleware\MaintenanceMode;
@@ -12,6 +12,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Support\Facades\Blade;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -29,6 +30,27 @@ return Application::configure(basePath: dirname(__DIR__))
             MaintenanceMode::class,
             SetSessionLifetimeByRole::class,
         ]);
+
+        // Local-only: trust proxy headers so PowerShell tests can simulate client IP via X-Forwarded-For.
+        // IMPORTANT: Do NOT enable this outside local dev (security risk).
+        $isLocal = false;
+        try {
+            if (function_exists('app')) {
+                $isLocal = app()->environment('local');
+            }
+        } catch (\Throwable $ignore) {
+            $isLocal = false;
+        }
+
+        if ($isLocal) {
+            $middleware->trustProxies(
+                at: '*',
+                headers: SymfonyRequest::HEADER_X_FORWARDED_FOR
+                    | SymfonyRequest::HEADER_X_FORWARDED_HOST
+                    | SymfonyRequest::HEADER_X_FORWARDED_PORT
+                    | SymfonyRequest::HEADER_X_FORWARDED_PROTO
+            );
+        }
 
         // Route middleware aliases (Laravel 11/12 bootstrap registration).
         $middleware->alias([

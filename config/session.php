@@ -2,11 +2,19 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\config\session.php
 // Purpose: Session configuration
-// Changed: 28-02-2026 20:01 (Europe/Berlin)
-// Version: 0.2
+// Changed: 04-03-2026 21:51 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 use Illuminate\Support\Str;
+
+$appUrl = (string) env('APP_URL', '');
+$secureDefault = Str::startsWith($appUrl, 'https://');
+
+$sessionDomain = env('SESSION_DOMAIN');
+if ($sessionDomain !== null && trim((string) $sessionDomain) === '') {
+    $sessionDomain = null;
+}
 
 return [
 
@@ -161,7 +169,7 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN'),
+    'domain' => $sessionDomain,
 
     /*
     |--------------------------------------------------------------------------
@@ -174,7 +182,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', $secureDefault),
 
     /*
     |--------------------------------------------------------------------------

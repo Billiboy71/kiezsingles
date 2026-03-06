@@ -2,11 +2,15 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web.php
 // Purpose: Web routes (public + authenticated)
-// Changed: 23-02-2026 15:50 (Europe/Berlin)
-// Version: 2.0
+// Changed: 05-03-2026 22:15 (Europe/Berlin)
+// Version: 2.1
 // ============================================================================
 
-require __DIR__ . '/auth.php';
+use Illuminate\Support\Facades\Route;
+
+Route::middleware('ensure.not.banned.ip')->group(function () {
+    require __DIR__ . '/auth.php';
+});
 
 // SYSTEM/INFRA: Debug + Noteinstieg + Wartungs-preview + maintenance-notify
 // (NOT admin backend debug page at /admin/debug)

@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminSecurityController.php
 // Purpose: Admin Security controller (overview, events, bans, settings, event purge)
-// Changed: 02-03-2026 14:57 (Europe/Berlin)
-// Version: 0.4
+// Changed: 05-03-2026 23:53 (Europe/Berlin)
+// Version: 0.6
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\Security\SecuritySettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class AdminSecurityController extends Controller
@@ -206,15 +207,31 @@ class AdminSecurityController extends Controller
         $validated = $request->validate([
             'ip' => ['required', 'ip'],
             'reason' => ['nullable', 'string', 'max:1000'],
+            'ttl_minutes' => ['nullable', 'integer', 'min:1', 'max:525600'],
             'ttl_seconds' => ['nullable', 'integer', 'min:1', 'max:31536000'],
+            'banned_until' => ['nullable', 'date_format:Y-m-d\TH:i'],
         ]);
 
+        $ttlMinutes = isset($validated['ttl_minutes']) ? (int) $validated['ttl_minutes'] : null;
         $ttlSeconds = isset($validated['ttl_seconds']) ? (int) $validated['ttl_seconds'] : null;
+
+        $bannedUntil = null;
+        if (!empty($validated['banned_until'])) {
+            $bannedUntil = Carbon::createFromFormat(
+                'Y-m-d\TH:i',
+                (string) $validated['banned_until'],
+                config('app.timezone')
+            );
+        } elseif ($ttlMinutes !== null) {
+            $bannedUntil = now()->addMinutes($ttlMinutes);
+        } elseif ($ttlSeconds !== null) {
+            $bannedUntil = now()->addSeconds($ttlSeconds);
+        }
 
         SecurityIpBan::query()->create([
             'ip' => (string) $validated['ip'],
             'reason' => $validated['reason'] ?? null,
-            'banned_until' => $ttlSeconds !== null ? now()->addSeconds($ttlSeconds) : null,
+            'banned_until' => $bannedUntil,
             'created_by' => auth()->id(),
         ]);
 
@@ -253,15 +270,31 @@ class AdminSecurityController extends Controller
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],
             'reason' => ['nullable', 'string', 'max:1000'],
+            'ttl_minutes' => ['nullable', 'integer', 'min:1', 'max:525600'],
             'ttl_seconds' => ['nullable', 'integer', 'min:1', 'max:31536000'],
+            'banned_until' => ['nullable', 'date_format:Y-m-d\TH:i'],
         ]);
 
+        $ttlMinutes = isset($validated['ttl_minutes']) ? (int) $validated['ttl_minutes'] : null;
         $ttlSeconds = isset($validated['ttl_seconds']) ? (int) $validated['ttl_seconds'] : null;
+
+        $bannedUntil = null;
+        if (!empty($validated['banned_until'])) {
+            $bannedUntil = Carbon::createFromFormat(
+                'Y-m-d\TH:i',
+                (string) $validated['banned_until'],
+                config('app.timezone')
+            );
+        } elseif ($ttlMinutes !== null) {
+            $bannedUntil = now()->addMinutes($ttlMinutes);
+        } elseif ($ttlSeconds !== null) {
+            $bannedUntil = now()->addSeconds($ttlSeconds);
+        }
 
         SecurityIdentityBan::query()->create([
             'email' => mb_strtolower(trim((string) $validated['email'])),
             'reason' => $validated['reason'] ?? null,
-            'banned_until' => $ttlSeconds !== null ? now()->addSeconds($ttlSeconds) : null,
+            'banned_until' => $bannedUntil,
             'created_by' => auth()->id(),
         ]);
 
@@ -300,15 +333,31 @@ class AdminSecurityController extends Controller
         $validated = $request->validate([
             'device_hash' => ['required', 'string', 'size:64'],
             'reason' => ['nullable', 'string', 'max:1000'],
+            'ttl_minutes' => ['nullable', 'integer', 'min:1', 'max:525600'],
             'ttl_seconds' => ['nullable', 'integer', 'min:1', 'max:31536000'],
+            'banned_until' => ['nullable', 'date_format:Y-m-d\TH:i'],
         ]);
 
+        $ttlMinutes = isset($validated['ttl_minutes']) ? (int) $validated['ttl_minutes'] : null;
         $ttlSeconds = isset($validated['ttl_seconds']) ? (int) $validated['ttl_seconds'] : null;
+
+        $bannedUntil = null;
+        if (!empty($validated['banned_until'])) {
+            $bannedUntil = Carbon::createFromFormat(
+                'Y-m-d\TH:i',
+                (string) $validated['banned_until'],
+                config('app.timezone')
+            );
+        } elseif ($ttlMinutes !== null) {
+            $bannedUntil = now()->addMinutes($ttlMinutes);
+        } elseif ($ttlSeconds !== null) {
+            $bannedUntil = now()->addSeconds($ttlSeconds);
+        }
 
         SecurityDeviceBan::query()->create([
             'device_hash' => trim((string) $validated['device_hash']),
             'reason' => $validated['reason'] ?? null,
-            'banned_until' => $ttlSeconds !== null ? now()->addSeconds($ttlSeconds) : null,
+            'banned_until' => $bannedUntil,
             'is_active' => true,
             'created_by' => auth()->id(),
         ]);

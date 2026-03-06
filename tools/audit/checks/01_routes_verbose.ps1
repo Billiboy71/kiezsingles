@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_routes_verbose.ps1
 # Purpose: Audit check - verbose route inspection (informative)
 # Created: 21-02-2026 00:10 (Europe/Berlin)
-# Changed: 01-03-2026 16:35 (Europe/Berlin)
-# Version: 0.6
+# Changed: 04-03-2026 22:56 (Europe/Berlin)
+# Version: 0.7
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -23,6 +23,154 @@ function Invoke-KsAuditCheck_RoutesVerbose {
     $new  = $Context.Helpers.NewAuditResult
 
     & $Context.Helpers.WriteSection "1v) Routes verbose inspection (route:list --path=admin -vv)"
+
+    function Normalize-MiddlewareToken([string]$s) {
+        if ($null -eq $s) { return "" }
+        $t = ("" + $s).Trim()
+        if ($t -eq "") { return "" }
+        $t = $t.Trim(',', ';', '[', ']', '(', ')')
+        $t = $t.Trim()
+        return $t
+    }
+
+    function Try-LoadAdminRoutesFromRouteListJson([string]$Root, [int]$TimeoutSec = 120) {
+        try {
+            $rj = $null
+            try { $rj = & $run $Root @("route:list", "--path=admin", "--json", "--no-ansi", "--no-interaction") $TimeoutSec } catch { $rj = $null }
+            if ($null -eq $rj) { return [pscustomobject]@{ ok = $false; routes = @(); note = "route:list --json could not be executed." } }
+
+            $out = ""
+            try { $out = ("" + $rj.StdOut).Trim() } catch { $out = "" }
+            if ($out -eq "") { return [pscustomobject]@{ ok = $false; routes = @(); note = "route:list --json returned empty output." } }
+
+            $obj = $null
+            try { $obj = $out | ConvertFrom-Json -ErrorAction Stop } catch { $obj = $null }
+            if ($null -eq $obj) { return [pscustomobject]@{ ok = $false; routes = @(); note = "route:list --json output not parseable as JSON." } }
+
+            $items = @()
+            if ($obj -is [System.Collections.IEnumerable] -and -not ($obj -is [string])) {
+                $items = @($obj)
+            } elseif ($obj.PSObject -and ($obj.PSObject.Properties.Name -contains "routes")) {
+                $items = @($obj.routes)
+            } else {
+                $items = @()
+            }
+
+            if ($items.Count -le 0) { return [pscustomobject]@{ ok = $true; routes = @(); note = "route:list --json parsed but no routes found." } }
+
+            $routes = New-Object System.Collections.Generic.List[object]
+            foreach ($it in @($items)) {
+                if ($null -eq $it) { continue }
+
+                $uri = ""
+                $name = ""
+                $mw = @()
+
+                try {
+                    if ($it.PSObject -and ($it.PSObject.Properties.Name -contains "uri")) { $uri = ("" + $it.uri).Trim() }
+                } catch { $uri = "" }
+
+                try {
+                    if ($it.PSObject -and ($it.PSObject.Properties.Name -contains "name")) { $name = ("" + $it.name).Trim() }
+                } catch { $name = "" }
+
+                try {
+                    if ($it.PSObject -and ($it.PSObject.Properties.Name -contains "middleware")) {
+                        $mwRaw = $it.middleware
+                        if ($mwRaw -is [string]) {
+                            $mw = @($mwRaw -split "[,\s]+" | ForEach-Object { Normalize-MiddlewareToken $_ } | Where-Object { $_ -ne "" })
+                        } else {
+                            $mw = @($mwRaw | ForEach-Object { Normalize-MiddlewareToken $_ } | Where-Object { $_ -ne "" })
+                        }
+                    }
+                } catch { $mw = @() }
+
+                if ($uri -eq "" -and $name -eq "" -and @($mw).Count -eq 0) { continue }
+
+                $routes.Add([pscustomobject]@{
+                    Uri = $uri
+                    Name = $name
+                    Middleware = @($mw)
+                }) | Out-Null
+            }
+
+            return [pscustomobject]@{ ok = $true; routes = @($routes.ToArray()); note = "route:list --json" }
+        } catch {
+            return [pscustomobject]@{ ok = $false; routes = @(); note = ("route:list --json exception: " + $_.Exception.Message) }
+        }
+    }
+
+    function Parse-AdminRoutesFromRouteListVerboseText([string]$Text) {
+        $routes = New-Object System.Collections.Generic.List[object]
+        try {
+            $cur = $null
+            foreach ($line in @($Text -split "`r?`n")) {
+                $l = ("" + $line)
+
+                # Route header line (e.g. "GET|HEAD   admin .... admin.home")
+                if ($l -match '^\s*[A-Z\|]+\s+admin(\S*)\s+\.+') {
+                    if ($null -ne $cur) { $routes.Add($cur) | Out-Null }
+
+                    $routeName = ""
+                    $uri = ""
+
+                    try {
+                        if ($l -match '^\s*[A-Z\|]+\s+(admin[^\s]*)\s+\.+') {
+                            $uri = ("" + $Matches[1]).Trim()
+                        }
+
+                        $idx = $l.IndexOf("admin.")
+                        if ($idx -ge 0) {
+                            $tail = $l.Substring($idx).Trim()
+                            $cut = $tail.IndexOf(" › ")
+                            if ($cut -ge 0) { $tail = $tail.Substring(0, $cut).Trim() }
+                            $parts = $tail -split '\s+'
+                            if ($parts.Count -gt 0) { $routeName = ("" + $parts[0]).Trim() }
+                        }
+                    } catch {
+                        $routeName = ""
+                        $uri = ""
+                    }
+
+                    $cur = [pscustomobject]@{
+                        Uri = $uri
+                        Name = $routeName
+                        Middleware = New-Object System.Collections.Generic.List[string]
+                    }
+                    continue
+                }
+
+                if ($null -eq $cur) { continue }
+
+                $trim = ("" + $l).Trim()
+                if ($trim -eq "") { continue }
+
+                # Preferred: "Middleware: a, b, c"
+                if ($trim -match '^(?i)Middleware\s*:\s*(?<mw>.+)$') {
+                    $mwText = ("" + $Matches["mw"]).Trim()
+                    if ($mwText -ne "") {
+                        $parts = @($mwText -split "[,]+" | ForEach-Object { Normalize-MiddlewareToken $_ } | Where-Object { $_ -ne "" })
+                        foreach ($p in @($parts)) { $cur.Middleware.Add($p) | Out-Null }
+                    }
+                    continue
+                }
+
+                # Fallback: last token is often class name; keep encoding-safe behavior
+                $tokens = $trim -split '\s+'
+                if ($tokens.Count -gt 0) {
+                    $last = Normalize-MiddlewareToken ("" + $tokens[$tokens.Count - 1])
+                    if ($last -ne "" -and ($last -like "Illuminate\*" -or $last -like "App\*")) {
+                        $cur.Middleware.Add($last) | Out-Null
+                        continue
+                    }
+                }
+            }
+
+            if ($null -ne $cur) { $routes.Add($cur) | Out-Null }
+        } catch { }
+
+        return @($routes.ToArray())
+    }
 
     try {
         $r = & $run $root @("route:list", "--path=admin", "-vv", "--no-ansi", "--no-interaction") 120
@@ -50,92 +198,29 @@ function Invoke-KsAuditCheck_RoutesVerbose {
 
         # ---------------------------------------------------------------------
         # STRICT VALIDATION (SSOT via middleware)
-        # Parse verbose output and validate:
-        # - Authenticate present
-        # - MaintenanceMode present
-        # - EnsureSectionAccess:<section> present
-        # - EnsureStaff for sections: overview, tickets
-        # - EnsureSuperadmin for all other sections
-        #
-        # NOTE:
-        # We intentionally do NOT match the leading arrow symbol (encoding can be
-        # mangled). We detect middleware lines by taking the last whitespace-
-        # separated token and checking if it starts with Illuminate\ or App\.
+        # Primary: route:list --json (middleware list)
+        # Fallback: route:list -vv text parse (encoding-safe + Middleware: lines)
         # ---------------------------------------------------------------------
         $issues = @()
 
-        if ($out -ne "") {
-            $lines = $out -split "`r?`n"
+        $routes = @()
+        $routeSourceNote = ""
 
-            $routes = New-Object System.Collections.Generic.List[object]
-            $current = $null
-
-            foreach ($line in $lines) {
-                $l = ("" + $line)
-
-                # Route header line (e.g. "GET|HEAD   admin .... admin.home")
-                if ($l -match '^\s*[A-Z\|]+\s+admin(\S*)\s+\.+') {
-
-                    if ($null -ne $current) {
-                        $routes.Add($current)
-                    }
-
-                    $routeName = ""
-                    $uri = ""
-
-                    try {
-                        # URI
-                        if ($l -match '^\s*[A-Z\|]+\s+(admin[^\s]*)\s+\.+') {
-                            $uri = $Matches[1]
-                        }
-
-                        # Route name: take substring starting at 'admin.' and cut at ' › ' if present
-                        $idx = $l.IndexOf("admin.")
-                        if ($idx -ge 0) {
-                            $tail = $l.Substring($idx).Trim()
-                            $cut = $tail.IndexOf(" › ")
-                            if ($cut -ge 0) {
-                                $tail = $tail.Substring(0, $cut).Trim()
-                            }
-                            $parts = $tail -split '\s+'
-                            if ($parts.Count -gt 0) {
-                                $routeName = ("" + $parts[0]).Trim()
-                            }
-                        }
-                    } catch {
-                        $routeName = ""
-                        $uri = ""
-                    }
-
-                    $current = [pscustomobject]@{
-                        Uri = $uri
-                        Name = $routeName
-                        Middleware = New-Object System.Collections.Generic.List[string]
-                    }
-
-                    continue
-                }
-
-                # Middleware line (encoding-safe): last token should be the class name
-                if ($null -ne $current) {
-                    $trim = ("" + $l).Trim()
-                    if ($trim -ne "") {
-                        $tokens = $trim -split '\s+'
-                        if ($tokens.Count -gt 0) {
-                            $last = ("" + $tokens[$tokens.Count - 1]).Trim()
-                            if ($last -like "Illuminate\*" -or $last -like "App\*") {
-                                $current.Middleware.Add($last)
-                                continue
-                            }
-                        }
-                    }
-                }
+        $jsonTry = Try-LoadAdminRoutesFromRouteListJson -Root $root -TimeoutSec 120
+        if ($jsonTry.ok) {
+            $routes = @($jsonTry.routes)
+            $routeSourceNote = ("" + $jsonTry.note).Trim()
+        } else {
+            if ($out -ne "") {
+                $routes = @(Parse-AdminRoutesFromRouteListVerboseText -Text $out)
+                $routeSourceNote = "route:list -vv (text parse)"
+            } else {
+                $routes = @()
+                $routeSourceNote = "no routes available (json failed; -vv empty)"
             }
+        }
 
-            if ($null -ne $current) {
-                $routes.Add($current)
-            }
-
+        if (@($routes).Count -gt 0) {
             foreach ($rt in $routes) {
                 $name = ("" + $rt.Name).Trim()
                 $uri  = ("" + $rt.Uri).Trim()
@@ -152,12 +237,14 @@ function Invoke-KsAuditCheck_RoutesVerbose {
                 $hasEnsureSuperadmin = $false
 
                 foreach ($m in $mw) {
-                    if ($m -like "*Illuminate\Auth\Middleware\Authenticate*") { $hasAuth = $true }
-                    if ($m -like "*App\Http\Middleware\MaintenanceMode*") { $hasMaintenance = $true }
-                    if ($m -like "*App\Http\Middleware\EnsureStaff*") { $hasEnsureStaff = $true }
-                    if ($m -like "*App\Http\Middleware\EnsureSuperadmin*") { $hasEnsureSuperadmin = $true }
+                    $mm = ("" + $m)
 
-                    if ($m -match 'EnsureSectionAccess:(?<sec>[a-z0-9_]+)') {
+                    if ($mm -like "*Illuminate\Auth\Middleware\Authenticate*" -or ($mm -ieq "auth")) { $hasAuth = $true }
+                    if ($mm -like "*App\Http\Middleware\MaintenanceMode*" -or ($mm -ieq "maintenance")) { $hasMaintenance = $true }
+                    if ($mm -like "*App\Http\Middleware\EnsureStaff*" -or ($mm -match '(?i)\bensurestaff\b')) { $hasEnsureStaff = $true }
+                    if ($mm -like "*App\Http\Middleware\EnsureSuperadmin*" -or ($mm -match '(?i)\bensuresuperadmin\b')) { $hasEnsureSuperadmin = $true }
+
+                    if ($mm -match 'EnsureSectionAccess:(?<sec>[a-z0-9_]+)') {
                         $section = ("" + $Matches["sec"]).Trim()
                     }
                 }
@@ -193,11 +280,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
 
         # ---------------------------------------------------------------------
         # SSOT SOURCE SCAN (Routes files): role-reads combined with "deny" patterns
-        # Goal: detect distributed guard logic in routes/web/admin/*.php.
-        # - We flag only when a file contains BOTH:
-        #   (A) role reads (current user or target user role usage), AND
-        #   (B) deny/guard patterns (abort_*, Gate::, authorize, can/cannot, policy)
-        # - We ignore obvious comment-only lines (// ...), but do not attempt a full parser.
         # ---------------------------------------------------------------------
         $sourceScanIssues = @()
 
@@ -288,6 +370,9 @@ function Invoke-KsAuditCheck_RoutesVerbose {
             $details2 = @()
             $details2 += $details
 
+            $details2 += ""
+            $details2 += ("Route source (strict validation): " + $routeSourceNote)
+
             if ($issues.Count -gt 0) {
                 $details2 += ""
                 $details2 += "--- STRICT MIDDLEWARE VALIDATION (WARN) ---"
@@ -304,10 +389,20 @@ function Invoke-KsAuditCheck_RoutesVerbose {
             if ($issues.Count -gt 0) { $summaryParts += ("middleware issues: " + $issues.Count) }
             if ($sourceScanIssues.Count -gt 0) { $summaryParts += ("source scan issues: " + $sourceScanIssues.Count) }
 
-            return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "WARN" -Summary ($summaryParts -join " | ") -Details $details2 -Data @{ exit_code = $ec; issues = $issues; source_scan_issues = $sourceScanIssues } -DurationMs ([int]$sw.ElapsedMilliseconds)
+            return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "WARN" -Summary ($summaryParts -join " | ") -Details $details2 -Data @{
+                exit_code = $ec
+                issues = $issues
+                source_scan_issues = $sourceScanIssues
+                strict_route_source = $routeSourceNote
+            } -DurationMs ([int]$sw.ElapsedMilliseconds)
         }
 
-        return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "OK" -Summary "Verbose admin route listing captured; middleware validation OK." -Details $details -Data @{ exit_code = $ec } -DurationMs ([int]$sw.ElapsedMilliseconds)
+        $detailsOk = @()
+        $detailsOk += $details
+        $detailsOk += ""
+        $detailsOk += ("Route source (strict validation): " + $routeSourceNote)
+
+        return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "OK" -Summary "Verbose admin route listing captured; middleware validation OK." -Details $detailsOk -Data @{ exit_code = $ec; strict_route_source = $routeSourceNote } -DurationMs ([int]$sw.ElapsedMilliseconds)
     } catch {
         $sw.Stop()
         return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "WARN" -Summary ("Verbose routes failed: " + $_.Exception.Message) -Details @() -Data @{} -DurationMs ([int]$sw.ElapsedMilliseconds)

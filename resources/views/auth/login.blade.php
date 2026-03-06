@@ -1,7 +1,7 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\login.blade.php       --}}
-{{-- Changed: 02-03-2026 17:42 (Europe/Berlin)                                 --}}
-{{-- Version: 0.5                                                              --}}
+{{-- Changed: 05-03-2026 22:20 (Europe/Berlin)                                 --}}
+{{-- Version: 0.6                                                              --}}
 {{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
 {{-- ========================================================================= --}}
 
@@ -9,13 +9,31 @@
     <!-- Session Status (BLEIBT) -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    @if (session('security_ban_support_ref'))
+    @php
+        $ksSupportRef = (string) (session('security_ban_support_ref') ?? '');
+        if ($ksSupportRef === '') {
+            try {
+                $ksSupportRef = (string) request()->query('security_ban_support_ref', '');
+            } catch (\Throwable $ignore) {
+                $ksSupportRef = '';
+            }
+        }
+        if ($ksSupportRef === '') {
+            try {
+                $ksSupportRef = (string) request()->query('support_ref', '');
+            } catch (\Throwable $ignore) {
+                $ksSupportRef = '';
+            }
+        }
+    @endphp
+
+    @if ($ksSupportRef !== '')
         <div class="mb-4 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-800">
             <div class="font-medium text-center">
                 Anmeldung aktuell nicht möglich.
             </div>
             <div class="mt-1 text-center">
-                Referenz: {{ session('security_ban_support_ref') }}
+                Referenz: {{ $ksSupportRef }}
             </div>
             <div class="mt-1 text-center">
                 Bitte melde dich mit dieser Referenz beim Support.

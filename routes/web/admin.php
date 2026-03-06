@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin.php
 // Purpose: Admin routes (single backend; admin-only access; single source of truth)
-// Changed: 28-02-2026 14:49 (Europe/Berlin)
-// Version: 5.7
+// Changed: 04-03-2026 21:22 (Europe/Berlin)
+// Version: 5.8
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminUserController;
@@ -123,7 +123,7 @@ Route::prefix('admin')->name('admin.')->middleware(['ensure.not.banned.ip', 'aut
         require __DIR__ . '/admin/develop.php';
     });
 
-    Route::middleware(['section:security'])->group(function () {
+    Route::middleware(['section:security', 'password.confirm'])->group(function () {
         require __DIR__ . '/admin/security.php';
     });
 
@@ -181,19 +181,19 @@ Route::prefix('admin')->name('admin.')->middleware(['ensure.not.banned.ip', 'aut
             ->name('users.show');
 
         Route::patch('users/{user}/roles', [AdminUserController::class, 'updateRoles'])
-            ->middleware('ensure.admin.stepup')
+            ->middleware(['ensure.admin.stepup', 'password.confirm'])
             ->name('users.roles.update');
 
         Route::delete('users/{user}', [AdminUserController::class, 'destroy'])
-            ->middleware('ensure.admin.stepup')
+            ->middleware(['ensure.admin.stepup', 'password.confirm'])
             ->name('users.destroy');
 
         Route::post('roles/set-role', [AdminUserController::class, 'setRole'])
-            ->middleware('ensure.admin.stepup')
+            ->middleware(['ensure.admin.stepup', 'password.confirm'])
             ->name('roles.set_role');
 
         Route::post('roles/delete-user', [AdminUserController::class, 'deleteUser'])
-            ->middleware('ensure.admin.stepup')
+            ->middleware(['ensure.admin.stepup', 'password.confirm'])
             ->name('roles.delete_user');
     });
 });

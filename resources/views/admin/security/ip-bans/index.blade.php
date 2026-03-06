@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\ip-bans\index.blade.php
 // Purpose: Admin Security - Manage IP bans (manual bans with optional TTL)
-// Changed: 02-03-2026 01:14 (Europe/Berlin)
-// Version: 0.6
+// Changed: 05-03-2026 23:48 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 ?>
@@ -26,7 +26,7 @@
                 <ul>
                     <li>Eine IP-Sperre blockiert Anfragen einer konkreten IP in geschützten Bereichen (Login/Admin etc.).</li>
                     <li>Die IP findest du typischerweise in der Ereignisse-Seite.</li>
-                    <li>TTL Sekunden ist optional. Leer bedeutet permanent.</li>
+                    <li>TTL Minuten ist optional. Leer bedeutet permanent.</li>
                     <li>Der Grund dient nur zur internen Dokumentation.</li>
                 </ul>
             </x-ui.help-popover>
@@ -41,8 +41,38 @@
             </div>
 
             <div>
-                <label>TTL Sekunden (optional)</label>
-                <input class="w-full" type="number" min="1" name="ttl_seconds">
+                <label>TTL Minuten (optional)</label>
+                <input class="w-full" type="number" min="1" name="ttl_minutes" inputmode="numeric" data-ks-ttl-minutes>
+                <input type="hidden" name="ttl_seconds" data-ks-ttl-seconds>
+                <script>
+                    (function () {
+                        try {
+                            var minEl = document.querySelector('[data-ks-ttl-minutes]');
+                            var secEl = document.querySelector('[data-ks-ttl-seconds]');
+                            if (!minEl || !secEl) { return; }
+
+                            function sync() {
+                                var v = (minEl.value || '').toString().trim();
+                                if (v === '') {
+                                    secEl.value = '';
+                                    return;
+                                }
+                                var n = parseInt(v, 10);
+                                if (!isFinite(n) || n <= 0) {
+                                    secEl.value = '';
+                                    return;
+                                }
+                                secEl.value = String(n * 60);
+                            }
+
+                            minEl.addEventListener('input', sync);
+                            minEl.addEventListener('change', sync);
+                            sync();
+                        } catch (e) {
+                            // ignore
+                        }
+                    })();
+                </script>
             </div>
 
             <div>
@@ -59,7 +89,7 @@
     <div class="ks-card">
         <div class="flex items-center justify-end mb-2">
             <form method="GET" action="{{ route('admin.security.ip_bans.index') }}" class="flex items-center gap-2">
-                
+
                 <select class="w-[75px] text-xs py-1" name="per_page" onchange="this.form.submit()">
                     <option value="20" {{ (int) $perPage === 20 ? 'selected' : '' }}>20</option>
                     <option value="50" {{ (int) $perPage === 50 ? 'selected' : '' }}>50</option>

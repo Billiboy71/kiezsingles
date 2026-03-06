@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Requests\Auth\LoginRequest.php
 // Purpose: Login request validation (rate limited, no user enumeration)
-// Changed: 02-03-2026 17:39 (Europe/Berlin)
-// Version: 0.1
+// Changed: 04-03-2026 16:21 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Http\Requests\Auth;
@@ -132,9 +132,13 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(
-            Str::lower($this->string('email')).'|'.$this->ip()
-        );
+        $login = trim((string) $this->input('email', ''));
+        $login = Str::lower($login);
+        $login = Str::transliterate($login);
+
+        $ip = (string) $this->ip();
+
+        return $login.'|'.$ip;
     }
 
     private function writeAutoBansForFailedLogin(object $settings): void

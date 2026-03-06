@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_routes_findstr_admin.ps1
 # Purpose: Audit check - full route:list filter "admin" (informative)
 # Created: 21-02-2026 00:12 (Europe/Berlin)
-# Changed: 21-02-2026 02:50 (Europe/Berlin)
-# Version: 0.2
+# Changed: 04-03-2026 22:58 (Europe/Berlin)
+# Version: 0.3
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -43,13 +43,21 @@ function Invoke-KsAuditCheck_RouteListFindstrAdmin {
         }
 
         $hits = @()
+        $totalLines = 0
+
         if ($outSan.Trim() -ne "") {
-            $lines = $outSan -split "`r?`n"
-            $hits = @($lines | Where-Object { $_ -match "admin" })
+            $lines = @($outSan -split "`r?`n")
+            $totalLines = [int]$lines.Count
+
+            # Case-insensitive match; keep it simple/informative (not strict parsing).
+            $hits = @($lines | Where-Object { ("" + $_) -match "(?i)admin" })
         }
 
         $details = @()
         if ($err -ne "") { $details += ("STDERR: " + $err) }
+
+        $details += ("LinesTotal: " + $totalLines)
+        $details += ("HitsAdmin: " + [int]$hits.Count)
 
         if ($hits.Count -gt 0) {
             $details += "--- STDOUT FILTERED (lines containing 'admin') ---"
@@ -64,10 +72,10 @@ function Invoke-KsAuditCheck_RouteListFindstrAdmin {
         $sw.Stop()
 
         if ($ec -ne 0) {
-            return & $new -Id "routes_findstr_admin" -Title "1f) Route list filter (admin-only)" -Status "WARN" -Summary ("route:list exit code: " + $ec) -Details $details -Data @{ exit_code = $ec; hits = [int]$hits.Count } -DurationMs ([int]$sw.ElapsedMilliseconds)
+            return & $new -Id "routes_findstr_admin" -Title "1f) Route list filter (admin-only)" -Status "WARN" -Summary ("route:list exit code: " + $ec) -Details $details -Data @{ exit_code = $ec; hits = [int]$hits.Count; total_lines = [int]$totalLines } -DurationMs ([int]$sw.ElapsedMilliseconds)
         }
 
-        return & $new -Id "routes_findstr_admin" -Title "1f) Route list filter (admin-only)" -Status "OK" -Summary ("Filtered " + $hits.Count + " lines containing 'admin'.") -Details $details -Data @{ exit_code = $ec; hits = [int]$hits.Count } -DurationMs ([int]$sw.ElapsedMilliseconds)
+        return & $new -Id "routes_findstr_admin" -Title "1f) Route list filter (admin-only)" -Status "OK" -Summary ("Filtered " + $hits.Count + " lines containing 'admin'.") -Details $details -Data @{ exit_code = $ec; hits = [int]$hits.Count; total_lines = [int]$totalLines } -DurationMs ([int]$sw.ElapsedMilliseconds)
     } catch {
         $sw.Stop()
         return & $new -Id "routes_findstr_admin" -Title "1f) Route list filter (admin-only)" -Status "WARN" -Summary ("Route filter failed: " + $_.Exception.Message) -Details @() -Data @{} -DurationMs ([int]$sw.ElapsedMilliseconds)
