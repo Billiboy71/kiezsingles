@@ -5,6 +5,8 @@ REM ============================================================================
 REM Start Laragon (on-demand, kein Dienst)
 REM ============================================================================
 set "LARAGON_EXE=C:\laragon\laragon.exe"
+set "FIREFOX_EXE=C:\Program Files\Mozilla Firefox\firefox.exe"
+set "APP_URL=http://kiezsingles.test"
 
 if exist "%LARAGON_EXE%" (
     echo Starting Laragon...
@@ -28,9 +30,15 @@ set "WT=%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe"
     pwsh -NoExit -ExecutionPolicy Bypass -File "%DEV_DIR%\dev-laravel.ps1" ^
   ; new-tab --title "Vite" --startingDirectory "%PROJECT_DIR%" ^
     pwsh -NoExit -ExecutionPolicy Bypass -File "%DEV_DIR%\dev-vite.ps1" ^
-  ; new-tab --title "BrowserSync" --startingDirectory "%PROJECT_DIR%" ^
-    pwsh -NoExit -ExecutionPolicy Bypass -File "%DEV_DIR%\dev-browsersync.ps1" ^
   ; new-tab --title "Shell" --startingDirectory "%PROJECT_DIR%" ^
     pwsh -NoExit
+
+timeout /t 3 >nul
+
+if exist "%FIREFOX_EXE%" (
+    start "" "%FIREFOX_EXE%" "%APP_URL%"
+) else (
+    start "" "%APP_URL%"
+)
 
 endlocal

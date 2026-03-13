@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\_tabs.blade.php
 // Purpose: Admin Security - Tabs navigation (active tab styled like header)
-// Changed: 02-03-2026 14:00 (Europe/Berlin)
-// Version: 0.3
+// Changed: 12-03-2026 16:31 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 
 $route = request()->route()?->getName();
@@ -13,12 +13,12 @@ $route = request()->route()?->getName();
 
     <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.overview' ? 'ks-btn--active' : '' }}"
        href="{{ route('admin.security.overview') }}">
-        Übersicht
+        Security Overview
     </a>
 
     <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.events.index' ? 'ks-btn--active' : '' }}"
        href="{{ route('admin.security.events.index') }}">
-        Ereignisse
+        Event Analysis
     </a>
 
     <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.ip_bans.index' ? 'ks-btn--active' : '' }}"
@@ -34,6 +34,11 @@ $route = request()->route()?->getName();
     <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.device_bans.index' ? 'ks-btn--active' : '' }}"
        href="{{ route('admin.security.device_bans.index') }}">
         Geräte-Sperren
+    </a>
+
+    <a class="ks-btn ks-btn--tab {{ str_starts_with((string) $route, 'admin.security.allowlist.') ? 'ks-btn--active' : '' }}"
+       href="{{ route('admin.security.allowlist.ip.index') }}">
+        Allowlist
     </a>
 
     <a class="ks-btn ks-btn--tab {{ in_array($route, ['admin.security.settings.edit', 'admin.security.settings.update'], true) ? 'ks-btn--active' : '' }}"

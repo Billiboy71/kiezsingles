@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\auth\verify-email.blade.php
 Purpose: Verify email view (Breeze) + optional Turnstile gating for resend button
-Changed: 23-02-2026 21:52 (Europe/Berlin)
-Version: 0.2
+Changed: 10-03-2026 00:24 (Europe/Berlin)
+Version: 0.4
 ============================================================================ --}}
 
 <x-guest-layout>
@@ -25,7 +25,6 @@ Version: 0.2
         >
             @csrf
 
-            {{-- Captcha --}}
             @if (config('captcha.enabled') && config('captcha.on_verify'))
                 <div class="mb-4">
                     <div
@@ -38,26 +37,22 @@ Version: 0.2
 
                     <x-input-error :messages="$errors->get('cf-turnstile-response')" class="mt-2" />
                 </div>
-            @endif
 
-            <x-primary-button
-                id="verifyResendBtn"
-                @if (config('captcha.enabled') && config('captcha.on_verify'))
-                    class="opacity-50 cursor-not-allowed"
-                    disabled
-                @endif
-            >
-                {{ __('Resend Verification Email') }}
-            </x-primary-button>
+                <x-primary-button id="verifyResendBtn" class="opacity-50 cursor-not-allowed" disabled>
+                    {{ __('Resend Verification Email') }}
+                </x-primary-button>
+            @else
+                <x-primary-button id="verifyResendBtn">
+                    {{ __('Resend Verification Email') }}
+                </x-primary-button>
+            @endif
         </form>
 
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button
                 type="submit"
-                class="underline text-sm text-gray-600 hover:text-gray-900
-                       rounded-md focus:outline-none focus:ring-2
-                       focus:ring-offset-2 focus:ring-indigo-500"
+                class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
                 {{ __('Log Out') }}
             </button>

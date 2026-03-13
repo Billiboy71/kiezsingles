@@ -2,6 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Listeners\LogLoginSuccess.php
 // Purpose: Write security audit event for successful login (config-driven)
+// Changed: 10-03-2026 21:05 (Europe/Berlin)
+// Version: 0.1
 // ============================================================================
 
 namespace App\Listeners;

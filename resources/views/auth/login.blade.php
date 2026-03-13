@@ -1,7 +1,7 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\login.blade.php       --}}
-{{-- Changed: 05-03-2026 22:20 (Europe/Berlin)                                 --}}
-{{-- Version: 0.6                                                              --}}
+{{-- Changed: 07-03-2026 21:33 (Europe/Berlin)                                 --}}
+{{-- Version: 0.9                                                              --}}
 {{-- Purpose: Login view (status banner + email-not-verified warning with resend) --}}
 {{-- ========================================================================= --}}
 
@@ -25,6 +25,71 @@
                 $ksSupportRef = '';
             }
         }
+
+        $ksSupportAccessToken = (string) (session('security_ban_support_access_token') ?? '');
+        if ($ksSupportAccessToken === '') {
+            try {
+                $ksSupportAccessToken = (string) request()->query('security_ban_support_access_token', '');
+            } catch (\Throwable $ignore) {
+                $ksSupportAccessToken = '';
+            }
+        }
+        if ($ksSupportAccessToken === '') {
+            try {
+                $ksSupportAccessToken = (string) request()->query('support_access_token', '');
+            } catch (\Throwable $ignore) {
+                $ksSupportAccessToken = '';
+            }
+        }
+
+        $ksContactEmail = '';
+        try {
+            $ksSessionContactEmail = mb_strtolower(trim((string) (session('security_ban_contact_email') ?? '')));
+            if ($ksSessionContactEmail !== '' && filter_var($ksSessionContactEmail, FILTER_VALIDATE_EMAIL) !== false) {
+                $ksContactEmail = $ksSessionContactEmail;
+            }
+        } catch (\Throwable $ignore) {
+            $ksContactEmail = '';
+        }
+
+        if ($ksContactEmail === '') {
+            try {
+                $ksSessionContactEmail = mb_strtolower(trim((string) (session('security_support_contact_email') ?? '')));
+                if ($ksSessionContactEmail !== '' && filter_var($ksSessionContactEmail, FILTER_VALIDATE_EMAIL) !== false) {
+                    $ksContactEmail = $ksSessionContactEmail;
+                }
+            } catch (\Throwable $ignore) {
+                $ksContactEmail = '';
+            }
+        }
+
+        if ($ksContactEmail === '') {
+            try {
+                $ksOldEmail = mb_strtolower(trim((string) old('email', '')));
+                if ($ksOldEmail !== '' && filter_var($ksOldEmail, FILTER_VALIDATE_EMAIL) !== false) {
+                    $ksContactEmail = $ksOldEmail;
+                }
+            } catch (\Throwable $ignore) {
+                $ksContactEmail = '';
+            }
+        }
+
+        $ksSupportContactUrl = '';
+        if ($ksSupportRef !== '' && $ksSupportAccessToken !== '') {
+            $ksSupportQuery = [
+                'support_access_token' => $ksSupportAccessToken,
+                'support_reference' => $ksSupportRef,
+                'subject' => 'Anmeldung blockiert',
+                'message' => 'Ich kann mich nicht anmelden. Referenz: ' . $ksSupportRef,
+                'source_context' => 'security_login_block',
+            ];
+
+            if ($ksContactEmail !== '') {
+                $ksSupportQuery['contact_email'] = $ksContactEmail;
+            }
+
+            $ksSupportContactUrl = url('/support/security') . '?' . http_build_query($ksSupportQuery);
+        }
     @endphp
 
     @if ($ksSupportRef !== '')
@@ -38,6 +103,16 @@
             <div class="mt-1 text-center">
                 Bitte melde dich mit dieser Referenz beim Support.
             </div>
+            @if ($ksSupportContactUrl !== '')
+                <div class="mt-3 text-center">
+                    <a
+                        href="{{ $ksSupportContactUrl }}"
+                        class="inline-flex items-center rounded-md border border-red-400 bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
+                    >
+                        Support kontaktieren
+                    </a>
+                </div>
+            @endif
         </div>
     @endif
 

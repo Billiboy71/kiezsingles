@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\database\migrations\2026_03_01_220100_update_security_events_for_core_module.php
 // Purpose: Align security_events schema with security core module requirements
-// Changed: 02-03-2026 01:43 (Europe/Berlin)
-// Version: 0.1
+// Changed: 09-03-2026 16:17 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 use Illuminate\Database\Migrations\Migration;
@@ -15,6 +15,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('security_events')) {
+            return;
+        }
+
         Schema::table('security_events', function (Blueprint $table): void {
             if (!Schema::hasColumn('security_events', 'user_id')) {
                 $table->foreignId('user_id')->nullable()->after('id')->constrained('users')->nullOnDelete();
@@ -51,6 +55,10 @@ return new class extends Migration
 
         if (Schema::hasColumn('security_events', 'event_type')) {
             Schema::table('security_events', function (Blueprint $table): void {
+                $table->dropIndex(['event_type', 'created_at']);
+            });
+
+            Schema::table('security_events', function (Blueprint $table): void {
                 $table->dropColumn('event_type');
             });
         }
@@ -77,6 +85,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('security_events')) {
+            return;
+        }
+
         Schema::table('security_events', function (Blueprint $table): void {
             $table->dropIndex('security_events_type_created_at_idx');
             $table->dropIndex('security_events_ip_idx');

@@ -2,20 +2,20 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedEmail.php
 // Purpose: Block requests for active email bans and log blocking events
-// Changed: 02-03-2026 03:34 (Europe/Berlin)
-// Version: 0.2
+// Changed: 09-03-2026 01:34 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 namespace App\Http\Middleware;
 
 use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
+use App\Services\Security\SecuritySupportAccessTokenService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureNotBannedEmail
@@ -23,6 +23,7 @@ class EnsureNotBannedEmail
     public function __construct(
         private readonly SecurityEventLogger $securityEventLogger,
         private readonly DeviceHashService $deviceHashService,
+        private readonly SecuritySupportAccessTokenService $securitySupportAccessTokenService,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -40,7 +41,16 @@ class EnsureNotBannedEmail
         }
 
         $ip = (string) ($request->ip() ?? '');
-        $supportRef = $this->generateSupportReference();
+        $banId = isset($banRow['id']) && $banRow['id'] !== null ? (int) $banRow['id'] : 0;
+        $caseKey = 'email_ban:'.$banId.':email:'.$email;
+        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+            caseKey: $caseKey,
+            securityEventType: 'email_blocked',
+            sourceContext: 'security_login_block',
+            contactEmail: $email,
+        );
+        $supportRef = (string) $supportAccess['support_reference'];
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $meta = [
             'support_ref' => $supportRef,
@@ -70,6 +80,11 @@ class EnsureNotBannedEmail
         return redirect()
             ->route('login')
             ->with('security_ban_support_ref', $supportRef)
+            ->with('security_ban_support_reference', $supportRef)
+            ->with('security_support_reference', $supportRef)
+            ->with('security_ban_support_access_token', $supportAccessToken)
+            ->with('security_ban_contact_email', $email)
+            ->with('security_contact_email', $email)
             ->withInput([
                 'email' => (string) $request->input('email', ''),
             ]);
@@ -136,8 +151,4 @@ class EnsureNotBannedEmail
         return $value !== '' ? $value : null;
     }
 
-    private function generateSupportReference(): string
-    {
-        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
-    }
 }

@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\UserTicketController.php
 // Purpose: User ticket endpoints (support + report + show + reply).
-// Changed: 12-02-2026 23:36 (Europe/Berlin)
-// Version: 0.2
+// Changed: 06-03-2026 13:00 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 namespace App\Http\Controllers;
@@ -91,15 +91,25 @@ class UserTicketController extends Controller
 
     public function createSupport(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'subject' => ['required', 'string', 'max:191'],
             'message' => ['required', 'string', 'min:10'],
+            'support_reference' => ['nullable', 'string', 'regex:/^SEC-[A-Z0-9]{6}$/'],
+            'source_context' => ['nullable', 'string', 'max:64'],
         ]);
+
+        $supportReference = $validated['support_reference']
+            ?? $request->query('support_reference');
+
+        $sourceContext = $validated['source_context']
+            ?? $request->query('source_context');
 
         $ticket = $this->ticketService->createSupportTicket(
             (int) auth()->id(),
             (string) $request->input('subject'),
-            (string) $request->input('message')
+            (string) $request->input('message'),
+            $supportReference !== null ? (string) $supportReference : null,
+            $sourceContext !== null ? (string) $sourceContext : null
         );
 
         return response()->json([

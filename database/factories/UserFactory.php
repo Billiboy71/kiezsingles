@@ -1,4 +1,9 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\database\factories\UserFactory.php
+// Changed: 10-03-2026 00:08 (Europe/Berlin)
+// Version: 0.2
+// ============================================================================
 
 namespace Database\Factories;
 
@@ -24,10 +29,19 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'public_id' => (string) Str::uuid(),
+            'match_type' => 'm_f',
+            'gender' => 'm',
+            'looking_for' => 'f',
+            'username' => fake()->unique()->userName(),
             'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'birthdate' => now()->subYears(30)->toDateString(),
+            'location' => 'Berlin',
+            'district' => 'Koepenick',
+            'postcode' => '12555',
+            'privacy_accepted_at' => now(),
+            'email_verified_at' => now(),
             'remember_token' => Str::random(10),
         ];
     }

@@ -1,33 +1,26 @@
-{{-- ==========================================================================
-File: C:\laragon\www\kiezsingles\resources\views\profile\show.blade.php
-Purpose: Public user profile (read-only) for /u/{public_id}
-========================================================================== --}}
+<?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\database\migrations\2026_02_05_000002_make_public_id_not_nullable_on_users_table.php
+// Purpose: Enforce NOT NULL constraint on users.public_id after backfill
+// Notes:   Assumes all existing users already have a public_id.
+// ============================================================================
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            Öffentliches Profil
-        </h2>
-    </x-slot>
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('public_id', 32)->nullable(false)->change();
+        });
+    }
 
-    <div class="py-12">
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
-            <div class="p-6 bg-white shadow sm:rounded-lg space-y-3">
-                <div class="text-sm text-gray-500">
-                    Public ID: <span class="font-mono">{{ $user->public_id }}</span>
-                </div>
-
-                <div class="text-2xl font-semibold text-gray-900">
-                    {{ $user->username }}
-                </div>
-
-                <div class="text-gray-700">
-                    {{ $user->district }}
-                    @if($user->postcode)
-                        · {{ $user->postcode }}
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-</x-app-layout>
+    public function down(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('public_id', 32)->nullable()->change();
+        });
+    }
+};

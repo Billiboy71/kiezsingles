@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\tests\Feature\Auth\AuthenticationTest.php
+// Purpose: Feature tests for authentication
+// Changed: 09-03-2026 15:34 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 use App\Models\User;
 
@@ -9,7 +15,9 @@ test('login screen can be rendered', function () {
 });
 
 test('users can authenticate using the login screen', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create([
+        'password' => bcrypt('password'),
+    ]);
 
     $response = $this->post('/login', [
         'email' => $user->email,
@@ -21,7 +29,9 @@ test('users can authenticate using the login screen', function () {
 });
 
 test('users can not authenticate with invalid password', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create([
+        'password' => bcrypt('password'),
+    ]);
 
     $this->post('/login', [
         'email' => $user->email,

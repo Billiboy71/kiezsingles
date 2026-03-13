@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\identity-bans\index.blade.php
 // Purpose: Admin Security - Manage identity bans (email-based bans with optional TTL)
-// Changed: 02-03-2026 01:20 (Europe/Berlin)
-// Version: 0.4
+// Changed: 06-03-2026 22:27 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 
 ?>
@@ -31,7 +31,40 @@
             </x-ui.help-popover>
         </div>
         <div><label>E-Mail</label><input class="w-full" type="email" name="email" required></div>
-        <div><label>TTL Sekunden (optional)</label><input class="w-full" type="number" min="1" name="ttl_seconds"></div>
+        <div>
+            <label>TTL Minuten (optional)</label>
+            <input class="w-full" type="number" min="1" name="ttl_minutes" inputmode="numeric" data-ks-ttl-minutes>
+            <input type="hidden" name="ttl_seconds" data-ks-ttl-seconds>
+            <script>
+                (function () {
+                    try {
+                        var minEl = document.querySelector('[data-ks-ttl-minutes]');
+                        var secEl = document.querySelector('[data-ks-ttl-seconds]');
+                        if (!minEl || !secEl) { return; }
+
+                        function sync() {
+                            var v = (minEl.value || '').toString().trim();
+                            if (v === '') {
+                                secEl.value = '';
+                                return;
+                            }
+                            var n = parseInt(v, 10);
+                            if (!isFinite(n) || n <= 0) {
+                                secEl.value = '';
+                                return;
+                            }
+                            secEl.value = String(n * 60);
+                        }
+
+                        minEl.addEventListener('input', sync);
+                        minEl.addEventListener('change', sync);
+                        sync();
+                    } catch (e) {
+                        // ignore
+                    }
+                })();
+            </script>
+        </div>
         <div><label>Grund</label><input class="w-full" type="text" name="reason"></div>
         <div><button class="ks-btn" type="submit">Identitäts-Sperre speichern</button></div>
     </form>

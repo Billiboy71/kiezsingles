@@ -2,20 +2,22 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Requests\Auth\LoginRequest.php
 // Purpose: Login request validation (rate limited, no user enumeration)
-// Changed: 04-03-2026 16:21 (Europe/Berlin)
-// Version: 0.2
+// Changed: 10-03-2026 20:54 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 namespace App\Http\Requests\Auth;
 
 use App\Models\SecurityDeviceBan;
 use App\Models\SecurityIpBan;
+use App\Services\Security\SecurityAllowlistService;
 use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
 use App\Services\Security\SecuritySettingsService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -73,8 +75,20 @@ class LoginRequest extends FormRequest
 
         if (! $authenticated) {
             $settings = app(SecuritySettingsService::class)->get();
-            RateLimiter::hit($this->throttleKey(), (int) $settings->lockout_seconds);
-            $this->writeAutoBansForFailedLogin($settings);
+            $deviceHash = app(DeviceHashService::class)->forRequest($this);
+            $allowlistMatch = $this->resolveAllowlistMatch($deviceHash);
+
+            if ($allowlistMatch === null) {
+                RateLimiter::hit($this->throttleKey(), (int) $settings->lockout_seconds);
+            } else {
+                $this->logAllowlistMatch(
+                    context: 'login_failed_throttle_bypass',
+                    allowlistMatch: $allowlistMatch,
+                    deviceHash: $deviceHash,
+                );
+            }
+
+            $this->writeAutoBansForFailedLogin($settings, $deviceHash, $allowlistMatch);
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
@@ -93,12 +107,25 @@ class LoginRequest extends FormRequest
     {
         $settings = app(SecuritySettingsService::class)->get();
         $attemptLimit = max(1, (int) $settings->login_attempt_limit);
+        $allowlistMatch = $this->resolveAllowlistMatch();
+
+        if ($allowlistMatch !== null) {
+            return;
+        }
 
         if (!RateLimiter::tooManyAttempts($this->throttleKey(), $attemptLimit)) {
             return;
         }
 
         $seconds = RateLimiter::availableIn($this->throttleKey());
+        $supportRef = $this->generateSupportReference();
+        $supportAccessToken = $this->createSecuritySupportAccessToken(
+            supportReference: $supportRef,
+            securityEventType: 'login_lockout',
+            sourceContext: 'security_login_block',
+            caseKey: 'login_lockout:throttle:'.$this->throttleKey(),
+            contactEmail: $this->normalizedContactEmail((string) $this->input('email', '')),
+        );
 
         /** @var SecurityEventLogger $logger */
         $logger = app(SecurityEventLogger::class);
@@ -116,8 +143,14 @@ class LoginRequest extends FormRequest
             meta: [
                 'seconds' => $seconds,
                 'attempt_limit' => $attemptLimit,
+                'support_ref' => $supportRef,
             ],
         );
+
+        $this->session()->flash('security_ban_support_ref', $supportRef);
+        $this->session()->flash('security_ban_support_reference', $supportRef);
+        $this->session()->flash('security_support_reference', $supportRef);
+        $this->session()->flash('security_ban_support_access_token', $supportAccessToken);
 
         throw ValidationException::withMessages([
             'email' => trans('auth.throttle', [
@@ -141,21 +174,34 @@ class LoginRequest extends FormRequest
         return $login.'|'.$ip;
     }
 
-    private function writeAutoBansForFailedLogin(object $settings): void
+    /**
+     * @param array{entry_id:int|null,type:string,value:string,autoban_only:bool,source:string}|null $allowlistMatch
+     */
+    private function writeAutoBansForFailedLogin(object $settings, ?string $deviceHash, ?array $allowlistMatch): void
     {
         $logger = app(SecurityEventLogger::class);
-        $deviceHashService = app(DeviceHashService::class);
 
         $ip = trim((string) ($this->ip() ?? ''));
-        $deviceHash = $deviceHashService->forRequest($this);
+        $email = $this->normalizedContactEmail((string) $this->input('email', ''));
 
-        $this->writeIpAutoBan($settings, $ip, $deviceHash, $logger);
-        $this->writeDeviceAutoBan($settings, $deviceHash, $ip, $logger);
+        if ($allowlistMatch !== null) {
+            $this->logAllowlistMatch(
+                context: 'login_failed_autoban_bypass',
+                allowlistMatch: $allowlistMatch,
+                deviceHash: $deviceHash,
+            );
+
+            return;
+        }
+
+        $this->writeIpAutoBan($settings, $ip, $email, $deviceHash, $logger);
+        $this->writeDeviceAutoBan($settings, $deviceHash, $ip, $email, $logger);
     }
 
     private function writeIpAutoBan(
         object $settings,
         string $ip,
+        ?string $email,
         ?string $deviceHash,
         SecurityEventLogger $logger,
     ): void {
@@ -205,12 +251,13 @@ class LoginRequest extends FormRequest
         $logger->log(
             type: 'ip_autobanned',
             ip: $ip,
+            email: $email,
             deviceHash: $deviceHash,
             meta: [
                 'threshold' => $threshold,
                 'seconds' => $seconds,
                 'fail_count' => $failCount,
-                'path' => '/'.$this->path(),
+                'path' => $this->path(),
             ],
         );
     }
@@ -219,6 +266,7 @@ class LoginRequest extends FormRequest
         object $settings,
         ?string $deviceHash,
         string $ip,
+        ?string $email,
         SecurityEventLogger $logger,
     ): void {
         $deviceHash = $deviceHash !== null ? trim($deviceHash) : null;
@@ -275,12 +323,13 @@ class LoginRequest extends FormRequest
         $logger->log(
             type: 'device_autobanned',
             ip: $ip !== '' ? $ip : null,
+            email: $email,
             deviceHash: $deviceHash,
             meta: [
                 'threshold' => $threshold,
                 'seconds' => $seconds,
                 'fail_count' => $failCount,
-                'path' => '/'.$this->path(),
+                'path' => $this->path(),
             ],
         );
     }
@@ -296,5 +345,96 @@ class LoginRequest extends FormRequest
             : Carbon::parse((string) $currentUntil);
 
         return $current->greaterThan($newUntil) ? $current : $newUntil;
+    }
+
+    private function generateSupportReference(): string
+    {
+        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
+    }
+
+    private function createSecuritySupportAccessToken(
+        string $supportReference,
+        string $securityEventType,
+        string $sourceContext,
+        string $caseKey,
+        ?string $contactEmail = null
+    ): string {
+        $plainToken = Str::random(64);
+        $tokenHash = hash('sha256', $plainToken);
+
+        DB::table('security_support_access_tokens')->insert([
+            'token_hash' => $tokenHash,
+            'support_reference' => $supportReference,
+            'security_event_type' => $securityEventType,
+            'source_context' => $sourceContext,
+            'case_key' => $caseKey,
+            'contact_email' => $contactEmail,
+            'expires_at' => Carbon::now()->addMinutes(30),
+            'consumed_at' => null,
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        return $plainToken;
+    }
+
+    private function normalizedContactEmail(string $email): ?string
+    {
+        $value = mb_strtolower(trim($email));
+
+        if ($value === '') {
+            return null;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
+    }
+
+    /**
+     * @return array{entry_id:int|null,type:string,value:string,autoban_only:bool,source:string}|null
+     */
+    private function resolveAllowlistMatch(?string $deviceHash = null): ?array
+    {
+        $allowlistService = app(SecurityAllowlistService::class);
+
+        return $allowlistService->matchForContext(
+            ip: (string) ($this->ip() ?? ''),
+            deviceHash: $deviceHash,
+            identity: $this->normalizedContactEmail((string) $this->input('email', '')),
+        );
+    }
+
+    /**
+     * @param array{entry_id:int|null,type:string,value:string,autoban_only:bool,source:string} $allowlistMatch
+     */
+    private function logAllowlistMatch(string $context, array $allowlistMatch, ?string $deviceHash): void
+    {
+        $logger = app(SecurityEventLogger::class);
+
+        $logger->log(
+            type: 'security_allowlist_match',
+            ip: $this->ip(),
+            email: $this->normalizedContactEmail((string) $this->input('email', '')),
+            deviceHash: $deviceHash,
+            meta: array_merge([
+                'context' => $context,
+                'path' => $this->path(),
+            ], $this->allowlistMeta($allowlistMatch)),
+        );
+    }
+
+    /**
+     * @param array{entry_id:int|null,type:string,value:string,autoban_only:bool,source:string} $allowlistMatch
+     * @return array<string, mixed>
+     */
+    private function allowlistMeta(array $allowlistMatch): array
+    {
+        return [
+            'allowlist_match' => true,
+            'allowlist_type' => $allowlistMatch['type'],
+            'allowlist_value' => $allowlistMatch['value'],
+            'allowlist_entry_id' => $allowlistMatch['entry_id'],
+            'allowlist_source' => $allowlistMatch['source'],
+            'allowlist_autoban_only' => $allowlistMatch['autoban_only'],
+        ];
     }
 }

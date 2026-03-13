@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Models\Ticket.php
 // Purpose: Unified ticket model (report + support).
-// Changed: 12-02-2026 00:41 (Europe/Berlin)
-// Version: 0.2
+// Changed: 09-03-2026 01:34 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 
 namespace App\Models;
@@ -22,6 +22,10 @@ class Ticket extends Model
         'priority',
         'subject',
         'message',
+        'support_reference',
+        'source_context',
+        'case_key',
+        'contact_email',
         'created_by_user_id',
         'reported_user_id',
         'assigned_admin_user_id',

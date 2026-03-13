@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedIp.php
 // Purpose: Block requests for active IP bans and log blocking events
-// Changed: 05-03-2026 23:01 (Europe/Berlin)
-// Version: 0.6
+// Changed: 09-03-2026 15:43 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -11,9 +11,9 @@ namespace App\Http\Middleware;
 use App\Models\SecurityIpBan;
 use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
+use App\Services\Security\SecuritySupportAccessTokenService;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureNotBannedIp
@@ -21,6 +21,7 @@ class EnsureNotBannedIp
     public function __construct(
         private readonly SecurityEventLogger $securityEventLogger,
         private readonly DeviceHashService $deviceHashService,
+        private readonly SecuritySupportAccessTokenService $securitySupportAccessTokenService,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -42,7 +43,15 @@ class EnsureNotBannedIp
             return $next($request);
         }
 
-        $supportRef = $this->generateSupportReference();
+        $caseKey = 'ip_ban:'.(string) $activeBan->id.':ip:'.$ip;
+        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+            caseKey: $caseKey,
+            securityEventType: 'ip_blocked',
+            sourceContext: 'security_login_block',
+            contactEmail: $this->normalizedEmail((string) $request->input('email', '')),
+        );
+        $supportRef = (string) $supportAccess['support_reference'];
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $this->securityEventLogger->log(
             type: 'ip_blocked',
@@ -79,6 +88,9 @@ class EnsureNotBannedIp
             try {
                 if (method_exists($request, 'session') && $request->hasSession()) {
                     $request->session()->flash('security_ban_support_ref', $supportRef);
+                    $request->session()->flash('security_ban_support_reference', $supportRef);
+                    $request->session()->flash('security_support_reference', $supportRef);
+                    $request->session()->flash('security_ban_support_access_token', $supportAccessToken);
                 }
             } catch (\Throwable $ignore) {
                 // ignore
@@ -90,6 +102,9 @@ class EnsureNotBannedIp
         return redirect()
             ->route('login')
             ->with('security_ban_support_ref', $supportRef)
+            ->with('security_ban_support_reference', $supportRef)
+            ->with('security_support_reference', $supportRef)
+            ->with('security_ban_support_access_token', $supportAccessToken)
             ->withInput([
                 'email' => (string) $request->input('email', ''),
             ]);
@@ -99,17 +114,17 @@ class EnsureNotBannedIp
     {
         $value = mb_strtolower(trim($email));
 
-        return $value !== '' ? $value : null;
-    }
+        if ($value === '') {
+            return null;
+        }
 
-    private function generateSupportReference(): string
-    {
-        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
+        return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
     }
 
     /**
-     * Local-only helper: allow tests to simulate client IP via common proxy headers
-     * even if proxy-trust config is not effective in the current environment.
+     * Local/testing helper: allow simulated client IP via common proxy headers.
+     * In testing, never fall back to the real local request IP; use a dedicated
+     * deterministic test IP when no rotated header IP is present.
      *
      * Returns: ['ip' => string, 'source' => string]
      */
@@ -119,15 +134,19 @@ class EnsureNotBannedIp
         $baseIp = trim($baseIp);
 
         $isLocal = false;
+        $isTesting = false;
+
         try {
             if (function_exists('app')) {
                 $isLocal = app()->environment('local');
+                $isTesting = app()->environment('testing');
             }
         } catch (\Throwable $ignore) {
             $isLocal = false;
+            $isTesting = false;
         }
 
-        if (!$isLocal) {
+        if (! $isLocal && ! $isTesting) {
             return [
                 'ip' => $baseIp,
                 'source' => 'request_ip',
@@ -159,6 +178,13 @@ class EnsureNotBannedIp
             return [
                 'ip' => $xffIp,
                 'source' => 'x_forwarded_for',
+            ];
+        }
+
+        if ($isTesting) {
+            return [
+                'ip' => '198.51.100.10',
+                'source' => 'testing_fallback_ip',
             ];
         }
 

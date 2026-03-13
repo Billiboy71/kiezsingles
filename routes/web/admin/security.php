@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\security.php
 // Purpose: Admin Security routes (overview, events, bans, settings)
-// Changed: 04-03-2026 23:32 (Europe/Berlin)
-// Version: 1.0
+// Changed: 09-03-2026 04:14 (Europe/Berlin)
+// Version: 1.1
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminSecurityController;
@@ -51,6 +51,51 @@ Route::post('security/device-bans', [AdminSecurityController::class, 'storeDevic
 Route::delete('security/device-bans/{id}', [AdminSecurityController::class, 'destroyDeviceBan'])
     ->middleware(['ensure.admin.stepup', 'password.confirm'])
     ->name('security.device_bans.destroy');
+
+Route::get('security/allowlist/ip', [AdminSecurityController::class, 'allowlistIp'])
+    ->name('security.allowlist.ip.index');
+
+Route::post('security/allowlist/ip', [AdminSecurityController::class, 'storeAllowlistIp'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.ip.store');
+
+Route::patch('security/allowlist/ip/{id}', [AdminSecurityController::class, 'updateAllowlistIp'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.ip.update');
+
+Route::delete('security/allowlist/ip/{id}', [AdminSecurityController::class, 'destroyAllowlistIp'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.ip.destroy');
+
+Route::get('security/allowlist/device', [AdminSecurityController::class, 'allowlistDevice'])
+    ->name('security.allowlist.device.index');
+
+Route::post('security/allowlist/device', [AdminSecurityController::class, 'storeAllowlistDevice'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.device.store');
+
+Route::patch('security/allowlist/device/{id}', [AdminSecurityController::class, 'updateAllowlistDevice'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.device.update');
+
+Route::delete('security/allowlist/device/{id}', [AdminSecurityController::class, 'destroyAllowlistDevice'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.device.destroy');
+
+Route::get('security/allowlist/identity', [AdminSecurityController::class, 'allowlistIdentity'])
+    ->name('security.allowlist.identity.index');
+
+Route::post('security/allowlist/identity', [AdminSecurityController::class, 'storeAllowlistIdentity'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.identity.store');
+
+Route::patch('security/allowlist/identity/{id}', [AdminSecurityController::class, 'updateAllowlistIdentity'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.identity.update');
+
+Route::delete('security/allowlist/identity/{id}', [AdminSecurityController::class, 'destroyAllowlistIdentity'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.allowlist.identity.destroy');
 
 Route::get('security/settings', [AdminSecurityController::class, 'editSettings'])
     ->name('security.settings.edit');

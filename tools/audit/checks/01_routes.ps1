@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_routes.ps1
 # Purpose: Audit check - routes / collisions / admin scope (deterministic)
 # Created: 21-02-2026 00:06 (Europe/Berlin)
-# Changed: 04-03-2026 22:52 (Europe/Berlin)
-# Version: 0.4
+# Changed: 13-03-2026 23:16 (Europe/Berlin)
+# Version: 0.6
 # =============================================================================
 
 Set-StrictMode -Version Latest

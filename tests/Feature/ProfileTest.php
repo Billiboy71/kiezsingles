@@ -1,4 +1,9 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\tests\Feature\ProfileTest.php
+// Changed: 10-03-2026 00:56 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 use App\Models\User;
 
@@ -18,7 +23,7 @@ test('profile information can be updated', function () {
     $response = $this
         ->actingAs($user)
         ->patch('/profile', [
-            'name' => 'Test User',
+            'username' => 'TestUser123',
             'email' => 'test@example.com',
         ]);
 
@@ -28,7 +33,7 @@ test('profile information can be updated', function () {
 
     $user->refresh();
 
-    $this->assertSame('Test User', $user->name);
+    $this->assertSame('TestUser123', $user->username);
     $this->assertSame('test@example.com', $user->email);
     $this->assertNull($user->email_verified_at);
 });
@@ -39,7 +44,7 @@ test('email verification status is unchanged when the email address is unchanged
     $response = $this
         ->actingAs($user)
         ->patch('/profile', [
-            'name' => 'Test User',
+            'username' => 'TestUser123',
             'email' => $user->email,
         ]);
 
@@ -47,7 +52,8 @@ test('email verification status is unchanged when the email address is unchanged
         ->assertSessionHasNoErrors()
         ->assertRedirect('/profile');
 
-    $this->assertNotNull($user->refresh()->email_verified_at);
+    $this->assertSame('TestUser123', $user->fresh()->username);
+    $this->assertNotNull($user->fresh()->email_verified_at);
 });
 
 test('user can delete their account', function () {

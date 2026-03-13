@@ -2,20 +2,20 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedDevice.php
 // Purpose: Block requests for active device bans and log blocking events
-// Changed: 02-03-2026 03:27 (Europe/Berlin)
-// Version: 0.1
+// Changed: 12-03-2026 03:11 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 namespace App\Http\Middleware;
 
 use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
+use App\Services\Security\SecuritySupportAccessTokenService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureNotBannedDevice
@@ -23,6 +23,7 @@ class EnsureNotBannedDevice
     public function __construct(
         private readonly SecurityEventLogger $securityEventLogger,
         private readonly DeviceHashService $deviceHashService,
+        private readonly SecuritySupportAccessTokenService $securitySupportAccessTokenService,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -40,11 +41,25 @@ class EnsureNotBannedDevice
         }
 
         $ip = (string) ($request->ip() ?? '');
-        $supportRef = $this->generateSupportReference();
+        $contactEmail = $this->normalizedEmail((string) $request->input('email', ''));
+
+        $banId = isset($banRow['id']) && $banRow['id'] !== null ? (int) $banRow['id'] : 0;
+        $caseKey = 'device_ban:'.$banId.':device:'.$deviceHash;
+        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+            caseKey: $caseKey,
+            securityEventType: 'device_blocked',
+            sourceContext: 'security_login_block',
+            contactEmail: $contactEmail,
+        );
+        $supportRef = (string) $supportAccess['support_reference'];
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $meta = [
             'support_ref' => $supportRef,
             'path' => $request->path(),
+            'device_hash' => $deviceHash,
+            'device_correlation_key' => 'device:'.$deviceHash,
+            'device_hash_source' => 'device_cookie',
         ];
 
         if (isset($banRow['reason']) && $banRow['reason'] !== null) {
@@ -58,7 +73,7 @@ class EnsureNotBannedDevice
         $this->securityEventLogger->log(
             type: 'device_blocked',
             ip: $ip !== '' ? $ip : null,
-            email: $this->normalizedEmail((string) $request->input('email', '')),
+            email: $contactEmail,
             deviceHash: $deviceHash,
             meta: $meta,
         );
@@ -67,12 +82,23 @@ class EnsureNotBannedDevice
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        return redirect()
+        $redirect = redirect()
             ->route('login')
             ->with('security_ban_support_ref', $supportRef)
+            ->with('security_ban_support_reference', $supportRef)
+            ->with('security_support_reference', $supportRef)
+            ->with('security_ban_support_access_token', $supportAccessToken)
             ->withInput([
                 'email' => (string) $request->input('email', ''),
             ]);
+
+        if ($contactEmail !== null) {
+            $redirect = $redirect
+                ->with('security_ban_contact_email', $contactEmail)
+                ->with('security_support_contact_email', $contactEmail);
+        }
+
+        return $redirect;
     }
 
     /**
@@ -80,7 +106,6 @@ class EnsureNotBannedDevice
      */
     private function findActiveDeviceBan(string $deviceHash): ?array
     {
-        // Best-effort: support differing table/column layouts without assuming a model exists.
         $table = 'security_device_bans';
 
         if (!Schema::hasTable($table)) {
@@ -97,17 +122,14 @@ class EnsureNotBannedDevice
             return null;
         }
 
-        // If there is a "revoked_at" column, only non-revoked bans apply.
         if (Schema::hasColumn($table, 'revoked_at')) {
             $query->whereNull('revoked_at');
         }
 
-        // If there is an "is_active" column, require it.
         if (Schema::hasColumn($table, 'is_active')) {
             $query->where('is_active', 1);
         }
 
-        // If there is a "banned_until" column, treat NULL as permanent, future as active.
         if (Schema::hasColumn($table, 'banned_until')) {
             $now = Carbon::now();
             $query->where(function ($q) use ($now) {
@@ -135,7 +157,11 @@ class EnsureNotBannedDevice
     {
         $value = mb_strtolower(trim($email));
 
-        return $value !== '' ? $value : null;
+        if ($value === '') {
+            return null;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
     }
 
     private function normalizedDeviceHash(string $hash): ?string
@@ -143,10 +169,5 @@ class EnsureNotBannedDevice
         $value = trim($hash);
 
         return $value !== '' ? $value : null;
-    }
-
-    private function generateSupportReference(): string
-    {
-        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
     }
 }

@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\RegisteredUserController.php
 // Purpose: Register new users (sends verification email, does NOT auto-login)
-// Changed: 11-02-2026 03:49 (Europe/Berlin)
-// Version: 0.1
+// Changed: 10-03-2026 22:33 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -13,6 +13,7 @@ use App\Models\SecurityIdentityBan;
 use App\Models\User;
 use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
+use App\Services\Security\SecuritySupportAccessTokenService;
 use App\Support\SystemSettingHelper;
 use App\Support\Turnstile;
 use Illuminate\Auth\Events\Registered;
@@ -30,6 +31,7 @@ class RegisteredUserController extends Controller
     public function __construct(
         private readonly SecurityEventLogger $securityEventLogger,
         private readonly DeviceHashService $deviceHashService,
+        private readonly SecuritySupportAccessTokenService $securitySupportAccessTokenService,
     ) {}
 
     public function create(): View
@@ -69,12 +71,22 @@ class RegisteredUserController extends Controller
                 ->first();
 
             if ($activeIdentityBan) {
+                $caseKey = 'identity_ban:'.(string) $activeIdentityBan->id.':email:'.$registerEmail;
+                $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+                    caseKey: $caseKey,
+                    securityEventType: 'identity_blocked',
+                    sourceContext: 'security_login_block',
+                    contactEmail: $registerEmail,
+                );
+                $supportRef = (string) $supportAccess['support_reference'];
+
                 $this->securityEventLogger->log(
                     type: 'identity_blocked',
                     ip: $request->ip(),
                     email: $registerEmail,
                     deviceHash: $deviceHash,
                     meta: [
+                        'support_ref' => $supportRef,
                         'reason' => $activeIdentityBan->reason,
                         'banned_until' => $activeIdentityBan->banned_until?->toIso8601String(),
                         'path' => $request->path(),

@@ -1,8 +1,8 @@
 <!-- =========================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\tickets\show.blade.php
 Purpose: Admin – Ticket Detail (Blade)
-Changed: 27-02-2026 14:15 (Europe/Berlin)
-Version: 2.6
+Changed: 07-03-2026 21:40 (Europe/Berlin)
+Version: 2.7
 ============================================================================= -->
 
 @extends('admin.layouts.admin')
@@ -27,6 +27,7 @@ Version: 2.6
 
     $subjectText = (string) ($subjectText ?? '');
     $messageText = (string) ($messageText ?? '');
+    $contactEmail = (string) ($contactEmail ?? '');
 
     $creatorDisplay = (string) ($creatorDisplay ?? '-');
     $reportedDisplay = (string) ($reportedDisplay ?? '-');
@@ -212,6 +213,12 @@ Version: 2.6
                     <b class="block text-[11px] text-slate-600 tracking-wide uppercase mb-0.5 text-left">Geschlossen</b>
                     <span class="text-slate-900 font-extrabold">{!! $closedAt !== '' ? e($closedAt) : '<span class="text-slate-500">-</span>' !!}</span>
                 </div>
+                @if($contactEmail !== '')
+                    <div class="bg-sky-50 border border-sky-200 rounded-xl px-2 py-1.5 basis-[240px] grow-0 shrink-0">
+                        <b class="block text-[11px] text-slate-600 tracking-wide uppercase mb-0.5 text-left">Kontakt-E-Mail</b>
+                        <span class="text-slate-900 font-extrabold">{{ $contactEmail }}</span>
+                    </div>
+                @endif
             </div>
 
         </div>

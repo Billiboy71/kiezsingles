@@ -1,4 +1,9 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\tests\Feature\Auth\EmailVerificationTest.php
+// Changed: 10-03-2026 00:52 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
@@ -28,7 +33,7 @@ test('email can be verified', function () {
 
     Event::assertDispatched(Verified::class);
     expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
-    $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+    $response->assertRedirect(route('login', absolute: false));
 });
 
 test('email is not verified with invalid hash', function () {

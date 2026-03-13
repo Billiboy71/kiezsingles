@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminTicketController.php
 // Purpose: Admin ticket inbox + detail + actions (controller-based).
-// Changed: 28-02-2026 14:49 (Europe/Berlin)
-// Version: 4.1
+// Changed: 09-03-2026 01:34 (Europe/Berlin)
+// Version: 4.3
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
@@ -611,6 +611,12 @@ class AdminTicketController extends Controller
         $priorityLabel = $priorityRaw !== '' ? $this->labelForPriority($priorityRaw) : '';
         $subjectText = (string) ($ticket->subject ?? '');
         $messageText = (string) ($ticket->message ?? '');
+        $caseKey = trim((string) ($ticket->case_key ?? ''));
+        $contactEmail = '';
+        $ticketContactEmail = mb_strtolower(trim((string) ($ticket->contact_email ?? '')));
+        if ($ticketContactEmail !== '' && filter_var($ticketContactEmail, FILTER_VALIDATE_EMAIL) !== false) {
+            $contactEmail = $ticketContactEmail;
+        }
         $creatorIdInt = ($ticket->created_by_user_id !== null && (string) $ticket->created_by_user_id !== '') ? (int) $ticket->created_by_user_id : 0;
         $reportedIdInt = ($ticket->reported_user_id !== null && (string) $ticket->reported_user_id !== '') ? (int) $ticket->reported_user_id : 0;
         $assignedAdminIdInt = ($ticket->assigned_admin_user_id !== null && (string) $ticket->assigned_admin_user_id !== '') ? (int) $ticket->assigned_admin_user_id : 0;
@@ -905,6 +911,8 @@ class AdminTicketController extends Controller
 
             'subjectText' => $subjectText,
             'messageText' => $messageText,
+            'caseKey' => $caseKey !== '' ? $caseKey : null,
+            'contactEmail' => $contactEmail,
 
             'creatorDisplay' => $creatorDisplay,
             'reportedDisplay' => $reportedDisplay,

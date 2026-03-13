@@ -2,14 +2,14 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 01-03-2026 20:44 (Europe/Berlin)
-# Version: 8.3
+# Changed: 13-03-2026 01:07 (Europe/Berlin)
+# Version: 7.2
 # =============================================================================
 
 [CmdletBinding()]
 param(
     # Base URL for optional HTTP checks
-    [string]$BaseUrl = "http://kiezsingles.test",
+    [string]$BaseUrl = "http://127.0.0.1:8000",
 
     # Admin endpoints to probe (relative to BaseUrl) - only used if -HttpProbe is set
     [string[]]$ProbePaths = @("/admin", "/admin/status", "/admin/moderation", "/admin/maintenance", "/admin/debug"),
@@ -70,39 +70,14 @@ param(
     # If set, clears/rotates laravel.log after running the core audit (handled by CLI core).
     [switch]$LogClearAfter,
 
-    # If set, enables active security abuse probes in the CLI core.
-    [switch]$SecurityProbe,
+    # If true, prints details/evidence blocks for all checks in the core output.
+    [string]$ShowCheckDetails = "true",
 
-    # Failed login attempts used by security lockout probe.
-    [int]$SecurityLoginAttempts = 8,
+    # If true, exports per-check log slices in the core.
+    [string]$ExportLogs = "false",
 
-    # If set, runs optional IP ban enforcement probe.
-    [switch]$SecurityCheckIpBan,
-
-    # If set, runs optional registration abuse probe.
-    [switch]$SecurityCheckRegister,
-
-    # If set, security lockout probe expects explicit 429 status.
-    [switch]$SecurityExpect429,
-
-    # Lockout keywords used by security probes.
-    [string[]]$SecurityLockoutKeywords = @("too many attempts","throttle","locked","lockout"),
-
-    # If true, show per-check detail/evidence blocks in audit output.
-    [bool]$ShowCheckDetails = $false,
-
-    # If true, export per-check log slices.
-    [bool]$ExportLogs = $false,
-
-    # Max lines for per-check log slice/export.
-    [ValidateSet(50,200,500,1000)]
-    [int]$ExportLogsLines = 200,
-
-    # Folder for exported per-check logs.
-    [string]$ExportFolder = "tools/audit/output",
-
-    # If true, open export folder after run (if exports exist).
-    [bool]$AutoOpenExportFolder = $false,
+    # If true, opens the export folder after the core run when exports exist.
+    [string]$AutoOpenExportFolder = "false",
 
     # If set, writes the whole audit output to clipboard at the end (wrapper-only).
     # NOTE: Console mode only. In GUI use the "Copy Output" button.
@@ -159,52 +134,6 @@ function Confirm-ProjectRoot([string]$Root) {
     if (!(Test-Path $artisan)) {
         throw "Project root not detected. Expected artisan at: $artisan"
     }
-}
-
-function Normalize-BaseUrl([string]$s) {
-    $t = ""
-    try { $t = ("" + $s).Trim() } catch { $t = "" }
-
-    if ($t -eq "") { return "" }
-
-    # Add scheme if missing
-    if ($t -notmatch '^(?i)https?://') {
-        $t = "http://" + $t
-    }
-
-    # Strip trailing slash (keep consistent with dropdown items)
-    try {
-        if ($t.Length -gt 1 -and $t.EndsWith("/")) { $t = $t.TrimEnd("/") }
-    } catch { }
-
-    return $t
-}
-
-function Resolve-ExportFolderAbsolute([string]$ProjectRoot, [string]$FolderValue) {
-    $candidate = ""
-    try { $candidate = ("" + $FolderValue).Trim() } catch { $candidate = "" }
-    if ($candidate -eq "") { $candidate = "tools/audit/output" }
-
-    try {
-        if (-not [System.IO.Path]::IsPathRooted($candidate)) {
-            $candidate = Join-Path $ProjectRoot $candidate
-        }
-    } catch {
-        $candidate = Join-Path $ProjectRoot "tools/audit/output"
-    }
-
-    try {
-        if (-not (Test-Path -LiteralPath $candidate)) {
-            New-Item -ItemType Directory -Path $candidate -Force | Out-Null
-        }
-    } catch { }
-
-    try {
-        $resolved = Resolve-Path -LiteralPath $candidate -ErrorAction Stop | Select-Object -ExpandProperty Path
-        if ($resolved -and ("" + $resolved).Trim() -ne "") { return ("" + $resolved).Trim() }
-    } catch { }
-
-    return $candidate
 }
 
 function ConvertTo-NormalizedText([string]$s) {
@@ -482,77 +411,6 @@ function Save-KsAuditCredential([string]$ConfigPath, [string]$Role, [string]$Ema
     [System.IO.File]::WriteAllText($ConfigPath, $json, $utf8NoBom)
 }
 
-function Get-KsAuditUiSettings([string]$SettingsPath) {
-    if (-not $SettingsPath -or ("" + $SettingsPath).Trim() -eq "") { return $null }
-
-    try {
-        if (-not (Test-Path -LiteralPath $SettingsPath -PathType Leaf)) {
-            Save-KsAuditUiSettings -SettingsPath $SettingsPath -ExportFolderValue "tools/audit/output"
-        }
-    } catch { }
-
-    if (-not (Test-Path -LiteralPath $SettingsPath -PathType Leaf)) { return $null }
-
-    try {
-        $raw = [string](Get-Content -LiteralPath $SettingsPath -Raw -ErrorAction Stop)
-        if ($raw.Trim() -eq "") { return $null }
-        return ($raw | ConvertFrom-Json -ErrorAction Stop)
-    } catch {
-        Write-Host ("[WARN] UI settings read failed: " + $_.Exception.Message)
-        return $null
-    }
-}
-
-function Save-KsAuditUiSettings([string]$SettingsPath, [string]$ExportFolderValue, [string[]]$SecurityLockoutKeywordsValue = $null) {
-    $dir = Split-Path -Parent $SettingsPath
-    if ($dir -and (-not (Test-Path -LiteralPath $dir -PathType Container))) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-
-    $existingExportFolder = ""
-    $existingKeywords = @("too many attempts","throttle","locked","lockout")
-    try {
-        if (Test-Path -LiteralPath $SettingsPath -PathType Leaf) {
-            $raw = [string](Get-Content -LiteralPath $SettingsPath -Raw -ErrorAction SilentlyContinue)
-            if ($raw -and $raw.Trim() -ne "") {
-                $obj = $raw | ConvertFrom-Json -ErrorAction SilentlyContinue
-                if ($null -ne $obj) {
-                    try {
-                        if ($obj.PSObject.Properties.Name -contains "ExportFolder") {
-                            $existingExportFolder = ("" + $obj.ExportFolder).Trim()
-                        }
-                    } catch { }
-                    try {
-                        if ($obj.PSObject.Properties.Name -contains "SecurityLockoutKeywords") {
-                            $arr = @($obj.SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
-                            if ($arr.Count -gt 0) { $existingKeywords = @($arr) }
-                        }
-                    } catch { }
-                }
-            }
-        }
-    } catch { }
-
-    $finalExportFolder = ("" + $ExportFolderValue).Trim()
-    if ($finalExportFolder -eq "") { $finalExportFolder = $existingExportFolder }
-    if ($finalExportFolder -eq "") { $finalExportFolder = "tools/audit/output" }
-
-    $finalKeywords = @($existingKeywords)
-    if ($null -ne $SecurityLockoutKeywordsValue) {
-        $arr = @($SecurityLockoutKeywordsValue | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
-        if ($arr.Count -gt 0) { $finalKeywords = @($arr) }
-    }
-
-    $payload = [ordered]@{
-        ExportFolder = $finalExportFolder
-        SecurityLockoutKeywords = @($finalKeywords)
-    }
-
-    $json = $payload | ConvertTo-Json -Depth 3
-    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-    [System.IO.File]::WriteAllText($SettingsPath, $json, $utf8NoBom)
-}
-
 function Set-RoundButtonShape([System.Windows.Forms.Button]$Button) {
     if ($null -eq $Button) { return }
     try {
@@ -616,7 +474,7 @@ function Show-AuditGui() {
         $uiScriptDir = $PSScriptRoot
     } elseif ($PSCommandPath -and ($PSCommandPath.Trim() -ne "")) {
         $uiScriptDir = Split-Path -Parent $PSCommandPath
-    } elseif ($MyInvocation -and ($MyInvocation.MyCommand -and ($MyInvocation.MyCommand -is [object]) -and ($MyInvocation.MyCommand | Get-Member -Name Path -ErrorAction SilentlyContinue))) {
+    } elseif ($MyInvocation -and $MyInvocation.MyCommand -and ($MyInvocation.MyCommand -is [object]) -and ($MyInvocation.MyCommand | Get-Member -Name Path -ErrorAction SilentlyContinue)) {
         $uiScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     } else {
         $uiScriptDir = (Get-Location).Path
@@ -671,34 +529,12 @@ function Show-AuditGui() {
         if (-not $PSBoundParameters.ContainsKey("ModeratorPassword")) { try { $ModeratorPassword = ("" + $credsObj.moderator.password) } catch { } }
     }
 
-    $uiVersion = "8.3"
-    $uiSettingsFile = Join-Path $uiProjectRoot "tools\audit\ks-admin-audit-ui.settings.json"
-    $uiSettings = $null
-    try { $uiSettings = Get-KsAuditUiSettings -SettingsPath $uiSettingsFile } catch { $uiSettings = $null }
-    if ($null -ne $uiSettings) {
-        try {
-            if ($uiSettings.PSObject.Properties.Name -contains "ExportFolder") {
-                $storedFolder = ("" + $uiSettings.ExportFolder).Trim()
-                if ($storedFolder -ne "") { $ExportFolder = $storedFolder }
-            }
-        } catch { }
-        try {
-            if (-not $PSBoundParameters.ContainsKey("SecurityLockoutKeywords")) {
-                if ($uiSettings.PSObject.Properties.Name -contains "SecurityLockoutKeywords") {
-                    $arr = @($uiSettings.SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
-                    if ($arr.Count -gt 0) { $SecurityLockoutKeywords = @($arr) }
-                }
-            }
-        } catch { }
-    }
-    $uiResolvedExportFolder = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $ExportFolder
-    try { $script:ExportFolder = $uiResolvedExportFolder } catch { }
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = ("KiezSingles Admin Audit v" + $uiVersion)
+    $form.Text = "KiezSingles Admin Audit"
     $form.Width = 1180
-    $form.Height = 1360
+    $form.Height = 1200
     $form.StartPosition = "CenterScreen"
-    $form.MinimumSize = New-Object System.Drawing.Size(980, 1200)
+    $form.MinimumSize = New-Object System.Drawing.Size(980, 1040)
 
     $toolTip = New-Object System.Windows.Forms.ToolTip
     $toolTip.AutoPopDelay = 12000
@@ -756,12 +592,11 @@ function Show-AuditGui() {
     # --- Left panel: settings
     $panelLeft = $split.Panel1
     $panelLeft.Padding = New-Object System.Windows.Forms.Padding(10, 10, 10, 10)
-    $panelLeft.AutoScroll = $true
 
     $lblTitle = New-Object System.Windows.Forms.Label
     $lblTitle.AutoSize = $true
     $lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-    $lblTitle.Text = ("Audit-Optionen (UI v" + $uiVersion + ")")
+    $lblTitle.Text = "Audit-Optionen"
     $lblTitle.Left = 10
     $lblTitle.Top = 10
     $panelLeft.Controls.Add($lblTitle)
@@ -791,18 +626,12 @@ function Show-AuditGui() {
     [void]$cmbBaseUrl.Items.Add("localhost:8000")
     $panelLeft.Controls.Add($cmbBaseUrl)
 
-    # IMPORTANT FIX:
-    # Always prefer the current $BaseUrl value for the initial dropdown selection (even if it came from defaults),
-    # to keep GUI selection and Core-Command consistent.
-    $initialBaseUrl = Normalize-BaseUrl ("" + $BaseUrl)
-    if ($initialBaseUrl -eq "") { $initialBaseUrl = "http://kiezsingles.test" }
-
-    $idxBase = -1
-    try { $idxBase = $cmbBaseUrl.FindStringExact($initialBaseUrl) } catch { $idxBase = -1 }
-    if ($idxBase -lt 0) {
-        try { $idxBase = $cmbBaseUrl.Items.IndexOf($initialBaseUrl) } catch { $idxBase = -1 }
+    $initialBaseUrl = ("" + $BaseUrl).Trim()
+    if (-not $PSBoundParameters.ContainsKey("BaseUrl")) {
+        $initialBaseUrl = "http://kiezsingles.test"
     }
-
+    if ($initialBaseUrl -eq "") { $initialBaseUrl = "http://kiezsingles.test" }
+    $idxBase = $cmbBaseUrl.Items.IndexOf($initialBaseUrl)
     if ($idxBase -ge 0) {
         $cmbBaseUrl.SelectedIndex = $idxBase
     } else {
@@ -1117,216 +946,31 @@ function Show-AuditGui() {
     $chkSessionCsrfBaseline.Checked = [bool]$SessionCsrfBaseline
     $panelLeft.Controls.Add($chkSessionCsrfBaseline)
 
-    # 11x) Security / Abuse options
-    $lblSecurityBlock = New-Object System.Windows.Forms.Label
-    $lblSecurityBlock.AutoSize = $true
-    $lblSecurityBlock.Left = 10
-    $lblSecurityBlock.Top = 846
-    $lblSecurityBlock.Text = "Security / Abuse Protection (Block X)"
-    $panelLeft.Controls.Add($lblSecurityBlock)
-
-    $chkSecurityProbe = New-Object System.Windows.Forms.CheckBox
-    $chkSecurityProbe.Left = 10
-    $chkSecurityProbe.Top = 866
-    $chkSecurityProbe.Width = 340
-    $chkSecurityProbe.Text = "12) SecurityProbe (aktive Probes aktivieren)"
-    $chkSecurityProbe.Checked = [bool]$SecurityProbe
-    $panelLeft.Controls.Add($chkSecurityProbe)
-
-    $lblSecurityAttempts = New-Object System.Windows.Forms.Label
-    $lblSecurityAttempts.AutoSize = $true
-    $lblSecurityAttempts.Left = 10
-    $lblSecurityAttempts.Top = 890
-    $lblSecurityAttempts.Text = "SecurityLoginAttempts (1-10)"
-    $panelLeft.Controls.Add($lblSecurityAttempts)
-
-    $numSecurityAttempts = New-Object System.Windows.Forms.NumericUpDown
-    $numSecurityAttempts.Left = 210
-    $numSecurityAttempts.Top = 886
-    $numSecurityAttempts.Width = 60
-    $numSecurityAttempts.Minimum = 1
-    $numSecurityAttempts.Maximum = 10
-    $numSecurityAttempts.Value = $(if ($SecurityLoginAttempts -ge 1 -and $SecurityLoginAttempts -le 10) { [decimal]$SecurityLoginAttempts } else { [decimal]8 })
-    $panelLeft.Controls.Add($numSecurityAttempts)
-
-    $chkSecurityCheckIpBan = New-Object System.Windows.Forms.CheckBox
-    $chkSecurityCheckIpBan.Left = 10
-    $chkSecurityCheckIpBan.Top = 914
-    $chkSecurityCheckIpBan.Width = 340
-    $chkSecurityCheckIpBan.Text = "SecurityCheckIpBan"
-    $chkSecurityCheckIpBan.Checked = [bool]$SecurityCheckIpBan
-    $panelLeft.Controls.Add($chkSecurityCheckIpBan)
-
-    $chkSecurityCheckRegister = New-Object System.Windows.Forms.CheckBox
-    $chkSecurityCheckRegister.Left = 10
-    $chkSecurityCheckRegister.Top = 938
-    $chkSecurityCheckRegister.Width = 340
-    $chkSecurityCheckRegister.Text = "SecurityCheckRegister"
-    $chkSecurityCheckRegister.Checked = [bool]$SecurityCheckRegister
-    $panelLeft.Controls.Add($chkSecurityCheckRegister)
-
-    $chkSecurityExpect429 = New-Object System.Windows.Forms.CheckBox
-    $chkSecurityExpect429.Left = 10
-    $chkSecurityExpect429.Top = 962
-    $chkSecurityExpect429.Width = 340
-    $chkSecurityExpect429.Text = "SecurityExpect429"
-    $chkSecurityExpect429.Checked = [bool]$SecurityExpect429
-    $panelLeft.Controls.Add($chkSecurityExpect429)
-
-    $lblSecurityKeywords = New-Object System.Windows.Forms.Label
-    $lblSecurityKeywords.AutoSize = $true
-    $lblSecurityKeywords.Left = 10
-    $lblSecurityKeywords.Top = 986
-    $lblSecurityKeywords.Text = "SecurityLockoutKeywords (comma-separated)"
-    $panelLeft.Controls.Add($lblSecurityKeywords)
-
-    $txtSecurityKeywords = New-Object System.Windows.Forms.TextBox
-    $txtSecurityKeywords.Left = 10
-    $txtSecurityKeywords.Top = 1004
-    $txtSecurityKeywords.Width = 316
-    $txtSecurityKeywords.Height = 44
-    $txtSecurityKeywords.Multiline = $true
-    $txtSecurityKeywords.ScrollBars = "Vertical"
-    $txtSecurityKeywords.WordWrap = $true
-    $txtSecurityKeywords.Text = ((@($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" }) -join ", "))
-    $panelLeft.Controls.Add($txtSecurityKeywords)
-
-    $btnSaveSecurityKeywords = New-Object System.Windows.Forms.Button
-    $btnSaveSecurityKeywords.Left = 330
-    $btnSaveSecurityKeywords.Top = 1004
-    $btnSaveSecurityKeywords.Text = "S"
-    Set-RoundButtonShape -Button $btnSaveSecurityKeywords
-    $panelLeft.Controls.Add($btnSaveSecurityKeywords)
-
-    # Per-check Details / Export toggles
-
-    $perCheckRows = New-Object System.Collections.Generic.List[object]
-    $perCheckDefs = @(
-        @{ id = "cache_clear"; label = "Cache clear" },
-        @{ id = "routes"; label = "Routes" },
-        @{ id = "route_list_option_scan"; label = "Route option scan" },
-        @{ id = "http_probe"; label = "HTTP probe" },
-        @{ id = "login_csrf_probe"; label = "Login CSRF probe" },
-        @{ id = "role_smoke_test"; label = "Role smoke test" },
-        @{ id = "governance_superadmin"; label = "Superadmin count" },
-        @{ id = "session_csrf_baseline"; label = "Session/CSRF baseline" },
-        @{ id = "security_abuse"; label = "Security/Abuse" },
-        @{ id = "routes_verbose"; label = "Routes verbose" },
-        @{ id = "routes_findstr_admin"; label = "Route findstr admin" },
-        @{ id = "log_snapshot"; label = "Log snapshot" },
-        @{ id = "tail_log"; label = "Tail log" },
-        @{ id = "log_clear_before"; label = "Log clear before" },
-        @{ id = "log_clear_after"; label = "Log clear after" }
-    )
-
-    $matrixStartY = 1092
-    $matrixRowH = 22
-    for ($i = 0; $i -lt $perCheckDefs.Count; $i++) {
-        $d = $perCheckDefs[$i]
-        $col = ($i % 2)
-        $row = [int]([Math]::Floor($i / 2))
-        $baseX = $(if ($col -eq 0) { 10 } else { 182 })
-        $y = $matrixStartY + ($row * $matrixRowH)
-
-        $lbl = New-Object System.Windows.Forms.Label
-        $lbl.Left = $baseX
-        $lbl.Top = $y + 4
-        $lbl.Width = 86
-        $lbl.Text = ("" + $d.label)
-        $panelLeft.Controls.Add($lbl)
-
-        $chkD = New-Object System.Windows.Forms.CheckBox
-        $chkD.Left = $baseX + 90
-        $chkD.Top = $y + 2
-        $chkD.Width = 38
-        $chkD.Text = "D"
-        $chkD.Checked = $false
-        $panelLeft.Controls.Add($chkD)
-
-        $chkE = New-Object System.Windows.Forms.CheckBox
-        $chkE.Left = $baseX + 128
-        $chkE.Top = $y + 2
-        $chkE.Width = 38
-        $chkE.Text = "E"
-        $chkE.Checked = $false
-        $panelLeft.Controls.Add($chkE)
-
-        $perCheckRows.Add([pscustomobject]@{ id = ("" + $d.id); label = ("" + $d.label); chkDetails = $chkD; chkExport = $chkE }) | Out-Null
-    }
-
-    $detailsMasterTop = 1066
-    $globalBlockTop = 1256
-
-    # 13) Master switches (optional, apply to all per-check toggles)
+    # 12) Show check details
     $chkShowCheckDetails = New-Object System.Windows.Forms.CheckBox
     $chkShowCheckDetails.Left = 10
-    $chkShowCheckDetails.Top = $detailsMasterTop
+    $chkShowCheckDetails.Top = 830
     $chkShowCheckDetails.Width = 340
-    $chkShowCheckDetails.Text = "13) ShowCheckDetails (Master)"
-    $chkShowCheckDetails.Checked = [bool]$ShowCheckDetails
+    $chkShowCheckDetails.Text = "12) Check-Details anzeigen"
+    $chkShowCheckDetails.Checked = [bool](("" + $ShowCheckDetails).Trim() -notmatch '^(?i:0|false|\$false|no|off)$')
     $panelLeft.Controls.Add($chkShowCheckDetails)
 
+    # 13) Export log slices
     $chkExportLogs = New-Object System.Windows.Forms.CheckBox
     $chkExportLogs.Left = 10
-    $chkExportLogs.Top = ($globalBlockTop + 24)
+    $chkExportLogs.Top = 854
     $chkExportLogs.Width = 340
-    $chkExportLogs.Text = "14) ExportLogs (Master)"
-    $chkExportLogs.Checked = [bool]$ExportLogs
+    $chkExportLogs.Text = "13) Log-Slices exportieren"
+    $chkExportLogs.Checked = [bool](("" + $ExportLogs).Trim() -match '^(?i:1|true|\$true|yes|on)$')
     $panelLeft.Controls.Add($chkExportLogs)
 
-    # Global shared log settings
-    $lblExportLogsLines = New-Object System.Windows.Forms.Label
-    $lblExportLogsLines.AutoSize = $true
-    $lblExportLogsLines.Text = "ExportLogsLines"
-    $lblExportLogsLines.Left = 10
-    $lblExportLogsLines.Top = ($globalBlockTop + 48)
-    $panelLeft.Controls.Add($lblExportLogsLines)
-
-    $cmbExportLogsLines = New-Object System.Windows.Forms.ComboBox
-    $cmbExportLogsLines.Left = 10
-    $cmbExportLogsLines.Top = ($globalBlockTop + 66)
-    $cmbExportLogsLines.Width = 100
-    $cmbExportLogsLines.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    [void]$cmbExportLogsLines.Items.Add("50")
-    [void]$cmbExportLogsLines.Items.Add("200")
-    [void]$cmbExportLogsLines.Items.Add("500")
-    [void]$cmbExportLogsLines.Items.Add("1000")
-    $expLinesSelection = "200"
-    try {
-        $n = [int]$ExportLogsLines
-        if ($n -eq 50 -or $n -eq 200 -or $n -eq 500 -or $n -eq 1000) { $expLinesSelection = ("" + $n) }
-    } catch { $expLinesSelection = "200" }
-    $cmbExportLogsLines.SelectedItem = $expLinesSelection
-    if ($null -eq $cmbExportLogsLines.SelectedItem) { $cmbExportLogsLines.SelectedItem = "200" }
-    $panelLeft.Controls.Add($cmbExportLogsLines)
-
-    $lblExportFolder = New-Object System.Windows.Forms.Label
-    $lblExportFolder.AutoSize = $true
-    $lblExportFolder.Text = "ExportFolder"
-    $lblExportFolder.Left = 120
-    $lblExportFolder.Top = ($globalBlockTop + 48)
-    $panelLeft.Controls.Add($lblExportFolder)
-
-    $txtExportFolder = New-Object System.Windows.Forms.TextBox
-    $txtExportFolder.Left = 120
-    $txtExportFolder.Top = ($globalBlockTop + 66)
-    $txtExportFolder.Width = 206
-    $txtExportFolder.Text = ("" + $uiResolvedExportFolder)
-    $panelLeft.Controls.Add($txtExportFolder)
-
-    $btnSaveExportFolder = New-Object System.Windows.Forms.Button
-    $btnSaveExportFolder.Left = 330
-    $btnSaveExportFolder.Top = ($globalBlockTop + 66)
-    $btnSaveExportFolder.Text = "S"
-    Set-RoundButtonShape -Button $btnSaveExportFolder
-    $panelLeft.Controls.Add($btnSaveExportFolder)
-
+    # 14) Auto-open export folder
     $chkAutoOpenExportFolder = New-Object System.Windows.Forms.CheckBox
     $chkAutoOpenExportFolder.Left = 10
-    $chkAutoOpenExportFolder.Top = ($globalBlockTop + 94)
+    $chkAutoOpenExportFolder.Top = 878
     $chkAutoOpenExportFolder.Width = 340
-    $chkAutoOpenExportFolder.Text = "AutoOpenExportFolder"
-    $chkAutoOpenExportFolder.Checked = [bool]$AutoOpenExportFolder
+    $chkAutoOpenExportFolder.Text = "14) Export-Ordner danach oeffnen"
+    $chkAutoOpenExportFolder.Checked = [bool](("" + $AutoOpenExportFolder).Trim() -match '^(?i:1|true|\$true|yes|on)$')
     $panelLeft.Controls.Add($chkAutoOpenExportFolder)
 
     # --- Bottom buttons (left)
@@ -1335,7 +979,7 @@ function Show-AuditGui() {
     $btnRun.Width = 82
     $btnRun.Height = 32
     $btnRun.Left = 10
-    $btnRun.Top = 1424
+    $btnRun.Top = 910
     $panelLeft.Controls.Add($btnRun)
 
     $btnCopy = New-Object System.Windows.Forms.Button
@@ -1343,7 +987,7 @@ function Show-AuditGui() {
     $btnCopy.Width = 90
     $btnCopy.Height = 32
     $btnCopy.Left = 98
-    $btnCopy.Top = 1424
+    $btnCopy.Top = 910
     $btnCopy.Enabled = $false
     $panelLeft.Controls.Add($btnCopy)
 
@@ -1352,13 +996,13 @@ function Show-AuditGui() {
     $btnClear.Width = 60
     $btnClear.Height = 32
     $btnClear.Left = 192
-    $btnClear.Top = 1424
+    $btnClear.Top = 910
     $panelLeft.Controls.Add($btnClear)
 
     $lblStatus = New-Object System.Windows.Forms.Label
     $lblStatus.AutoSize = $true
     $lblStatus.Left = 10
-    $lblStatus.Top = 1464
+    $lblStatus.Top = 950
     $lblStatus.Width = 340
     $lblStatus.Text = ""
     $panelLeft.Controls.Add($lblStatus)
@@ -1730,13 +1374,9 @@ function Show-AuditGui() {
         $toolTip.SetToolTip($chkLoginCsrfProbe, "Fuehrt Login-CSRF-Preflight aus (GET /login, POST /login no-redirect).")
         $toolTip.SetToolTip($chkRoleSmokeTest, "Fuehrt GET-only RoleSmokeTest aus (inkl. Login-Preflight, falls aktiviert).")
         $toolTip.SetToolTip($chkSessionCsrfBaseline, "Liest Session-/CSRF-Baseline aus .env/config (read-only).")
-        $toolTip.SetToolTip($chkSecurityProbe, "Aktiviert aktive Security/Abuse-Probes (Login-Lockout/Register/IP-Ban, je nach Unteroptionen).")
-        $toolTip.SetToolTip($numSecurityAttempts, "Anzahl Login-Fehlversuche fuer den Lockout-Probe (1-10).")
-        $toolTip.SetToolTip($chkSecurityCheckIpBan, "Optionaler Probe fuer IP-Ban-Enforcement.")
-        $toolTip.SetToolTip($chkSecurityCheckRegister, "Optionaler Probe fuer Register-/Invite-Abuse-Schutz.")
-        $toolTip.SetToolTip($chkSecurityExpect429, "Erwartet explizit HTTP 429 als Lockout-Signal.")
-        $toolTip.SetToolTip($txtSecurityKeywords, "Kommagetrennte Keywords fuer Lockout-/Throttle-Erkennung.")
-        $toolTip.SetToolTip($btnSaveSecurityKeywords, "SecurityLockoutKeywords speichern.")
+        $toolTip.SetToolTip($chkShowCheckDetails, "Wenn aktiv, gibt der Core die Details/Evidence unter allen Checks aus.")
+        $toolTip.SetToolTip($chkExportLogs, "Wenn aktiv, exportiert der Core pro Check die Log-Slices in tools/audit/output.")
+        $toolTip.SetToolTip($chkAutoOpenExportFolder, "Wenn aktiv, oeffnet der Core nach vorhandenen Exporten den Export-Ordner.")
         $toolTip.SetToolTip($txtSuperadminEmail, "Superadmin E-Mail fuer Login/RoleSmoke.")
         $toolTip.SetToolTip($txtSuperadminPassword, "Superadmin Passwort fuer Login/RoleSmoke.")
         $toolTip.SetToolTip($btnSaveSuperadmin, "Superadmin Credentials speichern")
@@ -1831,37 +1471,6 @@ function Show-AuditGui() {
         $btnClearModerator.Enabled = $roleOn
     }
 
-    function Sync-SecurityFieldsEnabled() {
-        $on = [bool]$chkSecurityProbe.Checked
-        $lblSecurityAttempts.Enabled = $on
-        $numSecurityAttempts.Enabled = $on
-        $chkSecurityCheckIpBan.Enabled = $on
-        $chkSecurityCheckRegister.Enabled = $on
-        $chkSecurityExpect429.Enabled = $on
-        $lblSecurityKeywords.Enabled = $on
-        $txtSecurityKeywords.Enabled = $on
-    }
-
-    function Sync-ExportFieldsEnabled() {
-        $expOn = [bool]$chkExportLogs.Checked
-        $lblExportLogsLines.Enabled = $expOn
-        $cmbExportLogsLines.Enabled = $expOn
-        $lblExportFolder.Enabled = $expOn
-        $txtExportFolder.Enabled = $expOn
-        $btnSaveExportFolder.Enabled = $expOn
-        $chkAutoOpenExportFolder.Enabled = $expOn
-        foreach ($r in @($perCheckRows.ToArray())) {
-            try { $r.chkExport.Enabled = $expOn } catch { }
-        }
-    }
-
-    function Sync-DetailsFieldsEnabled() {
-        $detOn = [bool]$chkShowCheckDetails.Checked
-        foreach ($r in @($perCheckRows.ToArray())) {
-            try { $r.chkDetails.Enabled = $detOn } catch { }
-        }
-    }
-
     $chkHttpProbe.add_CheckedChanged({ Sync-HttpFieldsEnabled })
     Sync-HttpFieldsEnabled
 
@@ -1872,42 +1481,60 @@ function Show-AuditGui() {
     $chkLoginCsrfProbe.add_CheckedChanged({ Sync-RoleSmokeFieldsEnabled })
     Sync-RoleSmokeFieldsEnabled
 
-    $chkSecurityProbe.add_CheckedChanged({ Sync-SecurityFieldsEnabled })
-    Sync-SecurityFieldsEnabled
+    function Build-UiRunPlanNotice() {
+        $lines = New-Object System.Collections.Generic.List[string]
+        $lines.Add("Run Plan") | Out-Null
+        $lines.Add("--------") | Out-Null
 
-    $chkExportLogs.add_CheckedChanged({ Sync-ExportFieldsEnabled })
-    Sync-ExportFieldsEnabled
+        $lines.Add("Null-Lauf:") | Out-Null
+        $lines.Add("- Cache Clear") | Out-Null
+        $lines.Add("") | Out-Null
 
-    $chkShowCheckDetails.add_CheckedChanged({ Sync-DetailsFieldsEnabled })
-    Sync-DetailsFieldsEnabled
+        $selectedItems = New-Object System.Collections.Generic.List[string]
+        if ($chkHttpProbe.Checked) { $selectedItems.Add("HTTP-Probe") | Out-Null }
+        if ($chkLoginCsrfProbe.Checked) { $selectedItems.Add("Login CSRF Probe") | Out-Null }
+        if ($chkRoleSmokeTest.Checked) { $selectedItems.Add("Role Smoke Test") | Out-Null }
+        if ($chkSuperadminCount.Checked) { $selectedItems.Add("Governance: Superadmin Fail-Safe") | Out-Null }
+        if ($chkSessionCsrfBaseline.Checked) { $selectedItems.Add("Session/CSRF Baseline") | Out-Null }
+        if ($chkRoutesVerbose.Checked) { $selectedItems.Add("Routes Verbose Inspection") | Out-Null }
+        if ($chkRouteListFindstrAdmin.Checked) { $selectedItems.Add("Route List Filter (admin-only)") | Out-Null }
+
+        $snapshotSelection = "OFF"
+        try { $snapshotSelection = ("" + $cmbLaravelLogHistory.Text).Trim().ToUpper() } catch { $snapshotSelection = "OFF" }
+        if ($snapshotSelection -ne "OFF") { $selectedItems.Add("Laravel Log Snapshot") | Out-Null }
+        if ($chkTailLog.Checked) { $selectedItems.Add("Tail Laravel Log (GUI)") | Out-Null }
+
+        $lines.Add("Ausgewaehlt:") | Out-Null
+        if ($selectedItems.Count -gt 0) {
+            $i = 0
+            foreach ($item in @($selectedItems.ToArray())) {
+                $i++
+                $lines.Add(("Test {0} - {1}" -f $i, $item)) | Out-Null
+            }
+        } else {
+            $lines.Add("(keine)") | Out-Null
+        }
+
+        return (($lines.ToArray()) -join "`r`n")
+    }
 
     function Get-UiArgs() {
         $argsList = New-Object System.Collections.Generic.List[string]
 
         # Always pass BaseUrl deterministically from global dropdown.
         $effectiveBaseUrl = ""
-        try {
-            if ($null -ne $cmbBaseUrl.SelectedItem) {
-                $effectiveBaseUrl = ("" + $cmbBaseUrl.SelectedItem).Trim()
-            }
-        } catch { $effectiveBaseUrl = "" }
-        if ($effectiveBaseUrl -eq "") {
-            try { $effectiveBaseUrl = ("" + $cmbBaseUrl.Text).Trim() } catch { $effectiveBaseUrl = "" }
-        }
+        try { $effectiveBaseUrl = ("" + $cmbBaseUrl.Text).Trim() } catch { $effectiveBaseUrl = "" }
+        if ($effectiveBaseUrl -eq "") { $effectiveBaseUrl = ("" + $BaseUrl).Trim() }
+        if ($effectiveBaseUrl -eq "") { $effectiveBaseUrl = "http://127.0.0.1:8000" }
 
-        $effectiveBaseUrl = Normalize-BaseUrl $effectiveBaseUrl
-
-        if ($effectiveBaseUrl -eq "") {
-            throw "Base URL is empty in GUI selection."
+        if ($effectiveBaseUrl -notmatch '^(?i)https?://') {
+            $effectiveBaseUrl = "http://" + $effectiveBaseUrl
         }
 
         $u = $null
         $ok = $false
         try { $ok = [System.Uri]::TryCreate($effectiveBaseUrl, [System.UriKind]::Absolute, [ref]$u) } catch { $ok = $false }
         if (-not $ok) { throw ("Base URL is not a valid absolute URL: " + $effectiveBaseUrl) }
-
-        # Keep wrapper/global BaseUrl consistent with what we actually pass to the core (prevents header vs command mismatch).
-        try { $script:BaseUrl = $effectiveBaseUrl } catch { }
 
         $argsList.Add("-BaseUrl") | Out-Null
         $argsList.Add($effectiveBaseUrl) | Out-Null
@@ -1922,11 +1549,9 @@ function Show-AuditGui() {
         try { $ppLines = ("" + $txtProbePaths.Text) -split "`r?`n" } catch { $ppLines = @() }
         $ppLines = @($ppLines | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
 
-        if ($ppLines.Count -gt 0) {
+               if ($ppLines.Count -gt 0) {
             $argsList.Add("-ProbePaths") | Out-Null
-            foreach ($p in $ppLines) {
-                $argsList.Add(("" + $p)) | Out-Null
-            }
+            $argsList.Add((($ppLines | ForEach-Object { "" + $_ }) -join " ")) | Out-Null
         }
 
         if ($chkHttpProbe.Checked) { $argsList.Add("-HttpProbe") | Out-Null }
@@ -1947,80 +1572,26 @@ function Show-AuditGui() {
 
         if ($chkLogClearBefore.Checked) { $argsList.Add("-LogClearBefore") | Out-Null }
         if ($chkLogClearAfter.Checked) { $argsList.Add("-LogClearAfter") | Out-Null }
+        $argsList.Add("-ShowCheckDetails") | Out-Null
+        $argsList.Add($(if ($chkShowCheckDetails.Checked) { "true" } else { "false" })) | Out-Null
+        $argsList.Add("-ExportLogs") | Out-Null
+        $argsList.Add($(if ($chkExportLogs.Checked) { "true" } else { "false" })) | Out-Null
+        $argsList.Add("-AutoOpenExportFolder") | Out-Null
+        $argsList.Add($(if ($chkAutoOpenExportFolder.Checked) { "true" } else { "false" })) | Out-Null
         if ($chkLoginCsrfProbe.Checked) { $argsList.Add("-LoginCsrfProbe") | Out-Null }
         if ($chkRoleSmokeTest.Checked) { $argsList.Add("-RoleSmokeTest") | Out-Null }
         if ($chkSessionCsrfBaseline.Checked) { $argsList.Add("-SessionCsrfBaseline") | Out-Null }
-        if ($chkSecurityProbe.Checked) { $argsList.Add("-SecurityProbe") | Out-Null }
-        if ($chkSecurityCheckIpBan.Checked) { $argsList.Add("-SecurityCheckIpBan") | Out-Null }
-        if ($chkSecurityCheckRegister.Checked) { $argsList.Add("-SecurityCheckRegister") | Out-Null }
-        if ($chkSecurityExpect429.Checked) { $argsList.Add("-SecurityExpect429") | Out-Null }
-        $securityAttemptsUi = 8
-        try { $securityAttemptsUi = [int]$numSecurityAttempts.Value } catch { $securityAttemptsUi = 8 }
-        if ($securityAttemptsUi -gt 0) {
-            $argsList.Add("-SecurityLoginAttempts") | Out-Null
-            $argsList.Add(("" + $securityAttemptsUi)) | Out-Null
-        }
-        $lockoutKw = @()
-        try { $lockoutKw = @(((("" + $txtSecurityKeywords.Text) -split "[,`r`n]+") | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })) } catch { $lockoutKw = @() }
-        if ($lockoutKw.Count -gt 0) {
-            $argsList.Add("-SecurityLockoutKeywords") | Out-Null
-            foreach ($kw in $lockoutKw) { $argsList.Add($kw) | Out-Null }
-        }
 
-        $argsList.Add("-ShowCheckDetails") | Out-Null
-        $argsList.Add(("" + [bool]$chkShowCheckDetails.Checked).ToLowerInvariant()) | Out-Null
-
-        $argsList.Add("-ExportLogs") | Out-Null
-        $argsList.Add(("" + [bool]$chkExportLogs.Checked).ToLowerInvariant()) | Out-Null
-
-        $exportLines = 200
-        try { $exportLines = [int](("" + $cmbExportLogsLines.Text).Trim()) } catch { $exportLines = 200 }
-        if ($exportLines -notin @(50,200,500,1000)) { $exportLines = 200 }
-        $argsList.Add("-ExportLogsLines") | Out-Null
-        $argsList.Add(("" + $exportLines)) | Out-Null
-
-        $exportFolderUi = ""
-        try { $exportFolderUi = ("" + $txtExportFolder.Text).Trim() } catch { $exportFolderUi = "" }
-        $exportFolderUi = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $exportFolderUi
-        try { $txtExportFolder.Text = $exportFolderUi } catch { }
-        try { $script:ExportFolder = $exportFolderUi } catch { }
-        $argsList.Add("-ExportFolder") | Out-Null
-        $argsList.Add($exportFolderUi) | Out-Null
-
-        $argsList.Add("-AutoOpenExportFolder") | Out-Null
-        $argsList.Add(("" + [bool]$chkAutoOpenExportFolder.Checked).ToLowerInvariant()) | Out-Null
-
-        $perCheckDetailsMap = [ordered]@{}
-        $perCheckExportMap = [ordered]@{}
-        foreach ($r in @($perCheckRows.ToArray())) {
-            $id = ""
-            try { $id = ("" + $r.id).Trim().ToLowerInvariant() } catch { $id = "" }
-            if ($id -eq "") { continue }
-            $perCheckDetailsMap[$id] = [bool]$r.chkDetails.Checked
-            $perCheckExportMap[$id] = [bool]$r.chkExport.Checked
-        }
-
-        $perCheckDetailsJson = "{}"
-        $perCheckExportJson = "{}"
-        try { $perCheckDetailsJson = ($perCheckDetailsMap | ConvertTo-Json -Compress) } catch { $perCheckDetailsJson = "{}" }
-        try { $perCheckExportJson = ($perCheckExportMap | ConvertTo-Json -Compress) } catch { $perCheckExportJson = "{}" }
-
-        $argsList.Add("-PerCheckDetails") | Out-Null
-        $argsList.Add($perCheckDetailsJson) | Out-Null
-        $argsList.Add("-PerCheckExport") | Out-Null
-        $argsList.Add($perCheckExportJson) | Out-Null
-
-        if ($chkRoleSmokeTest.Checked) {
+                if ($chkRoleSmokeTest.Checked) {
             $rsLines = @()
             try { $rsLines = ("" + $txtProbePaths.Text) -split "`r?`n" } catch { $rsLines = @() }
             $rsLines = @($rsLines | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
 
             if ($rsLines.Count -gt 0) {
                 $argsList.Add("-RoleSmokePaths") | Out-Null
-                foreach ($rp in $rsLines) {
-                    $argsList.Add(("" + $rp)) | Out-Null
-                }
+                $argsList.Add(($rsLines -join " ")) | Out-Null
             }
+            
 
             $saEmail = ("" + $txtSuperadminEmail.Text).Trim()
             $saPass = ("" + $txtSuperadminPassword.Text)
@@ -2070,8 +1641,9 @@ function Show-AuditGui() {
 
             $snapshotSelectionNow = "OFF"
             try { $snapshotSelectionNow = ("" + $cmbLaravelLogHistory.Text).Trim().ToUpper() } catch { $snapshotSelectionNow = "OFF" }
+            $preRunNotice = Build-UiRunPlanNotice
             if ($snapshotSelectionNow -ne "OFF" -and [bool]$chkLogClearBefore.Checked) {
-                $preRunNotice = "Hinweis: LogClearBefore ist aktiv. Wenn waehrend des Audits keine neuen Logzeilen entstehen, kann der Snapshot leer sein."
+                $preRunNotice += "`r`n`r`nHinweis: LogClearBefore ist aktiv. Wenn waehrend des Audits keine neuen Logzeilen entstehen, kann der Snapshot leer sein."
             }
 
             # Run core as a separate hidden process to avoid in-process binding shifts against UI parameters (TailLogMode etc.).
@@ -2083,11 +1655,10 @@ function Show-AuditGui() {
             $psArgs.Add($corePath) | Out-Null
             foreach ($a in $argsList) { $psArgs.Add(("" + $a)) | Out-Null }
 
-            $effectiveProcessArgs = @($psArgs.ToArray())
-            $maskedPsArgs = @(Get-MaskedArgumentList -InputArgs $effectiveProcessArgs)
+            $maskedPsArgs = @(Get-MaskedArgumentList -InputArgs @($psArgs.ToArray()))
             $childCmdLine = ("powershell.exe " + (($maskedPsArgs | ForEach-Object { ConvertTo-QuotedArg $_ }) -join " ")).Trim()
 
-            $proc = Invoke-ProcessToFiles -File "powershell.exe" -ArgumentList $effectiveProcessArgs -TimeoutSeconds 600 -WorkingDirectory $uiProjectRoot
+            $proc = Invoke-ProcessToFiles -File "powershell.exe" -ArgumentList @($psArgs.ToArray()) -TimeoutSeconds 600 -WorkingDirectory $uiProjectRoot
 
             $out = ""
             $err = ""
@@ -2188,39 +1759,6 @@ function Show-AuditGui() {
             $lblStatus.Text = ("Pfade gespeichert: " + $uiPathsConfigFile)
         } catch {
             $lblStatus.Text = ("Save Paths fehlgeschlagen: " + $_.Exception.Message)
-        }
-    })
-
-    $btnSaveExportFolder.Add_Click({
-        try {
-            $folderNow = ""
-            try { $folderNow = ("" + $txtExportFolder.Text).Trim() } catch { $folderNow = "" }
-            $folderNow = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $folderNow
-            try { $txtExportFolder.Text = $folderNow } catch { }
-            try { $script:ExportFolder = $folderNow } catch { }
-            Save-KsAuditUiSettings -SettingsPath $uiSettingsFile -ExportFolderValue $folderNow
-            $lblStatus.Text = "[OK] ExportFolder saved."
-        } catch {
-            $lblStatus.Text = ("[WARN] ExportFolder save failed: " + $_.Exception.Message)
-        }
-    })
-
-    $btnSaveSecurityKeywords.Add_Click({
-        try {
-            $kw = @()
-            try { $kw = @(((("" + $txtSecurityKeywords.Text) -split "[,`r`n]+") | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })) } catch { $kw = @() }
-            if ($kw.Count -le 0) { $kw = @("too many attempts","throttle","locked","lockout") }
-            try { $txtSecurityKeywords.Text = ($kw -join ", ") } catch { }
-            try { $script:SecurityLockoutKeywords = @($kw) } catch { }
-
-            $folderNow = ""
-            try { $folderNow = ("" + $txtExportFolder.Text).Trim() } catch { $folderNow = "" }
-            $folderNow = Resolve-ExportFolderAbsolute -ProjectRoot $uiProjectRoot -FolderValue $folderNow
-            try { $txtExportFolder.Text = $folderNow } catch { }
-            Save-KsAuditUiSettings -SettingsPath $uiSettingsFile -ExportFolderValue $folderNow -SecurityLockoutKeywordsValue @($kw)
-            $lblStatus.Text = "[OK] SecurityLockoutKeywords saved."
-        } catch {
-            $lblStatus.Text = ("[WARN] SecurityLockoutKeywords save failed: " + $_.Exception.Message)
         }
     })
 
@@ -2362,12 +1900,9 @@ if ($consolePathsConfig -and ("" + $consolePathsConfig).Trim() -ne "") {
 }
 
 if ($ProbePaths -and $ProbePaths.Count -gt 0) {
-    # Pass as proper string[] tokens (NOT newline payload)
     $argList.Add("-ProbePaths") | Out-Null
-    foreach ($p in @($ProbePaths | ForEach-Object { "" + $_ })) {
-        $t = ("" + $p).Trim()
-        if ($t -ne "") { $argList.Add($t) | Out-Null }
-    }
+    $pp = @($ProbePaths | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
+    if ($pp.Count -gt 0) { $argList.Add(($pp -join " ")) | Out-Null }
 }
 
 if ($HttpProbe) { $argList.Add("-HttpProbe") | Out-Null }
@@ -2377,66 +1912,6 @@ if ($SuperadminCount) { $argList.Add("-SuperadminCount") | Out-Null }
 if ($LoginCsrfProbe) { $argList.Add("-LoginCsrfProbe") | Out-Null }
 if ($RoleSmokeTest) { $argList.Add("-RoleSmokeTest") | Out-Null }
 if ($SessionCsrfBaseline) { $argList.Add("-SessionCsrfBaseline") | Out-Null }
-if ($SecurityProbe) { $argList.Add("-SecurityProbe") | Out-Null }
-if ($SecurityCheckIpBan) { $argList.Add("-SecurityCheckIpBan") | Out-Null }
-if ($SecurityCheckRegister) { $argList.Add("-SecurityCheckRegister") | Out-Null }
-if ($SecurityExpect429) { $argList.Add("-SecurityExpect429") | Out-Null }
-if ($SecurityLoginAttempts -gt 0) {
-    $argList.Add("-SecurityLoginAttempts") | Out-Null
-    $argList.Add(("" + $SecurityLoginAttempts)) | Out-Null
-}
-if ($SecurityLockoutKeywords -and $SecurityLockoutKeywords.Count -gt 0) {
-    $kw = @($SecurityLockoutKeywords | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
-    if ($kw.Count -gt 0) {
-        $argList.Add("-SecurityLockoutKeywords") | Out-Null
-        foreach ($k in $kw) { $argList.Add($k) | Out-Null }
-    }
-}
-
-$argList.Add("-ShowCheckDetails") | Out-Null
-$argList.Add(("" + [bool]$ShowCheckDetails).ToLowerInvariant()) | Out-Null
-
-$argList.Add("-ExportLogs") | Out-Null
-$argList.Add(("" + [bool]$ExportLogs).ToLowerInvariant()) | Out-Null
-
-$expLines = 200
-try {
-    $nExp = [int]$ExportLogsLines
-    if ($nExp -in @(50,200,500,1000)) { $expLines = $nExp }
-} catch { $expLines = 200 }
-$argList.Add("-ExportLogsLines") | Out-Null
-$argList.Add(("" + $expLines)) | Out-Null
-
-$expFolder = ""
-try { $expFolder = ("" + $ExportFolder).Trim() } catch { $expFolder = "" }
-$expFolder = Resolve-ExportFolderAbsolute -ProjectRoot $projectRoot -FolderValue $expFolder
-try { $script:ExportFolder = $expFolder } catch { }
-$argList.Add("-ExportFolder") | Out-Null
-$argList.Add($expFolder) | Out-Null
-
-$argList.Add("-AutoOpenExportFolder") | Out-Null
-$argList.Add(("" + [bool]$AutoOpenExportFolder).ToLowerInvariant()) | Out-Null
-
-$defaultPerCheckIds = @(
-    "cache_clear","routes","route_list_option_scan","http_probe","login_csrf_probe","role_smoke_test",
-    "governance_superadmin","session_csrf_baseline","security_abuse","routes_verbose","routes_findstr_admin",
-    "log_snapshot","tail_log","log_clear_before","log_clear_after"
-)
-$consoleDetailsMap = [ordered]@{}
-$consoleExportMap = [ordered]@{}
-foreach ($id in $defaultPerCheckIds) {
-    $consoleDetailsMap[$id] = [bool]$ShowCheckDetails
-    $consoleExportMap[$id] = [bool]$ExportLogs
-}
-$consolePerCheckDetailsJson = "{}"
-$consolePerCheckExportJson = "{}"
-try { $consolePerCheckDetailsJson = ($consoleDetailsMap | ConvertTo-Json -Compress) } catch { $consolePerCheckDetailsJson = "{}" }
-try { $consolePerCheckExportJson = ($consoleExportMap | ConvertTo-Json -Compress) } catch { $consolePerCheckExportJson = "{}" }
-$argList.Add("-PerCheckDetails") | Out-Null
-$argList.Add($consolePerCheckDetailsJson) | Out-Null
-$argList.Add("-PerCheckExport") | Out-Null
-$argList.Add($consolePerCheckExportJson) | Out-Null
-
 if ($LogSnapshot) {
     $argList.Add("-LogSnapshot") | Out-Null
     $snapLines = 200
@@ -2450,16 +1925,20 @@ if ($LogSnapshot) {
 
 if ($LogClearBefore) { $argList.Add("-LogClearBefore") | Out-Null }
 if ($LogClearAfter) { $argList.Add("-LogClearAfter") | Out-Null }
+$argList.Add("-ShowCheckDetails") | Out-Null
+$argList.Add(("" + $ShowCheckDetails)) | Out-Null
+$argList.Add("-ExportLogs") | Out-Null
+$argList.Add(("" + $ExportLogs)) | Out-Null
+$argList.Add("-AutoOpenExportFolder") | Out-Null
+$argList.Add(("" + $AutoOpenExportFolder)) | Out-Null
 
 if ($TailLog) { $argList.Add("-TailLog") | Out-Null }
 
 if ($RoleSmokeTest -and $RoleSmokePaths -and $RoleSmokePaths.Count -gt 0) {
     $argList.Add("-RoleSmokePaths") | Out-Null
     $rs = @($RoleSmokePaths | ForEach-Object { ("" + $_).Trim() } | Where-Object { $_ -ne "" })
-    if ($rs.Count -gt 0) {
-        foreach ($rp in $rs) {
-            $argList.Add(("" + $rp)) | Out-Null
-        }
+    foreach ($rp in $rs) {
+        $argList.Add($rp) | Out-Null
     }
 }
 

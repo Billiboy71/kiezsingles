@@ -2,19 +2,23 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminSecurityController.php
 // Purpose: Admin Security controller (overview, events, bans, settings, event purge)
-// Changed: 05-03-2026 23:53 (Europe/Berlin)
-// Version: 0.6
+// Changed: 12-03-2026 16:31 (Europe/Berlin)
+// Version: 1.6
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\SecurityAllowlistEntry;
 use App\Models\SecurityDeviceBan;
 use App\Models\SecurityEvent;
 use App\Models\SecurityIdentityBan;
 use App\Models\SecurityIpBan;
 use App\Models\User;
+use App\Services\Security\SecurityAllowlistService;
 use App\Services\Security\SecuritySettingsService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -24,6 +28,7 @@ class AdminSecurityController extends Controller
 {
     public function __construct(
         private readonly SecuritySettingsService $securitySettingsService,
+        private readonly SecurityAllowlistService $securityAllowlistService,
     ) {}
 
     public function overview(Request $request): View
@@ -43,7 +48,7 @@ class AdminSecurityController extends Controller
         $topSuspiciousIps = SecurityEvent::query()
             ->selectRaw('ip, COUNT(*) as aggregate_count')
             ->whereNotNull('ip')
-            ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked'])
+            ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked'])
             ->where('created_at', '>=', now()->subDay())
             ->groupBy('ip')
             ->orderByDesc('aggregate_count')
@@ -53,10 +58,48 @@ class AdminSecurityController extends Controller
         $topDeviceHashes = SecurityEvent::query()
             ->selectRaw('device_hash, COUNT(*) as aggregate_count')
             ->whereNotNull('device_hash')
+            ->where('device_hash', '!=', '')
             ->where('created_at', '>=', now()->subDay())
             ->groupBy('device_hash')
             ->orderByDesc('aggregate_count')
             ->limit(10)
+            ->get();
+
+        $topSuspiciousEmails = SecurityEvent::query()
+            ->selectRaw('email, COUNT(*) as aggregate_count')
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked'])
+            ->where('created_at', '>=', now()->subDay())
+            ->groupBy('email')
+            ->orderByDesc('aggregate_count')
+            ->limit(10)
+            ->get();
+
+        $topCorrelatedDevices = SecurityEvent::query()
+            ->selectRaw('device_hash, COUNT(*) as aggregate_count, COUNT(DISTINCT email) as email_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
+            ->whereNotNull('device_hash')
+            ->where('device_hash', '!=', '')
+            ->where('created_at', '>=', now()->subDay())
+            ->groupBy('device_hash')
+            ->orderByDesc('email_count')
+            ->orderByDesc('ip_count')
+            ->orderByDesc('aggregate_count')
+            ->orderByDesc('last_seen_at')
+            ->limit(5)
+            ->get();
+
+        $topCorrelatedEmails = SecurityEvent::query()
+            ->selectRaw('email, COUNT(*) as aggregate_count, COUNT(DISTINCT device_hash) as device_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->where('created_at', '>=', now()->subDay())
+            ->groupBy('email')
+            ->orderByDesc('device_count')
+            ->orderByDesc('ip_count')
+            ->orderByDesc('aggregate_count')
+            ->orderByDesc('last_seen_at')
+            ->limit(5)
             ->get();
 
         return view('admin.security.overview', [
@@ -68,63 +111,225 @@ class AdminSecurityController extends Controller
             'frozenAccounts' => $frozenAccounts,
             'topSuspiciousIps' => $topSuspiciousIps,
             'topDeviceHashes' => $topDeviceHashes,
+            'topSuspiciousEmails' => $topSuspiciousEmails,
+            'topCorrelatedDevices' => $topCorrelatedDevices,
+            'topCorrelatedEmails' => $topCorrelatedEmails,
         ]);
     }
 
-    public function events(Request $request): View
+    public function events(Request $request): View|JsonResponse
     {
-        $perPage = (int) $request->query('per_page', 20);
+        $filters = $this->normalizedSecurityEventFilters($request->query());
+
+        $hasFocusedCorrelationFilter =
+            $filters['ip'] !== ''
+            || $filters['email'] !== ''
+            || $filters['device_hash'] !== '';
+
+        $perPage = (int) $request->query('per_page', $hasFocusedCorrelationFilter ? 100 : 20);
         if (!in_array($perPage, [20, 50, 100], true)) {
-            $perPage = 20;
+            $perPage = $hasFocusedCorrelationFilter ? 100 : 20;
         }
+
+        $ip = $filters['ip'];
+        $email = $filters['email'];
+        $deviceHash = $filters['device_hash'];
+
+        $detailLimit = $hasFocusedCorrelationFilter ? 100 : 20;
 
         $query = SecurityEvent::query()->latest('id');
+        $this->applySecurityEventFilters($query, $request);
 
-        $type = trim((string) $request->query('type', ''));
-        $ip = trim((string) $request->query('ip', ''));
-        $email = mb_strtolower(trim((string) $request->query('email', '')));
-        $deviceHash = trim((string) $request->query('device_hash', ''));
-        $dateFrom = trim((string) $request->query('date_from', ''));
-        $dateTo = trim((string) $request->query('date_to', ''));
+        $events = $query->paginate($perPage)->appends($request->query())->onEachSide(2);
 
-        if ($type !== '') {
-            $query->where('type', $type);
-        }
+        $deviceCorrelation = [
+            'selected_device_hash' => $deviceHash,
+            'selected_email' => $email,
+            'selected_ip' => $ip,
+            'emails_for_device' => collect(),
+            'ips_for_device' => collect(),
+            'devices_for_email' => collect(),
+            'devices_for_ip' => collect(),
+        ];
 
-        if ($ip !== '') {
-            $query->where('ip', $ip);
+        if ($deviceHash !== '') {
+            $deviceCorrelation['emails_for_device'] = $this->applySecurityEventFilters(
+                SecurityEvent::query()
+                    ->selectRaw('email, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
+                    ->where('device_hash', $deviceHash)
+                    ->whereNotNull('email')
+                    ->where('email', '!=', ''),
+                $request,
+                ['email']
+            )
+                ->groupBy('email')
+                ->orderByDesc('aggregate_count')
+                ->orderByDesc('last_seen_at')
+                ->limit($detailLimit)
+                ->get();
+
+            $deviceCorrelation['ips_for_device'] = $this->applySecurityEventFilters(
+                SecurityEvent::query()
+                    ->selectRaw('ip, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
+                    ->where('device_hash', $deviceHash)
+                    ->whereNotNull('ip')
+                    ->where('ip', '!=', ''),
+                $request,
+                ['ip']
+            )
+                ->groupBy('ip')
+                ->orderByDesc('aggregate_count')
+                ->orderByDesc('last_seen_at')
+                ->limit($detailLimit)
+                ->get();
         }
 
         if ($email !== '') {
-            $query->where('email', $email);
+            $deviceCorrelation['devices_for_email'] = $this->applySecurityEventFilters(
+                SecurityEvent::query()
+                    ->selectRaw('device_hash, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
+                    ->where('email', $email)
+                    ->whereNotNull('device_hash')
+                    ->where('device_hash', '!=', ''),
+                $request,
+                ['device_hash']
+            )
+                ->groupBy('device_hash')
+                ->orderByDesc('aggregate_count')
+                ->orderByDesc('last_seen_at')
+                ->limit($detailLimit)
+                ->get();
         }
 
-        if ($deviceHash !== '') {
-            $query->where('device_hash', $deviceHash);
+        if ($ip !== '') {
+            $deviceCorrelation['devices_for_ip'] = $this->applySecurityEventFilters(
+                SecurityEvent::query()
+                    ->selectRaw('device_hash, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
+                    ->where('ip', $ip)
+                    ->whereNotNull('device_hash')
+                    ->where('device_hash', '!=', ''),
+                $request,
+                ['device_hash']
+            )
+                ->groupBy('device_hash')
+                ->orderByDesc('aggregate_count')
+                ->orderByDesc('last_seen_at')
+                ->limit($detailLimit)
+                ->get();
         }
 
-        if ($dateFrom !== '') {
-            $query->whereDate('created_at', '>=', $dateFrom);
-        }
+        $correlationSummary = [
+            'top_devices' => $this->applySecurityEventFilters(
+                SecurityEvent::query()
+                    ->selectRaw('device_hash, COUNT(*) as aggregate_count, COUNT(DISTINCT email) as email_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
+                    ->whereNotNull('device_hash')
+                    ->where('device_hash', '!=', ''),
+                $request,
+                ['device_hash']
+            )
+                ->groupBy('device_hash')
+                ->orderByDesc('email_count')
+                ->orderByDesc('ip_count')
+                ->orderByDesc('aggregate_count')
+                ->orderByDesc('last_seen_at')
+                ->limit(10)
+                ->get(),
 
-        if ($dateTo !== '') {
-            $query->whereDate('created_at', '<=', $dateTo);
-        }
+            'top_emails' => $this->applySecurityEventFilters(
+                SecurityEvent::query()
+                    ->selectRaw('email, COUNT(*) as aggregate_count, COUNT(DISTINCT device_hash) as device_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
+                    ->whereNotNull('email')
+                    ->where('email', '!=', ''),
+                $request,
+                ['email']
+            )
+                ->groupBy('email')
+                ->orderByDesc('device_count')
+                ->orderByDesc('ip_count')
+                ->orderByDesc('aggregate_count')
+                ->orderByDesc('last_seen_at')
+                ->limit(10)
+                ->get(),
 
-        $events = $query->paginate($perPage)->appends($request->query())->onEachSide(2);
+            'top_ips' => $this->applySecurityEventFilters(
+                SecurityEvent::query()
+                    ->selectRaw('ip, COUNT(*) as aggregate_count, COUNT(DISTINCT device_hash) as device_count, COUNT(DISTINCT email) as email_count, MAX(created_at) as last_seen_at')
+                    ->whereNotNull('ip')
+                    ->where('ip', '!=', ''),
+                $request,
+                ['ip']
+            )
+                ->groupBy('ip')
+                ->orderByDesc('device_count')
+                ->orderByDesc('email_count')
+                ->orderByDesc('aggregate_count')
+                ->orderByDesc('last_seen_at')
+                ->limit(10)
+                ->get(),
+        ];
+
+        if ($this->wantsEventsJson($request)) {
+            return response()->json([
+                'filters' => $filters,
+                'per_page' => $perPage,
+                'focused_filter_mode' => $hasFocusedCorrelationFilter,
+                'events' => $events->getCollection()->map(function (SecurityEvent $event): array {
+                    return $this->mapSecurityEvent($event);
+                })->values()->all(),
+                'pagination' => [
+                    'current_page' => $events->currentPage(),
+                    'last_page' => $events->lastPage(),
+                    'per_page' => $events->perPage(),
+                    'total' => $events->total(),
+                    'from' => $events->firstItem(),
+                    'to' => $events->lastItem(),
+                    'has_more_pages' => $events->hasMorePages(),
+                ],
+                'device_correlation' => [
+                    'selected_device_hash' => $deviceCorrelation['selected_device_hash'],
+                    'selected_email' => $deviceCorrelation['selected_email'],
+                    'selected_ip' => $deviceCorrelation['selected_ip'],
+                    'emails_for_device' => $this->mapRows(
+                        $deviceCorrelation['emails_for_device'],
+                        ['email', 'aggregate_count', 'last_seen_at']
+                    ),
+                    'ips_for_device' => $this->mapRows(
+                        $deviceCorrelation['ips_for_device'],
+                        ['ip', 'aggregate_count', 'last_seen_at']
+                    ),
+                    'devices_for_email' => $this->mapRows(
+                        $deviceCorrelation['devices_for_email'],
+                        ['device_hash', 'aggregate_count', 'last_seen_at']
+                    ),
+                    'devices_for_ip' => $this->mapRows(
+                        $deviceCorrelation['devices_for_ip'],
+                        ['device_hash', 'aggregate_count', 'last_seen_at']
+                    ),
+                ],
+                'correlation_summary' => [
+                    'top_devices' => $this->mapRows(
+                        $correlationSummary['top_devices'],
+                        ['device_hash', 'aggregate_count', 'email_count', 'ip_count', 'last_seen_at']
+                    ),
+                    'top_emails' => $this->mapRows(
+                        $correlationSummary['top_emails'],
+                        ['email', 'aggregate_count', 'device_count', 'ip_count', 'last_seen_at']
+                    ),
+                    'top_ips' => $this->mapRows(
+                        $correlationSummary['top_ips'],
+                        ['ip', 'aggregate_count', 'device_count', 'email_count', 'last_seen_at']
+                    ),
+                ],
+            ]);
+        }
 
         return view('admin.security.events.index', [
             'adminTab' => 'security',
             'events' => $events,
             'perPage' => $perPage,
-            'filters' => [
-                'type' => $type,
-                'ip' => $ip,
-                'email' => $email,
-                'device_hash' => $deviceHash,
-                'date_from' => $dateFrom,
-                'date_to' => $dateTo,
-            ],
+            'filters' => $filters,
+            'deviceCorrelation' => $deviceCorrelation,
+            'correlationSummary' => $correlationSummary,
         ]);
     }
 
@@ -136,6 +341,7 @@ class AdminSecurityController extends Controller
             'ip' => ['nullable', 'string', 'max:100'],
             'email' => ['nullable', 'string', 'max:255'],
             'device_hash' => ['nullable', 'string', 'max:128'],
+            'support_ref' => ['nullable', 'string', 'regex:/^SEC-[A-Z0-9]{6,8}$/'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date'],
         ]);
@@ -145,37 +351,7 @@ class AdminSecurityController extends Controller
         }
 
         $query = SecurityEvent::query();
-
-        $type = trim((string) ($validated['type'] ?? ''));
-        $ip = trim((string) ($validated['ip'] ?? ''));
-        $email = mb_strtolower(trim((string) ($validated['email'] ?? '')));
-        $deviceHash = trim((string) ($validated['device_hash'] ?? ''));
-        $dateFrom = trim((string) ($validated['date_from'] ?? ''));
-        $dateTo = trim((string) ($validated['date_to'] ?? ''));
-
-        if ($type !== '') {
-            $query->where('type', $type);
-        }
-
-        if ($ip !== '') {
-            $query->where('ip', $ip);
-        }
-
-        if ($email !== '') {
-            $query->where('email', $email);
-        }
-
-        if ($deviceHash !== '') {
-            $query->where('device_hash', $deviceHash);
-        }
-
-        if ($dateFrom !== '') {
-            $query->whereDate('created_at', '>=', $dateFrom);
-        }
-
-        if ($dateTo !== '') {
-            $query->whereDate('created_at', '<=', $dateTo);
-        }
+        $this->applySecurityEventFilters($query, new Request($validated));
 
         $deleted = (int) $query->delete();
 
@@ -316,6 +492,7 @@ class AdminSecurityController extends Controller
         }
 
         $deviceBans = SecurityDeviceBan::query()
+            ->active()
             ->latest('id')
             ->paginate($perPage)
             ->appends(request()->query())
@@ -379,6 +556,78 @@ class AdminSecurityController extends Controller
         return redirect()->route('admin.security.device_bans.index')->with('admin_notice', 'Geräte-Sperre entfernt.');
     }
 
+    public function allowlistIp(): View
+    {
+        return view('admin.security.allowlist.ip.index', [
+            'adminTab' => 'security',
+            'allowlistEntries' => $this->allowlistEntriesByType('ip'),
+            'perPage' => $this->allowlistPerPage(),
+        ]);
+    }
+
+    public function storeAllowlistIp(Request $request): RedirectResponse
+    {
+        return $this->storeAllowlistEntry($request, 'ip', 'admin.security.allowlist.ip.index');
+    }
+
+    public function updateAllowlistIp(Request $request, int $id): RedirectResponse
+    {
+        return $this->updateAllowlistEntry($request, $id, 'ip', 'admin.security.allowlist.ip.index');
+    }
+
+    public function destroyAllowlistIp(int $id): RedirectResponse
+    {
+        return $this->destroyAllowlistEntry($id, 'ip', 'admin.security.allowlist.ip.index');
+    }
+
+    public function allowlistDevice(): View
+    {
+        return view('admin.security.allowlist.device.index', [
+            'adminTab' => 'security',
+            'allowlistEntries' => $this->allowlistEntriesByType('device'),
+            'perPage' => $this->allowlistPerPage(),
+        ]);
+    }
+
+    public function storeAllowlistDevice(Request $request): RedirectResponse
+    {
+        return $this->storeAllowlistEntry($request, 'device', 'admin.security.allowlist.device.index');
+    }
+
+    public function updateAllowlistDevice(Request $request, int $id): RedirectResponse
+    {
+        return $this->updateAllowlistEntry($request, $id, 'device', 'admin.security.allowlist.device.index');
+    }
+
+    public function destroyAllowlistDevice(int $id): RedirectResponse
+    {
+        return $this->destroyAllowlistEntry($id, 'device', 'admin.security.allowlist.device.index');
+    }
+
+    public function allowlistIdentity(): View
+    {
+        return view('admin.security.allowlist.identity.index', [
+            'adminTab' => 'security',
+            'allowlistEntries' => $this->allowlistEntriesByType('identity'),
+            'perPage' => $this->allowlistPerPage(),
+        ]);
+    }
+
+    public function storeAllowlistIdentity(Request $request): RedirectResponse
+    {
+        return $this->storeAllowlistEntry($request, 'identity', 'admin.security.allowlist.identity.index');
+    }
+
+    public function updateAllowlistIdentity(Request $request, int $id): RedirectResponse
+    {
+        return $this->updateAllowlistEntry($request, $id, 'identity', 'admin.security.allowlist.identity.index');
+    }
+
+    public function destroyAllowlistIdentity(int $id): RedirectResponse
+    {
+        return $this->destroyAllowlistEntry($id, 'identity', 'admin.security.allowlist.identity.index');
+    }
+
     public function editSettings(): View
     {
         return view('admin.security.settings.edit', [
@@ -420,5 +669,199 @@ class AdminSecurityController extends Controller
         $settings->save();
 
         return redirect()->route('admin.security.settings.edit')->with('admin_notice', 'Security-Settings gespeichert.');
+    }
+
+    private function allowlistPerPage(): int
+    {
+        $perPage = (int) request()->query('per_page', 20);
+        if (!in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
+
+        return $perPage;
+    }
+
+    private function allowlistEntriesByType(string $type)
+    {
+        return SecurityAllowlistEntry::query()
+            ->where('type', $type)
+            ->latest('id')
+            ->paginate($this->allowlistPerPage())
+            ->appends(request()->query())
+            ->onEachSide(2);
+    }
+
+    private function storeAllowlistEntry(Request $request, string $type, string $redirectRoute): RedirectResponse
+    {
+        $validated = $request->validate([
+            'value' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'is_active' => ['sometimes', 'boolean'],
+            'autoban_only' => ['sometimes', 'boolean'],
+        ]);
+
+        $normalizedValue = $this->securityAllowlistService->normalize($type, (string) $validated['value']);
+        if ($normalizedValue === null) {
+            return redirect()->route($redirectRoute)->with('admin_notice', 'Allowlist-Wert ist ungültig.');
+        }
+
+        $existing = SecurityAllowlistEntry::query()
+            ->where('type', $type)
+            ->where('value', $normalizedValue)
+            ->first();
+
+        if ($existing !== null) {
+            $existing->fill([
+                'description' => $validated['description'] ?? null,
+                'is_active' => $request->boolean('is_active'),
+                'autoban_only' => $request->boolean('autoban_only', true),
+            ])->save();
+
+            return redirect()->route($redirectRoute)->with('admin_notice', 'Allowlist-Eintrag aktualisiert.');
+        }
+
+        SecurityAllowlistEntry::query()->create([
+            'type' => $type,
+            'value' => $normalizedValue,
+            'description' => $validated['description'] ?? null,
+            'is_active' => $request->boolean('is_active'),
+            'autoban_only' => $request->boolean('autoban_only', true),
+            'created_by' => auth()->id(),
+        ]);
+
+        return redirect()->route($redirectRoute)->with('admin_notice', 'Allowlist-Eintrag gespeichert.');
+    }
+
+    private function updateAllowlistEntry(Request $request, int $id, string $type, string $redirectRoute): RedirectResponse
+    {
+        $entry = SecurityAllowlistEntry::query()
+            ->whereKey($id)
+            ->where('type', $type)
+            ->first();
+
+        if ($entry === null) {
+            return redirect()->route($redirectRoute)->with('admin_notice', 'Allowlist-Eintrag nicht gefunden.');
+        }
+
+        $validated = $request->validate([
+            'description' => ['nullable', 'string', 'max:1000'],
+            'is_active' => ['sometimes', 'boolean'],
+            'autoban_only' => ['sometimes', 'boolean'],
+        ]);
+
+        $entry->fill([
+            'description' => $validated['description'] ?? null,
+            'is_active' => $request->boolean('is_active'),
+            'autoban_only' => $request->boolean('autoban_only', true),
+        ])->save();
+
+        return redirect()->route($redirectRoute)->with('admin_notice', 'Allowlist-Eintrag aktualisiert.');
+    }
+
+    private function destroyAllowlistEntry(int $id, string $type, string $redirectRoute): RedirectResponse
+    {
+        SecurityAllowlistEntry::query()
+            ->whereKey($id)
+            ->where('type', $type)
+            ->delete();
+
+        return redirect()->route($redirectRoute)->with('admin_notice', 'Allowlist-Eintrag entfernt.');
+    }
+
+    private function wantsEventsJson(Request $request): bool
+    {
+        $format = mb_strtolower(trim((string) $request->query('format', '')));
+        $response = mb_strtolower(trim((string) $request->query('response', '')));
+
+        return $request->boolean('as_json')
+            || $format === 'json'
+            || $response === 'json';
+    }
+
+    private function applySecurityEventFilters(Builder $query, Request $request, array $except = []): Builder
+    {
+        $filters = $this->normalizedSecurityEventFilters($request->all());
+
+        if ($filters['type'] !== '' && !in_array('type', $except, true)) {
+            $query->where('type', $filters['type']);
+        }
+
+        if ($filters['ip'] !== '' && !in_array('ip', $except, true)) {
+            $query->where('ip', $filters['ip']);
+        }
+
+        if ($filters['email'] !== '' && !in_array('email', $except, true)) {
+            $query->where('email', $filters['email']);
+        }
+
+        if ($filters['device_hash'] !== '' && !in_array('device_hash', $except, true)) {
+            $query->where('device_hash', $filters['device_hash']);
+        }
+
+        if ($filters['support_ref'] !== '' && !in_array('support_ref', $except, true)) {
+            $query->where('meta->support_ref', $filters['support_ref']);
+        }
+
+        if ($filters['date_from'] !== '' && !in_array('date_from', $except, true)) {
+            $query->whereDate('created_at', '>=', $filters['date_from']);
+        }
+
+        if ($filters['date_to'] !== '' && !in_array('date_to', $except, true)) {
+            $query->whereDate('created_at', '<=', $filters['date_to']);
+        }
+
+        return $query;
+    }
+
+    private function normalizedSecurityEventFilters(array $input): array
+    {
+        return [
+            'type' => trim((string) ($input['type'] ?? '')),
+            'ip' => trim((string) ($input['ip'] ?? '')),
+            'email' => mb_strtolower(trim((string) ($input['email'] ?? ''))),
+            'device_hash' => trim((string) ($input['device_hash'] ?? '')),
+            'support_ref' => mb_strtoupper(trim((string) ($input['support_ref'] ?? ''))),
+            'date_from' => trim((string) ($input['date_from'] ?? '')),
+            'date_to' => trim((string) ($input['date_to'] ?? '')),
+        ];
+    }
+
+    private function mapSecurityEvent(SecurityEvent $event): array
+    {
+        return [
+            'id' => $event->id,
+            'type' => $event->type,
+            'ip' => $event->ip,
+            'email' => $event->email,
+            'device_hash' => $event->device_hash,
+            'user_id' => $event->user_id,
+            'meta' => is_array($event->meta) ? $event->meta : $event->meta,
+            'created_at' => $event->created_at?->toDateTimeString(),
+            'updated_at' => $event->updated_at?->toDateTimeString(),
+        ];
+    }
+
+    private function mapRows(iterable $rows, array $fields): array
+    {
+        $result = [];
+
+        foreach ($rows as $row) {
+            $mapped = [];
+
+            foreach ($fields as $field) {
+                $value = data_get($row, $field);
+
+                if ($value instanceof Carbon) {
+                    $mapped[$field] = $value->toDateTimeString();
+                    continue;
+                }
+
+                $mapped[$field] = $value;
+            }
+
+            $result[] = $mapped;
+        }
+
+        return $result;
     }
 }

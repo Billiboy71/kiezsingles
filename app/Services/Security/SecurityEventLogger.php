@@ -1,9 +1,9 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\Security\SecurityEventLogger.php
-// Purpose: Dispatch security events with consistent context (ip/email/deviceHash) when available
-// Changed: 01-03-2026 23:12 (Europe/Berlin)
-// Version: 0.1
+// Purpose: Dispatch security events with consistent context (ip/email/deviceHash) and device correlation meta when available
+// Changed: 10-03-2026 21:00 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
 namespace App\Services\Security;
@@ -13,6 +13,10 @@ use Illuminate\Http\Request;
 
 class SecurityEventLogger
 {
+    public function __construct(
+        private readonly DeviceHashService $deviceHashService,
+    ) {}
+
     /**
      * @param array<string, mixed> $meta
      */
@@ -37,20 +41,54 @@ class SecurityEventLogger
 
         $emailFinal = $email;
         if (($emailFinal === null || trim($emailFinal) === '') && $request !== null && $request->has('email')) {
-            $emailFinal = (string) $request->input('email');
-        }
-        $emailFinal = $emailFinal !== null ? mb_strtolower(trim($emailFinal)) : null;
-        if ($emailFinal === '') {
-            $emailFinal = null;
+            $emailFinal = $this->normalizedEmail((string) $request->input('email'));
+        } else {
+            $emailFinal = $this->normalizedLooseEmail($emailFinal);
         }
 
         $deviceHashFinal = $deviceHash;
         if (($deviceHashFinal === null || trim($deviceHashFinal) === '') && $request !== null) {
-            $deviceHashFinal = $this->buildDeviceHash($request, $ipFinal);
+            $deviceHashFinal = $this->resolveDeviceHash($request);
         }
         $deviceHashFinal = $deviceHashFinal !== null ? trim($deviceHashFinal) : null;
         if ($deviceHashFinal === '') {
             $deviceHashFinal = null;
+        }
+
+        $metaFinal = $meta;
+
+        if (!array_key_exists('path', $metaFinal) && $request !== null) {
+            $path = trim((string) $request->path());
+            $metaFinal['path'] = $path !== '' ? $path : '/';
+        }
+
+        if ($deviceHashFinal !== null) {
+            if (!array_key_exists('device_hash', $metaFinal)) {
+                $metaFinal['device_hash'] = $deviceHashFinal;
+            }
+
+            if (!array_key_exists('device_correlation_key', $metaFinal)) {
+                $metaFinal['device_correlation_key'] = 'device:'.$deviceHashFinal;
+            }
+
+            if ($request !== null) {
+                $deviceHashSource = $this->resolveDeviceHashSource($request, $deviceHashFinal);
+
+                if ($deviceHashSource !== null && !array_key_exists('device_hash_source', $metaFinal)) {
+                    $metaFinal['device_hash_source'] = $deviceHashSource;
+                }
+
+                $deviceCookieId = $this->resolveDeviceCookieId($request);
+                if ($deviceCookieId !== null) {
+                    if (!array_key_exists('device_cookie_name', $metaFinal)) {
+                        $metaFinal['device_cookie_name'] = $this->deviceHashService->cookieName();
+                    }
+
+                    if (!array_key_exists('device_cookie_hash', $metaFinal)) {
+                        $metaFinal['device_cookie_hash'] = $this->deviceHashService->hashDeviceCookieId($deviceCookieId);
+                    }
+                }
+            }
         }
 
         event(new SecurityEventTriggered(
@@ -59,7 +97,7 @@ class SecurityEventLogger
             userId: $userId,
             email: $emailFinal,
             deviceHash: $deviceHashFinal,
-            meta: $meta,
+            meta: $metaFinal,
         ));
     }
 
@@ -77,57 +115,115 @@ class SecurityEventLogger
         return null;
     }
 
-    private function buildDeviceHash(Request $request, ?string $ip): ?string
+    private function resolveDeviceHash(Request $request): ?string
     {
-        $ua = $this->normalizeDevicePart((string) $request->userAgent());
-        $acceptLanguage = $this->normalizeDevicePart((string) $request->header('Accept-Language', ''));
+        $deviceHash = $this->deviceHashService->forRequest($request);
 
-        $ipPrefix = $this->ipv4Prefix24($ip);
-
-        $payload = implode('|', [
-            $ua,
-            $acceptLanguage,
-            $this->normalizeDevicePart($ipPrefix),
-        ]);
-
-        $payload = trim($payload, '|');
-        if ($payload === '') {
+        if ($deviceHash === null) {
             return null;
         }
 
-        return hash('sha256', $payload);
+        $deviceHash = trim($deviceHash);
+
+        return $deviceHash !== '' ? $deviceHash : null;
     }
 
-    private function normalizeDevicePart(string $value): string
+    private function resolveDeviceHashSource(Request $request, string $deviceHash): ?string
     {
-        $v = trim($value);
-        if ($v === '') {
-            return '';
+        $deviceCookieId = $this->resolveDeviceCookieId($request);
+
+        if ($deviceCookieId !== null) {
+            $cookieHash = $this->deviceHashService->hashDeviceCookieId($deviceCookieId);
+
+            if (hash_equals($cookieHash, $deviceHash)) {
+                return 'device_cookie';
+            }
         }
 
-        if (strlen($v) > 512) {
-            $v = substr($v, 0, 512);
-        }
-
-        return $v;
+        return 'fingerprint_fallback';
     }
 
-    private function ipv4Prefix24(?string $ip): string
+    private function resolveDeviceCookieId(Request $request): ?string
     {
-        if ($ip === null) {
+        $cookieName = $this->deviceHashService->cookieName();
+
+        $deviceCookieId = $this->normalizedDeviceCookieId((string) $request->cookie($cookieName, ''));
+
+        if ($deviceCookieId !== null) {
+            return $deviceCookieId;
+        }
+
+        $rawCookieValue = $this->extractRawCookieValue(
+            cookieHeader: (string) $request->header('Cookie', ''),
+            cookieName: $cookieName,
+        );
+
+        return $this->normalizedDeviceCookieId($rawCookieValue);
+    }
+
+    private function normalizedDeviceCookieId(string $value): ?string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (!preg_match('/^[A-Za-z0-9\-]{16,128}$/', $value)) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function normalizedEmail(string $value): ?string
+    {
+        $value = mb_strtolower(trim($value));
+
+        if ($value === '') {
+            return null;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
+    }
+
+    private function normalizedLooseEmail(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = mb_strtolower(trim($value));
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function extractRawCookieValue(string $cookieHeader, string $cookieName): string
+    {
+        $cookieHeader = trim($cookieHeader);
+        $cookieName = trim($cookieName);
+
+        if ($cookieHeader === '' || $cookieName === '') {
             return '';
         }
 
-        $ip = trim($ip);
-        if ($ip === '' || str_contains($ip, ':')) {
-            return '';
+        foreach (explode(';', $cookieHeader) as $part) {
+            $pair = explode('=', trim($part), 2);
+
+            if (count($pair) !== 2) {
+                continue;
+            }
+
+            $name = trim((string) $pair[0]);
+            $value = trim((string) $pair[1]);
+
+            if ($name !== $cookieName) {
+                continue;
+            }
+
+            return urldecode($value);
         }
 
-        $parts = explode('.', $ip);
-        if (count($parts) !== 4) {
-            return '';
-        }
-
-        return $parts[0].'.'.$parts[1].'.'.$parts[2];
+        return '';
     }
 }

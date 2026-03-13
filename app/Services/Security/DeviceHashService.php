@@ -1,52 +1,102 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\Security\DeviceHashService.php
-// Purpose: Build stable device hash from request fingerprint inputs
-// Changed: 02-03-2026 01:43 (Europe/Berlin)
-// Version: 0.1
+// Purpose: Build stable device hash strictly from persistent device cookie
+// Changed: 12-03-2026 03:32 (Europe/Berlin)
+// Version: 0.6
 // ============================================================================
 
 namespace App\Services\Security;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class DeviceHashService
 {
+    public const DEVICE_COOKIE_NAME = 'ks_device_id';
+
     public function forRequest(Request $request): ?string
     {
-        $userAgent = $this->normalizeWhitespace((string) ($request->userAgent() ?? ''));
-        $acceptLanguage = $this->normalizeWhitespace((string) $request->header('Accept-Language', ''));
-        $ipPrefix = $this->ipPrefix((string) ($request->ip() ?? ''));
-        $timezone = $this->normalizeWhitespace((string) $request->input('timezone', ''));
+        $deviceCookieId = $this->normalizedDeviceCookieId(
+            (string) $request->cookie(self::DEVICE_COOKIE_NAME, '')
+        );
 
-        if ($userAgent === '' && $acceptLanguage === '' && $ipPrefix === '' && $timezone === '') {
+        if ($deviceCookieId === null) {
+            $deviceCookieId = $this->normalizedDeviceCookieId(
+                $this->extractRawCookieValue(
+                    cookieHeader: (string) $request->header('Cookie', ''),
+                    cookieName: self::DEVICE_COOKIE_NAME,
+                )
+            );
+        }
+
+        if ($deviceCookieId === null) {
             return null;
         }
 
-        $payload = implode('|', [
-            strtolower($userAgent),
-            strtolower($acceptLanguage),
-            $ipPrefix,
-            strtolower($timezone),
-        ]);
-
-        return hash('sha256', $payload);
+        return $this->hashDeviceCookieId($deviceCookieId);
     }
 
-    private function normalizeWhitespace(string $value): string
+    public function cookieName(): string
     {
-        $value = preg_replace('/\s+/', ' ', trim($value));
-
-        return is_string($value) ? $value : '';
+        return self::DEVICE_COOKIE_NAME;
     }
 
-    private function ipPrefix(string $ip): string
+    public function ensureDeviceCookieId(?string $value = null): string
     {
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            $parts = explode('.', $ip);
-            if (count($parts) === 4) {
-                return sprintf('%s.%s.%s.0/24', $parts[0], $parts[1], $parts[2]);
+        $normalized = $this->normalizedDeviceCookieId((string) ($value ?? ''));
+
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        return (string) Str::uuid();
+    }
+
+    public function hashDeviceCookieId(string $deviceCookieId): string
+    {
+        return hash('sha256', $deviceCookieId);
+    }
+
+    private function normalizedDeviceCookieId(string $value): ?string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (!preg_match('/^[A-Za-z0-9\-]{16,128}$/', $value)) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function extractRawCookieValue(string $cookieHeader, string $cookieName): string
+    {
+        $cookieHeader = trim($cookieHeader);
+        $cookieName = trim($cookieName);
+
+        if ($cookieHeader === '' || $cookieName === '') {
+            return '';
+        }
+
+        foreach (explode(';', $cookieHeader) as $part) {
+            $pair = explode('=', trim($part), 2);
+
+            if (count($pair) !== 2) {
+                continue;
             }
+
+            $name = trim((string) $pair[0]);
+            $value = trim((string) $pair[1]);
+
+            if ($name !== $cookieName) {
+                continue;
+            }
+
+            return urldecode($value);
         }
 
         return '';

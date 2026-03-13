@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\device-bans\index.blade.php
 // Purpose: Admin Security - Manage device bans (hash-based bans with optional TTL)
 // Created: 02-03-2026 (Europe/Berlin)
-// Changed: 02-03-2026 14:00 (Europe/Berlin)
-// Version: 0.1
+// Changed: 06-03-2026 22:27 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 ?>
@@ -31,7 +31,40 @@
             </x-ui.help-popover>
         </div>
         <div><label>Geräte-Hash (64 Zeichen)</label><input class="w-full" type="text" name="device_hash" maxlength="64" required></div>
-        <div><label>TTL Sekunden (optional)</label><input class="w-full" type="number" min="1" name="ttl_seconds"></div>
+        <div>
+            <label>TTL Minuten (optional)</label>
+            <input class="w-full" type="number" min="1" name="ttl_minutes" inputmode="numeric" data-ks-ttl-minutes>
+            <input type="hidden" name="ttl_seconds" data-ks-ttl-seconds>
+            <script>
+                (function () {
+                    try {
+                        var minEl = document.querySelector('[data-ks-ttl-minutes]');
+                        var secEl = document.querySelector('[data-ks-ttl-seconds]');
+                        if (!minEl || !secEl) { return; }
+
+                        function sync() {
+                            var v = (minEl.value || '').toString().trim();
+                            if (v === '') {
+                                secEl.value = '';
+                                return;
+                            }
+                            var n = parseInt(v, 10);
+                            if (!isFinite(n) || n <= 0) {
+                                secEl.value = '';
+                                return;
+                            }
+                            secEl.value = String(n * 60);
+                        }
+
+                        minEl.addEventListener('input', sync);
+                        minEl.addEventListener('change', sync);
+                        sync();
+                    } catch (e) {
+                        // ignore
+                    }
+                })();
+            </script>
+        </div>
         <div><label>Grund</label><input class="w-full" type="text" name="reason"></div>
         <div><button class="ks-btn" type="submit">Geräte-Sperre speichern</button></div>
     </form>

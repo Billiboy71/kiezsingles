@@ -2,13 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\MaintenanceMode.php
 // Purpose: App maintenance gate (DB-driven).
-// Changed: 28-02-2026 14:49 (Europe/Berlin)
-//          Superadmin is ALWAYS allowed (no toggle).
-//          Admin allowed only if maintenance_settings.allow_admins = true.
-//          Moderator allowed only if maintenance_settings.allow_moderators = true.
-//          Non-allowed users are blocked during maintenance (no forced logout).
-//          Registration and verification flows are blocked.
-// Version: 2.8
+// Changed: 06-03-2026 20:24 (Europe/Berlin)
+// Version: 2.9
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -114,6 +109,10 @@ class MaintenanceMode
         );
 
         $isLogout = $request->is('logout');
+        $isSecuritySupportFlow = (
+            $request->is('support/security') ||
+            $request->is('support/security/*')
+        );
 
         // Root path handling: request()->path() is "/" in this project (tinker confirmed).
         $isMaintenanceLanding = false;
@@ -137,13 +136,15 @@ class MaintenanceMode
             $request->is('break-glass') ||
             $request->is('break-glass/*') ||
             $request->is('maintenance-notify') ||
-            $isNoteinstieg
+            $isNoteinstieg ||
+            $isSecuritySupportFlow
         ) {
             // If a non-whitelisted user is authenticated at ANY time during maintenance, block access but keep session.
             // Ausnahme: Noteinstieg muss auch dann erreichbar sein (Browser mit bestehender Session).
             // Ausnahme: Logout muss erreichbar sein.
             // Ausnahme: Maintenance Landing darf NICHT auf sich selbst redirecten (sonst 302-loop).
-            if (auth()->check() && !$isAllowedDuringMaintenance(auth()->user()) && !$isNoteinstieg && !$isLogout && !$isMaintenanceLanding) {
+            // Ausnahme: Security-Supportflow muss für geblockte Login-Fälle auch während Maintenance erreichbar sein.
+            if (auth()->check() && !$isAllowedDuringMaintenance(auth()->user()) && !$isNoteinstieg && !$isLogout && !$isMaintenanceLanding && !$isSecuritySupportFlow) {
                 return redirect($maintenanceRedirectUrl);
             }
 

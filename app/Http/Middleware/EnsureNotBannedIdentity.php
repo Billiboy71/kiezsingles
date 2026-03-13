@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedIdentity.php
 // Purpose: Block requests for active identity bans (email-based)
-// Changed: 02-03-2026 14:00 (Europe/Berlin)
-// Version: 0.3
+// Changed: 09-03-2026 01:34 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -11,9 +11,9 @@ namespace App\Http\Middleware;
 use App\Models\SecurityIdentityBan;
 use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
+use App\Services\Security\SecuritySupportAccessTokenService;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureNotBannedIdentity
@@ -21,6 +21,7 @@ class EnsureNotBannedIdentity
     public function __construct(
         private readonly SecurityEventLogger $securityEventLogger,
         private readonly DeviceHashService $deviceHashService,
+        private readonly SecuritySupportAccessTokenService $securitySupportAccessTokenService,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -41,7 +42,15 @@ class EnsureNotBannedIdentity
             return $next($request);
         }
 
-        $supportRef = $this->generateSupportReference();
+        $caseKey = 'identity_ban:'.(string) $activeBan->id.':email:'.$email;
+        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+            caseKey: $caseKey,
+            securityEventType: 'identity_blocked',
+            sourceContext: 'security_login_block',
+            contactEmail: $email,
+        );
+        $supportRef = (string) $supportAccess['support_reference'];
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $this->securityEventLogger->log(
             type: 'identity_blocked',
@@ -63,6 +72,7 @@ class EnsureNotBannedIdentity
         return redirect()
             ->route('login')
             ->with('security_ban_support_ref', $supportRef)
+            ->with('security_ban_support_access_token', $supportAccessToken)
             ->withInput([
                 'email' => (string) $request->input('email', ''),
             ]);
@@ -75,8 +85,4 @@ class EnsureNotBannedIdentity
         return $value !== '' ? $value : null;
     }
 
-    private function generateSupportReference(): string
-    {
-        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
-    }
 }

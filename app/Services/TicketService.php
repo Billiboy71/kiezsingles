@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\TicketService.php
 // Purpose: Central domain/service layer for Ticket workflows (create/reply/close).
-// Changed: 28-02-2026 14:49 (Europe/Berlin)
-// Version: 1.1
+// Changed: 06-03-2026 13:00 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 namespace App\Services;
@@ -71,18 +71,30 @@ class TicketService
         4 => 'critical',
     ];
 
-    public function createSupportTicket(int $actorUserId, string $subject, string $message): Ticket
+    public function createSupportTicket(
+        int $actorUserId,
+        string $subject,
+        string $message,
+        ?string $supportReference = null,
+        ?string $sourceContext = null
+    ): Ticket
     {
         $subject = (string) $subject;
         $message = (string) $message;
+        $supportReference = $supportReference !== null ? trim((string) $supportReference) : null;
+        $supportReference = $supportReference === '' ? null : $supportReference;
+        $sourceContext = $sourceContext !== null ? trim((string) $sourceContext) : null;
+        $sourceContext = $sourceContext === '' ? null : $sourceContext;
 
-        return DB::transaction(function () use ($actorUserId, $subject, $message) {
+        return DB::transaction(function () use ($actorUserId, $subject, $message, $supportReference, $sourceContext) {
             $ticket = Ticket::create([
                 'public_id' => (string) Str::uuid(),
                 'type' => 'support',
                 'status' => 'open',
                 'subject' => $subject,
                 'message' => $message,
+                'support_reference' => $supportReference,
+                'source_context' => $sourceContext,
                 'created_by_user_id' => $actorUserId,
                 'reported_user_id' => null,
             ]);

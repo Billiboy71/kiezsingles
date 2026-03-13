@@ -71,7 +71,7 @@
 ?>
 
 <h1>KiezSingles</h1>
-<p>Deine lokale Plattform.</p>
+<p>Deine lokale Plattform!</p>
 <p>(Beta).</p>
 
 <?php if ($maintenanceEnabled): ?>

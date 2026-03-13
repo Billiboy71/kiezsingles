@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
 // Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
 //          + supports login via email OR username (entered in the same "email" field)
-// Changed: 28-02-2026 14:49 (Europe/Berlin)
-// Version: 0.2
+// Changed: 10-03-2026 22:33 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -15,6 +15,7 @@ use App\Models\SecurityIdentityBan;
 use App\Models\User;
 use App\Services\Security\DeviceHashService;
 use App\Services\Security\SecurityEventLogger;
+use App\Services\Security\SecuritySupportAccessTokenService;
 use App\Support\KsMaintenance;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class AuthenticatedSessionController extends Controller
     public function __construct(
         private readonly SecurityEventLogger $securityEventLogger,
         private readonly DeviceHashService $deviceHashService,
+        private readonly SecuritySupportAccessTokenService $securitySupportAccessTokenService,
     ) {}
 
     /**
@@ -72,12 +74,22 @@ class AuthenticatedSessionController extends Controller
                 ->first();
 
             if ($activeIdentityBan) {
+                $caseKey = 'identity_ban:'.(string) $activeIdentityBan->id.':email:'.$normalizedEmail;
+                $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+                    caseKey: $caseKey,
+                    securityEventType: 'identity_blocked',
+                    sourceContext: 'security_login_block',
+                    contactEmail: $normalizedEmail,
+                );
+                $supportRef = (string) $supportAccess['support_reference'];
+
                 $this->securityEventLogger->log(
                     type: 'identity_blocked',
                     ip: $request->ip(),
                     email: $normalizedEmail,
                     deviceHash: $this->deviceHashService->forRequest($request),
                     meta: [
+                        'support_ref' => $supportRef,
                         'reason' => $activeIdentityBan->reason,
                         'banned_until' => $activeIdentityBan->banned_until?->toIso8601String(),
                         'path' => $request->path(),

@@ -260,3 +260,31 @@ Vor Umsetzung größerer Änderungen muss angegeben werden:
 - Welche Bereiche potenziell betroffen sind.
 - Ob Middleware, Audit-Tool oder Rollenlogik beeinflusst werden könnten.
 - Ob Wartungs-/Debug-Mechanismen betroffen sind.
+
+# ---------------------------------------------------------------------------
+# DATABASE MIGRATIONS (VERBINDLICH)
+# ---------------------------------------------------------------------------
+
+Migrationen müssen sowohl auf bestehender MySQL-Datenbank als auch
+auf frischer Neu-Migration (z. B. php artisan test / SQLite :memory:)
+fehlerfrei laufen.
+
+Regeln:
+
+- Migrationen müssen auf einer komplett leeren Datenbank ausführbar sein.
+- php artisan test darf durch Migrationen nicht brechen.
+- Keine MySQL-spezifischen SQL-Statements verwenden,
+  wenn Laravel-Schema-Builder möglich ist.
+- Vor Änderungen immer prüfen:
+  - Schema::hasTable()
+  - Schema::hasColumn()
+- Beim Entfernen von Spalten:
+  - zuerst abhängige Indizes/FKs entfernen
+  - danach dropColumn ausführen.
+- Keine parallelen Übergangsmigrationen für denselben Umbau.
+- Historische Migrationen nicht löschen.
+  Falls notwendig: absichern oder neutralisieren.
+- Migrationen müssen idempotent gegenüber vorhandenen
+  Spalten/Indizes geschrieben werden.
+- Änderungen müssen sowohl auf bestehender DB als auch
+  bei kompletter Neu-Migration korrekt funktionieren.

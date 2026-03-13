@@ -1,4 +1,9 @@
 <?php
+// ============================================================================
+// File: C:\laragon\www\kiezsingles\app\Http\Requests\ProfileUpdateRequest.php
+// Changed: 10-03-2026 01:12 (Europe/Berlin)
+// Version: 0.1
+// ============================================================================
 
 namespace App\Http\Requests;
 
@@ -16,7 +21,7 @@ class ProfileUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'min:4', 'max:20', 'regex:/^[a-zA-Z0-9._-]+$/', Rule::unique(User::class)->ignore($this->user()->id)],
             'email' => [
                 'required',
                 'string',

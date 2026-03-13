@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 01-03-2026 21:01 (Europe/Berlin)
-# Version: 4.4
+# Changed: 13-03-2026 22:45 (Europe/Berlin)
+# Version: 5.4
 # =============================================================================
 
 [CmdletBinding()]
@@ -45,6 +45,9 @@ param(
 
     # Role smoke paths (used by -RoleSmokeTest)
     [string[]]$RoleSmokePaths = @("/admin", "/admin/users", "/admin/moderation", "/admin/tickets", "/admin/maintenance", "/admin/debug", "/admin/develop", "/admin/status"),
+    
+    # Compatibility only: accepted from wrapper/UI, not used by core logic.
+    [string]$PathsConfigFile = "",
 
     # If set, prints session/CSRF baseline (read-only)
     [switch]$SessionCsrfBaseline,
@@ -69,7 +72,7 @@ param(
     [switch]$SecurityProbe,
 
     # Failed login attempts used by security lockout probe
-    [int]$SecurityLoginAttempts = 8,
+    [string]$SecurityLoginAttempts = "8",
 
     # If set, runs optional IP ban enforcement probe
     [switch]$SecurityCheckIpBan,
@@ -229,6 +232,7 @@ function Test-KnownSwitch([string]$name) {
 function Test-KnownValueParam([string]$name) {
     switch ($name) {
         "-BaseUrl" { return $true }
+        "-PathsConfigFile" { return $true }
         "-ProbePaths" { return $true }
         "-SuperadminEmail" { return $true }
         "-SuperadminPassword" { return $true }
@@ -237,6 +241,7 @@ function Test-KnownValueParam([string]$name) {
         "-ModeratorEmail" { return $true }
         "-ModeratorPassword" { return $true }
         "-RoleSmokePaths" { return $true }
+        "-PathsConfigFile" { return $true }
         "-LogSnapshotLines" { return $true }
         "-SecurityLoginAttempts" { return $true }
         "-SecurityLockoutKeywords" { return $true }
@@ -286,6 +291,7 @@ if (Test-RecoverArgsNeeded) {
     $recSuperadminCount = $false
     $recLoginCsrfProbe = $false
     $recRoleSmokeTest = $false
+    $recPathsConfigFile = ""
     $recSessionCsrfBaseline = $false
     $recLogSnapshot = $false
     $recLogSnapshotLines = 200
@@ -342,7 +348,21 @@ if (Test-RecoverArgsNeeded) {
             $i++
             continue
         }
+        if ($name -eq "-PathsConfigFile") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal) {
+                $i++
+                continue
+            }
 
+            if (($i + 1) -lt $tokens.Count) {
+                $i += 2
+                continue
+            }
+
+            $i++
+            continue
+        }
         if ($name -eq "-ProbePaths") {
             $inlineVal = Get-ArgValueFromToken $t
             if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
@@ -390,6 +410,24 @@ if (Test-RecoverArgsNeeded) {
                 $recRoleSmokePaths.Add($p) | Out-Null
                 $i++
             }
+            continue
+        }
+
+        if ($name -eq "-PathsConfigFile") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                $recPathsConfigFile = ("" + $inlineVal).Trim()
+                $i++
+                continue
+            }
+
+            if (($i + 1) -lt $tokens.Count) {
+                $recPathsConfigFile = ("" + $tokens[$i + 1]).Trim()
+                $i += 2
+                continue
+            }
+
+            $i++
             continue
         }
 
@@ -669,6 +707,7 @@ if (Test-RecoverArgsNeeded) {
     if ($recSuperadminCount) { $SuperadminCount = $true }
     if ($recLoginCsrfProbe) { $LoginCsrfProbe = $true }
     if ($recRoleSmokeTest) { $RoleSmokeTest = $true }
+    if ($recPathsConfigFile -ne "") { $PathsConfigFile = $recPathsConfigFile }
     if ($recSessionCsrfBaseline) { $SessionCsrfBaseline = $true }
     if ($recLogSnapshot) { $LogSnapshot = $true }
     $LogSnapshotLines = [int]$recLogSnapshotLines
@@ -676,7 +715,7 @@ if (Test-RecoverArgsNeeded) {
     if ($recLogClearAfter) { $LogClearAfter = $true }
     if ($recRouteListOptionScanFullProject) { $RouteListOptionScanFullProject = $true }
     if ($recSecurityProbe) { $SecurityProbe = $true }
-    $SecurityLoginAttempts = [int]$recSecurityLoginAttempts
+    $SecurityLoginAttempts = ("" + [int]$recSecurityLoginAttempts)
     if ($recSecurityCheckIpBan) { $SecurityCheckIpBan = $true }
     if ($recSecurityCheckRegister) { $SecurityCheckRegister = $true }
     if ($recSecurityExpect429) { $SecurityExpect429 = $true }
@@ -986,8 +1025,8 @@ if ($expFolderVals.Count -gt 0) {
 $autoOpenVals = @(Resolve-ParamValues "AutoOpenExportFolder")
 if ($autoOpenVals.Count -gt 0) { $AutoOpenExportFolder = ("" + $autoOpenVals[$autoOpenVals.Count - 1]).Trim() }
 
-$effectiveLoginCsrfProbe = ([bool]$LoginCsrfProbe -or [bool]$RoleSmokeTest)
-$effectiveSessionCsrfBaseline = ([bool]$SessionCsrfBaseline -or [bool]$RoleSmokeTest)
+$effectiveLoginCsrfProbe = [bool]$LoginCsrfProbe
+$effectiveSessionCsrfBaseline = [bool]$SessionCsrfBaseline
 
 # --- Helpers (kept minimal; no GUI logic)
 function Write-Section([string]$Title) {
@@ -1206,6 +1245,98 @@ function Format-StatusTag([string]$Status) {
     }
 }
 
+function Get-CompactAuditTitle($Res) {
+    $title = ""
+    try { $title = ("" + $Res.title).Trim() } catch { $title = "" }
+    if ($title -eq "") {
+        try { $title = ("" + $Res.id).Trim() } catch { $title = "Check" }
+    }
+
+    $title = ($title -replace '^(?i:\s*[0-9x]+[a-z]?\)\s*)', '')
+
+    if ($title -match '(?i)^HTTP exposure probe$') { return "HTTP-Probe" }
+    if ($title -match '(?i)^Login CSRF probe$') { return "Login CSRF Probe" }
+    if ($title -match '(?i)^Role access smoke test') { return "Role Smoke Test" }
+    if ($title -match '(?i)^Session/CSRF baseline') { return "Session/CSRF Baseline" }
+    if ($title -match '(?i)^route:list option scan') { return "route:list option scan" }
+
+    return $title
+}
+
+function Test-IsNullRunResult($Res) {
+    $id = ""
+    try { $id = ("" + $Res.id).Trim().ToLowerInvariant() } catch { $id = "" }
+    return ($id -eq "cache_clear")
+}
+
+function Get-PlanStepDebugName($Step) {
+    $stepText = ""
+    try { $stepText = ("" + $Step).Trim() } catch { $stepText = "" }
+    if ($stepText -eq "") { return "unknown_step" }
+
+    if ($stepText -match '(Invoke-KsAuditCheck_[A-Za-z0-9_]+)') {
+        return $Matches[1]
+    }
+
+    if ($stepText -match '-Title\s+"([^"]+)"') {
+        return $Matches[1]
+    }
+
+    return $stepText
+}
+
+function Get-AuditDisplayItems {
+    $items = New-Object System.Collections.Generic.List[object]
+
+    $items.Add([pscustomobject]@{ group = "null"; title = "Cache Clear" }) | Out-Null
+    $items.Add([pscustomobject]@{ group = "test"; title = "Routes / collisions / admin scope" }) | Out-Null
+    $items.Add([pscustomobject]@{ group = "test"; title = "route:list option scan (--columns / --format)" }) | Out-Null
+
+    if ($HttpProbe) { $items.Add([pscustomobject]@{ group = "test"; title = "HTTP-Probe" }) | Out-Null }
+    if ($LoginCsrfProbe) { $items.Add([pscustomobject]@{ group = "test"; title = "Login CSRF Probe" }) | Out-Null }
+    if ($RoleSmokeTest) { $items.Add([pscustomobject]@{ group = "test"; title = "Role Smoke Test" }) | Out-Null }
+    if ($SuperadminCount) { $items.Add([pscustomobject]@{ group = "test"; title = "Governance: Superadmin Fail-Safe" }) | Out-Null }
+    if ($SessionCsrfBaseline) { $items.Add([pscustomobject]@{ group = "test"; title = "Session/CSRF Baseline" }) | Out-Null }
+    if ($RoutesVerbose) { $items.Add([pscustomobject]@{ group = "test"; title = "Routes Verbose Inspection" }) | Out-Null }
+    if ($RouteListFindstrAdmin) { $items.Add([pscustomobject]@{ group = "test"; title = "Route List Filter (admin-only)" }) | Out-Null }
+    if ($LogSnapshot) { $items.Add([pscustomobject]@{ group = "test"; title = "Laravel Log Snapshot" }) | Out-Null }
+    if ($TailLog) { $items.Add([pscustomobject]@{ group = "test"; title = "Tail Laravel Log" }) | Out-Null }
+    $items.Add([pscustomobject]@{ group = "test"; title = "Security / Abuse Protection" }) | Out-Null
+
+    return @($items.ToArray())
+}
+
+function Write-AuditDisplayPlan {
+    $items = @(Get-AuditDisplayItems)
+    $nullItems = @($items | Where-Object { $_.group -eq "null" })
+    $testItems = @($items | Where-Object { $_.group -eq "test" })
+
+    Write-Host ""
+    Write-Host "Run Plan"
+    Write-Host "--------"
+
+    Write-Host "Null-Lauf:"
+    if ($nullItems.Count -gt 0) {
+        foreach ($item in $nullItems) {
+            Write-Host ("- " + ("" + $item.title))
+        }
+    } else {
+        Write-Host "(keine)"
+    }
+
+    Write-Host ""
+    Write-Host "Ausgewaehlt:"
+    if ($testItems.Count -gt 0) {
+        $i = 0
+        foreach ($item in $testItems) {
+            $i++
+            Write-Host ("Test {0} - {1}" -f $i, ("" + $item.title))
+        }
+    } else {
+        Write-Host "(keine)"
+    }
+}
+
 function Test-FunctionExists([string]$Name) {
     try {
         $c = Get-Command $Name -CommandType Function -ErrorAction SilentlyContinue
@@ -1287,50 +1418,81 @@ function Get-ResultLogCandidatePaths([string]$PrimaryLogPath, [int]$MaxCandidate
         if ($primary -ne "") {
             $out.Add($primary) | Out-Null
         }
-
-        if ($out.Count -ge $MaxCandidates) { return @($out.ToArray()) }
-        if ($primary -eq "") { return @($out.ToArray()) }
-
-        $dir = ""
-        try { $dir = [System.IO.Path]::GetDirectoryName($primary) } catch { $dir = "" }
-        if ($dir -eq "" -or -not (Test-Path -LiteralPath $dir -PathType Container)) { return @($out.ToArray()) }
-
-        $daily = @()
-        try {
-            $daily = @(Get-ChildItem -LiteralPath $dir -File -Filter "laravel-*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
-        } catch { $daily = @() }
-
-        foreach ($f in $daily) {
-            if ($out.Count -ge $MaxCandidates) { break }
-            $path = ""
-            try { $path = ("" + $f.FullName).Trim() } catch { $path = "" }
-            if ($path -eq "") { continue }
-            if ($path -ieq $primary) { continue }
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-            $out.Add($path) | Out-Null
-        }
-
-        if ($out.Count -ge $MaxCandidates) { return @($out.ToArray()) }
-
-        $generic = @()
-        try {
-            $generic = @(Get-ChildItem -LiteralPath $dir -File -Filter "*.log" -ErrorAction Stop | Sort-Object LastWriteTime -Descending)
-        } catch { $generic = @() }
-
-        foreach ($f in $generic) {
-            if ($out.Count -ge $MaxCandidates) { break }
-            $path = ""
-            try { $path = ("" + $f.FullName).Trim() } catch { $path = "" }
-            if ($path -eq "") { continue }
-            $existsAlready = $false
-            foreach ($existing in @($out.ToArray())) {
-                if ((("" + $existing).Trim()) -ieq $path) { $existsAlready = $true; break }
-            }
-            if ($existsAlready) { continue }
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
-            $out.Add($path) | Out-Null
-        }
     } catch { }
+
+    return @($out.ToArray())
+}
+
+function Build-CheckExportLines {
+    param(
+        [Parameter(Mandatory = $true)]$Res
+    )
+
+    $out = New-Object System.Collections.Generic.List[string]
+
+    $resId = ""
+    try { $resId = ("" + $Res.id).Trim() } catch { $resId = "" }
+    $resTitle = ""
+    try { $resTitle = ("" + $Res.title).Trim() } catch { $resTitle = "" }
+    $resStatus = ""
+    try { $resStatus = ("" + $Res.status).Trim() } catch { $resStatus = "" }
+    $resSummary = ""
+    try { $resSummary = ("" + $Res.summary).Trim() } catch { $resSummary = "" }
+
+    $out.Add("Check: " + $resId) | Out-Null
+    $out.Add("Title: " + $resTitle) | Out-Null
+    $out.Add("Status: " + $resStatus) | Out-Null
+    $out.Add("Summary: " + $resSummary) | Out-Null
+
+    $evArr = @()
+    try { $evArr = @(ConvertTo-SafeStringArray $Res.evidence) } catch { $evArr = @() }
+    if ($evArr.Count -gt 0) {
+        $out.Add("") | Out-Null
+        $out.Add("Evidence:") | Out-Null
+        foreach ($x in $evArr) {
+            $out.Add("- " + ("" + $x)) | Out-Null
+        }
+    }
+
+    $detailsArr = @()
+    try { $detailsArr = @(ConvertTo-SafeStringArray $Res.details) } catch { $detailsArr = @() }
+    if ($detailsArr.Count -gt 0) {
+        $out.Add("") | Out-Null
+        $out.Add("Details:") | Out-Null
+        foreach ($d in $detailsArr) {
+            $out.Add("" + $d) | Out-Null
+        }
+    }
+
+    $detailsText = ""
+    try { $detailsText = ("" + $Res.details_text) } catch { $detailsText = "" }
+    $detailsTextArr = @()
+    if ($detailsText.Trim() -ne "") {
+        try { $detailsTextArr = @(ConvertTo-SafeStringArray ($detailsText -split "`r?`n")) } catch { $detailsTextArr = @() }
+    }
+    $detailsTextNormalized = ""
+    $detailsArrNormalized = ""
+    try { $detailsTextNormalized = (($detailsTextArr | ForEach-Object { ("" + $_).TrimEnd() }) -join "`n").Trim() } catch { $detailsTextNormalized = "" }
+    try { $detailsArrNormalized = ((@($detailsArr) | ForEach-Object { ("" + $_).TrimEnd() }) -join "`n").Trim() } catch { $detailsArrNormalized = "" }
+    if ($detailsTextNormalized -ne "" -and $detailsTextNormalized -ne $detailsArrNormalized) {
+        $out.Add("") | Out-Null
+        $out.Add("DetailsText:") | Out-Null
+        foreach ($dt in $detailsTextArr) {
+            $out.Add("" + $dt) | Out-Null
+        }
+    }
+
+    $sliceArr = @()
+    try { $sliceArr = @(ConvertTo-SafeStringArray $Res.log_slice) } catch { $sliceArr = @() }
+    $out.Add("") | Out-Null
+    if ($sliceArr.Count -gt 0) {
+        $out.Add("LogSlice:") | Out-Null
+        foreach ($line in $sliceArr) {
+            $out.Add("" + $line) | Out-Null
+        }
+    } else {
+        $out.Add("LogSlice: none") | Out-Null
+    }
 
     return @($out.ToArray())
 }
@@ -1722,6 +1884,14 @@ $effectiveAutoOpenExportFolder = Convert-ToBooleanSafe $AutoOpenExportFolder $fa
 $effectivePerCheckDetailsMap = Convert-PerCheckSettingMap $PerCheckDetails
 $effectivePerCheckExportMap = Convert-PerCheckSettingMap $PerCheckExport
 $effectiveLogFilePath = Get-LaravelLogPath $projectRoot
+$effectiveExportRunStamp = ""
+$effectiveExportRunFolder = $effectiveExportFolder
+if ($effectiveExportLogs) {
+    try { $effectiveExportRunStamp = (Get-Date).ToString("dd-MM-yy HH-mm-ss") } catch { $effectiveExportRunStamp = "" }
+    if ($effectiveExportRunStamp -ne "") {
+        try { $effectiveExportRunFolder = Join-Path $effectiveExportFolder $effectiveExportRunStamp } catch { $effectiveExportRunFolder = $effectiveExportFolder }
+    }
+}
 
 # Resolve TailLogMode for checks (prefer env var)
 $tailMode = "history"
@@ -1828,7 +1998,6 @@ $plan = New-Object System.Collections.Generic.List[scriptblock]
 
 $missingRequired = New-Object System.Collections.Generic.List[string]
 if (-not (Test-FunctionExists "Invoke-KsAuditCheck_CacheClear")) { $missingRequired.Add("Invoke-KsAuditCheck_CacheClear") | Out-Null }
-if (-not (Test-FunctionExists "Invoke-KsAuditCheck_Routes"))     { $missingRequired.Add("Invoke-KsAuditCheck_Routes") | Out-Null }
 
 if ($missingRequired.Count -gt 0) {
     Write-Section "KiezSingles Admin Audit (CLI Core)"
@@ -1839,9 +2008,9 @@ if ($missingRequired.Count -gt 0) {
     Write-Host ("RoutesVerbose: " + [bool]$RoutesVerbose)
     Write-Host ("RouteListFindstrAdmin: " + [bool]$RouteListFindstrAdmin)
     Write-Host ("SuperadminCount: " + [bool]$SuperadminCount)
-    Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + ")")
+    Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe)
     Write-Host ("RoleSmokeTest: " + [bool]$RoleSmokeTest)
-    Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + ")")
+    Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline)
     Write-Host ("LogSnapshot: " + [bool]$LogSnapshot)
     Write-Host ("LogSnapshotLines: " + $logSnapshotLinesHeader)
     Write-Host ("LogClearBefore: " + [bool]$LogClearBefore)
@@ -1866,238 +2035,23 @@ if ($missingRequired.Count -gt 0) {
     return (Stop-Program 30)
 }
 
-# Log cleanup BEFORE (optional; only when flag is set)
-if ($LogClearBefore) {
+$plan.Add({ Invoke-KsAuditCheck_CacheClear -Context $context }) | Out-Null
+
+if (Test-FunctionExists "Invoke-KsAuditCheck_Routes") {
+    $plan.Add({ Invoke-KsAuditCheck_Routes -Context $context }) | Out-Null
+} else {
     $plan.Add({
-        & $context.Helpers.WriteSection "Log cleanup (before)"
-        return (Invoke-LaravelLogRotateIfExists -Root $context.ProjectRoot -PhaseLabel "before")
+        New-AuditResult -Id "missing_check" -Title "1) Routes / collisions / admin scope" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_Routes" -Details @() -Data @{} -DurationMs 0
     }) | Out-Null
 }
 
-$plan.Add({ Invoke-KsAuditCheck_CacheClear -Context $context }) | Out-Null
-$plan.Add({ Invoke-KsAuditCheck_Routes -Context $context }) | Out-Null
-
-# 1x) route:list unsupported options scan (identify external callers)
-$plan.Add({
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    & $context.Helpers.WriteSection "1x) route:list option scan (--columns / --format)"
-
-    $details = @()
-
-    try {
-        $roots = New-Object System.Collections.Generic.List[string]
-
-        $candidates = @()
-        if ([bool]$context.RouteListOptionScanFullProject) {
-            $candidates = @(
-                ("" + $context.ProjectRoot)
-            )
-        } else {
-            $candidates = @(
-                (Join-Path $context.ProjectRoot ".vscode"),
-                (Join-Path $context.ProjectRoot "tools"),
-                (Join-Path $context.ProjectRoot "scripts"),
-                (Join-Path $context.ProjectRoot "package.json"),
-                (Join-Path $context.ProjectRoot "composer.json")
-            )
-        }
-
-        foreach ($c in $candidates) {
-            try {
-                if ($c -and (Test-Path -LiteralPath $c)) {
-                    $roots.Add(("" + $c)) | Out-Null
-                }
-            } catch { }
-        }
-
-        $files = New-Object System.Collections.Generic.List[string]
-
-        $auditToolsRoot = ""
-        $auditCoreFile = ""
-        $auditChecksRoot = ""
-        try { $auditToolsRoot = (Join-Path $context.ProjectRoot "tools\audit") } catch { $auditToolsRoot = "" }
-        try { $auditCoreFile = (Join-Path $context.ProjectRoot "tools\audit\ks-admin-audit.ps1") } catch { $auditCoreFile = "" }
-        try { $auditChecksRoot = (Join-Path $context.ProjectRoot "tools\audit\checks") } catch { $auditChecksRoot = "" }
-
-        $vendorRoot = ""
-        $nodeModulesRoot = ""
-        $storageRoot = ""
-        $bootstrapCacheRoot = ""
-        try { $vendorRoot = (Join-Path $context.ProjectRoot "vendor") } catch { $vendorRoot = "" }
-        try { $nodeModulesRoot = (Join-Path $context.ProjectRoot "node_modules") } catch { $nodeModulesRoot = "" }
-        try { $storageRoot = (Join-Path $context.ProjectRoot "storage") } catch { $storageRoot = "" }
-        try { $bootstrapCacheRoot = (Join-Path $context.ProjectRoot "bootstrap\cache") } catch { $bootstrapCacheRoot = "" }
-
-        foreach ($r in $roots) {
-            try {
-                if (Test-Path -LiteralPath $r -PathType Container) {
-                    $g = Get-ChildItem -LiteralPath $r -Recurse -File -ErrorAction SilentlyContinue |
-                        Where-Object {
-                            $_.Extension -in @(".ps1",".php",".json",".yml",".yaml",".cmd",".bat",".sh",".txt")
-                        } |
-                        Where-Object {
-                            $p = ""
-                            try { $p = "" + $_.FullName } catch { $p = "" }
-                            if ($p -eq "") { return $false }
-
-                            # Exclude this core audit file and checks directory to avoid self-matches/noise.
-                            if ($auditCoreFile -and ($p -ieq $auditCoreFile)) { return $false }
-                            if ($auditChecksRoot -and ($p -like ($auditChecksRoot + "*"))) { return $false }
-
-                            # If scanning full project, exclude large/irrelevant dirs for speed/noise.
-                            if ([bool]$context.RouteListOptionScanFullProject) {
-                                if ($vendorRoot -and ($p -like ($vendorRoot + "*"))) { return $false }
-                                if ($nodeModulesRoot -and ($p -like ($nodeModulesRoot + "*"))) { return $false }
-                                if ($storageRoot -and ($p -like ($storageRoot + "*"))) { return $false }
-                                if ($bootstrapCacheRoot -and ($p -like ($bootstrapCacheRoot + "*"))) { return $false }
-                            }
-
-                            return $true
-                        } |
-                        Select-Object -ExpandProperty FullName
-
-                    foreach ($f in @($g)) {
-                        if (-not $f) { continue }
-
-                        if (("" + $f).Trim() -ne "") { $files.Add(("" + $f)) | Out-Null }
-                    }
-                } elseif (Test-Path -LiteralPath $r -PathType Leaf) {
-                    $f = "" + $r
-
-                    if ($auditCoreFile -and ($f -ieq $auditCoreFile)) { }
-                    elseif ($auditChecksRoot -and ($f -like ($auditChecksRoot + "*"))) { }
-                    else { $files.Add($f) | Out-Null }
-                }
-            } catch { }
-        }
-
-        # Detect real invocations:
-        # - a line containing route:list AND (--columns or --format)
-        # - or a nearby window (+/- 5 lines) combining route:list + (--columns/--format) (common in PS arrays)
-        $relevant = New-Object System.Collections.Generic.List[string]
-        $hitMap = @{} # file -> list of lines (limited excerpts)
-
-        foreach ($f in @($files.ToArray())) {
-            if (-not $f) { continue }
-
-            $lines = @()
-            try {
-                $lines = Get-Content -LiteralPath $f -ErrorAction SilentlyContinue
-                $lines = @($lines)
-            } catch { $lines = @() }
-
-            if (@($lines).Count -le 0) { continue }
-
-            $hitsOut = New-Object System.Collections.Generic.List[string]
-            $found = $false
-
-            for ($idx = 0; $idx -lt $lines.Count; $idx++) {
-                $line = ""
-                try { $line = "" + $lines[$idx] } catch { $line = "" }
-                if ($line.Trim() -eq "") { continue }
-
-                $hasRoute = ($line -match '(?i)\broute:list\b')
-                $hasColumns = ($line -match '(?i)--columns\b')
-                $hasFormat = ($line -match '(?i)--format\b')
-
-                if ($hasRoute -and ($hasColumns -or $hasFormat)) {
-                    $hitsOut.Add(("L{0}: {1}" -f ($idx + 1), $line.Trim())) | Out-Null
-                    $found = $true
-                    continue
-                }
-
-                if (-not ($hasColumns -or $hasFormat)) { continue }
-
-                $wStart = [Math]::Max(0, $idx - 5)
-                $wEnd = [Math]::Min($lines.Count - 1, $idx + 5)
-
-                $winHasRoute = $false
-                for ($j = $wStart; $j -le $wEnd; $j++) {
-                    $wLine = ""
-                    try { $wLine = "" + $lines[$j] } catch { $wLine = "" }
-                    if ($wLine -match '(?i)\broute:list\b') { $winHasRoute = $true; break }
-                }
-
-                if (-not $winHasRoute) { continue }
-
-                for ($j = $wStart; $j -le $wEnd; $j++) {
-                    $wLine = ""
-                    try { $wLine = "" + $lines[$j] } catch { $wLine = "" }
-                    $t = $wLine.Trim()
-                    if ($t -eq "") { continue }
-                    $hitsOut.Add(("L{0}: {1}" -f ($j + 1), $t)) | Out-Null
-                }
-
-                $found = $true
-            }
-
-            if (-not $found) { continue }
-
-            # De-duplicate and cap
-            $dedup = New-Object System.Collections.Generic.List[string]
-            $seen = @{}
-            foreach ($h in @($hitsOut.ToArray())) {
-                if (-not $h) { continue }
-                if ($seen.ContainsKey($h)) { continue }
-                $seen[$h] = $true
-                $dedup.Add($h) | Out-Null
-                if ($dedup.Count -ge 30) { break }
-            }
-
-            if ($dedup.Count -gt 0) {
-                $hitMap[$f] = @($dedup.ToArray())
-                $relevant.Add($f) | Out-Null
-            }
-        }
-
-        if ($relevant.Count -le 0) {
-            $sw.Stop()
-
-            $mode = "scanned roots (.vscode/tools/scripts + composer.json + package.json), excluding tools/audit/ks-admin-audit.ps1 and tools/audit/checks/*."
-            if ([bool]$context.RouteListOptionScanFullProject) {
-                $mode = "scanned full project (excluding tools/audit/ks-admin-audit.ps1 and tools/audit/checks/* and vendor/node_modules/storage/bootstrap/cache)."
-            }
-
-            return & $context.Helpers.NewAuditResult -Id "route_list_option_scan" -Title "1x) route:list option scan" -Status "OK" -Summary ("No route:list invocation using '--columns' / '--format' found; " + $mode) -Details @() -Data @{ scanned_files = [int]$files.Count; hits_files = 0 } -DurationMs ([int]$sw.ElapsedMilliseconds)
-        }
-
-        if ([bool]$context.RouteListOptionScanFullProject) {
-            $details += "Found potential callers (scan root: PROJECT ROOT; excludes tools/audit/ks-admin-audit.ps1, tools/audit/checks/* and vendor/node_modules/storage/bootstrap/cache)."
-        } else {
-            $details += "Found potential callers (scan roots: .vscode/, tools/, scripts/, composer.json, package.json; excludes tools/audit/ks-admin-audit.ps1 and tools/audit/checks/*)."
-        }
-
-        $details += "Only showing likely invocations (route:list with --columns/--format on same line or within +/- 5 lines)."
-        $details += ""
-
-        foreach ($ff in @($relevant.ToArray() | Sort-Object)) {
-            $details += ("File: " + $ff)
-            $ls = @()
-            try { $ls = @($hitMap[$ff]) } catch { $ls = @() }
-
-            $printed = 0
-            foreach ($l in $ls) {
-                if ($printed -ge 30) { break }
-                $details += ("  " + $l)
-                $printed++
-            }
-            if ($ls.Count -gt 30) {
-                $details += ("  ... (" + ($ls.Count - 30) + " more)")
-            }
-            $details += ""
-        }
-
-        $sw.Stop()
-        return & $context.Helpers.NewAuditResult -Id "route_list_option_scan" -Title "1x) route:list option scan" -Status "WARN" -Summary ("Found " + $relevant.Count + " potential caller file(s) using route:list with '--columns'/'--format'.") -Details $details -Data @{ scanned_files = [int]$files.Count; hits_files = [int]$relevant.Count } -DurationMs ([int]$sw.ElapsedMilliseconds)
-    } catch {
-        $sw.Stop()
-        return & $context.Helpers.NewAuditResult -Id "route_list_option_scan" -Title "1x) route:list option scan" -Status "WARN" -Summary ("Scan failed: " + $_.Exception.Message) -Details @() -Data @{} -DurationMs ([int]$sw.ElapsedMilliseconds)
-    }
-}) | Out-Null
-
-# Desired output/plan order:
-# (optional) LogClearBefore -> 0 -> 1 -> 2 -> 3 -> 1v -> 1f -> 4 -> (optional) LogClearAfter
-# LogClearBefore -> CacheClear -> Routes -> HTTP Probe -> Governance -> RoutesVerbose -> RouteListFindstrAdmin -> LogSnapshot -> TailLog -> LogClearAfter
+if (Test-FunctionExists "Invoke-KsAuditCheck_RouteListOptionScan") {
+    $plan.Add({ Invoke-KsAuditCheck_RouteListOptionScan -Context $context }) | Out-Null
+} else {
+    $plan.Add({
+        New-AuditResult -Id "missing_check" -Title "1x) route:list option scan (--columns / --format)" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_RouteListOptionScan" -Details @() -Data @{} -DurationMs 0
+    }) | Out-Null
+}
 
 if ($HttpProbe) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_HttpProbe") {
@@ -2109,7 +2063,7 @@ if ($HttpProbe) {
     }
 }
 
-if ($effectiveLoginCsrfProbe) {
+if ($LoginCsrfProbe) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_LoginCsrfProbe") {
         $plan.Add({ Invoke-KsAuditCheck_LoginCsrfProbe -Context $context }) | Out-Null
     } else {
@@ -2139,7 +2093,7 @@ if ($SuperadminCount) {
     }
 }
 
-if ($effectiveSessionCsrfBaseline) {
+if ($SessionCsrfBaseline) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_SessionCsrfBaseline") {
         $plan.Add({ Invoke-KsAuditCheck_SessionCsrfBaseline -Context $context }) | Out-Null
     } else {
@@ -2147,14 +2101,6 @@ if ($effectiveSessionCsrfBaseline) {
             New-AuditResult -Id "missing_check" -Title "3a) Session/CSRF baseline (read-only)" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_SessionCsrfBaseline" -Details @() -Data @{} -DurationMs 0
         }) | Out-Null
     }
-}
-
-if (Test-FunctionExists "Invoke-KsAuditCheck_SecurityAbuseProtection") {
-    $plan.Add({ Invoke-KsAuditCheck_SecurityAbuseProtection -Context $context }) | Out-Null
-} else {
-    $plan.Add({
-        New-AuditResult -Id "missing_check" -Title "X) Security / Abuse Protection" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_SecurityAbuseProtection" -Details @() -Data @{} -DurationMs 0
-    }) | Out-Null
 }
 
 if ($RoutesVerbose) {
@@ -2197,11 +2143,11 @@ if ($TailLog) {
     }
 }
 
-# Log cleanup AFTER (optional; only when flag is set)
-if ($LogClearAfter) {
+if (Test-FunctionExists "Invoke-KsAuditCheck_SecurityAbuseProtection") {
+    $plan.Add({ Invoke-KsAuditCheck_SecurityAbuseProtection -Context $context }) | Out-Null
+} else {
     $plan.Add({
-        & $context.Helpers.WriteSection "Log cleanup (after)"
-        return (Invoke-LaravelLogRotateIfExists -Root $context.ProjectRoot -PhaseLabel "after")
+        New-AuditResult -Id "missing_check" -Title "X) Security / Abuse Protection" -Status "WARN" -Summary "Check module not loaded: Invoke-KsAuditCheck_SecurityAbuseProtection" -Details @() -Data @{} -DurationMs 0
     }) | Out-Null
 }
 
@@ -2213,9 +2159,9 @@ Write-Host ("TailLog:     " + [bool]$TailLog)
 Write-Host ("RoutesVerbose: " + [bool]$RoutesVerbose)
 Write-Host ("RouteListFindstrAdmin: " + [bool]$RouteListFindstrAdmin)
 Write-Host ("SuperadminCount: " + [bool]$SuperadminCount)
-Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe + " (effective: " + [bool]$effectiveLoginCsrfProbe + ")")
+Write-Host ("LoginCsrfProbe: " + [bool]$LoginCsrfProbe)
 Write-Host ("RoleSmokeTest: " + [bool]$RoleSmokeTest)
-Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline + " (effective: " + [bool]$effectiveSessionCsrfBaseline + ")")
+Write-Host ("SessionCsrfBaseline: " + [bool]$SessionCsrfBaseline)
 Write-Host ("LogSnapshot: " + [bool]$LogSnapshot)
 Write-Host ("LogSnapshotLines: " + $logSnapshotLinesHeader)
 Write-Host ("LogClearBefore: " + [bool]$LogClearBefore)
@@ -2232,37 +2178,72 @@ Write-Host ("ShowCheckDetails: " + [bool]$effectiveShowCheckDetails)
 Write-Host ("ExportLogs: " + [bool]$effectiveExportLogs)
 Write-Host ("ExportLogsLines: " + [int]$effectiveExportLogsLines)
 Write-Host ("ExportFolder: " + $effectiveExportFolder)
+if ($effectiveExportRunFolder -ne $effectiveExportFolder) { Write-Host ("ExportRunFolder: " + $effectiveExportRunFolder) }
 Write-Host ("AutoOpenExportFolder: " + [bool]$effectiveAutoOpenExportFolder)
 Write-Host ("LogFile: " + $(if ($effectiveLogFilePath -and $effectiveLogFilePath.Trim() -ne "") { $effectiveLogFilePath } else { "(none)" }))
 Write-Host ("ChecksSource: " + $checksSourceLabel + " (" + $checksRoot + ")")
+Write-AuditDisplayPlan
 
 $results = New-Object System.Collections.Generic.List[object]
 $exports = New-Object System.Collections.Generic.List[string]
 $maxScore = 0
+$visibleTestIndex = 0
+$summaryOkCount = 0
+$summaryWarnCount = 0
+$summaryFailCount = 0
+$summaryCriticalCount = 0
+$summarySkipCount = 0
 
 if ($effectiveExportLogs) {
     try {
-        New-Item -ItemType Directory -Path $effectiveExportFolder -Force -ErrorAction Stop | Out-Null
+        New-Item -ItemType Directory -Path $effectiveExportRunFolder -Force -ErrorAction Stop | Out-Null
     } catch {
-        Write-Host ("[WARN] ExportFolder could not be created: " + $effectiveExportFolder + " (" + $_.Exception.Message + ")")
+        Write-Host ("[WARN] ExportFolder could not be created: " + $effectiveExportRunFolder + " (" + $_.Exception.Message + ")")
     }
 }
 
 foreach ($step in $plan) {
     $res = $null
     $checkStartedAt = Get-Date
+    $stepDebugName = Get-PlanStepDebugName $step
+    $stepDebugSource = ""
+    try { $stepDebugSource = ("" + $step).Trim() } catch { $stepDebugSource = "" }
     try {
         $res = & $step
     } catch {
-        $res = New-AuditResult -Id "core_exception" -Title "Core exception" -Status "CRITICAL" -Summary $_.Exception.Message -Details @() -Data @{} -DurationMs 0
+        $exceptionMessage = ""
+        $exceptionType = ""
+        try { $exceptionMessage = ("" + $_.Exception.Message).Trim() } catch { $exceptionMessage = "unknown_exception" }
+        try { $exceptionType = ("" + $_.Exception.GetType().FullName).Trim() } catch { $exceptionType = "unknown_exception_type" }
+        $durationMs = 0
+        try { $durationMs = [int]((Get-Date) - $checkStartedAt).TotalMilliseconds } catch { $durationMs = 0 }
+
+        $res = New-AuditResult `
+            -Id "core_exception" `
+            -Title ("Core exception: " + $stepDebugName) `
+            -Status "CRITICAL" `
+            -Summary ("Unhandled exception while executing step '" + $stepDebugName + "': " + $exceptionMessage) `
+            -Details @(
+                "Step: " + $stepDebugName,
+                "Exception type: " + $exceptionType,
+                "Message: " + $exceptionMessage,
+                "Step source: " + $stepDebugSource
+            ) `
+            -Data @{
+                step = $stepDebugName
+                step_source = $stepDebugSource
+                exception_type = $exceptionType
+                exception = $exceptionMessage
+            } `
+            -DurationMs $durationMs
     }
     $checkFinishedAt = Get-Date
 
     if ($null -ne $res) {
         $checkId = ""
         try { $checkId = ("" + $res.id).Trim().ToLowerInvariant() } catch { $checkId = "" }
-        $detailsEnabledForThisCheck = ($effectiveShowCheckDetails -and (Get-PerCheckEnabled -Map $effectivePerCheckDetailsMap -CheckId $checkId -Default $false))
-        $exportEnabledForThisCheck = ($effectiveExportLogs -and (Get-PerCheckEnabled -Map $effectivePerCheckExportMap -CheckId $checkId -Default $false))
+        $detailsEnabledForThisCheck = [bool]$effectiveShowCheckDetails
+        $exportEnabledForThisCheck = ([bool]$effectiveExportLogs -and (-not (Test-IsNullRunResult $res)))
 
         if ($null -eq $res.data) { $res.data = @{} }
         try { $res.data["check_started_at"] = $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss") } catch { }
@@ -2303,7 +2284,6 @@ foreach ($step in $plan) {
 
             if ($exportEnabledForThisCheck) {
                 try {
-                    $runStamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
                     $checkNameSource = ""
                     try { $checkNameSource = ("" + $res.title).Trim() } catch { $checkNameSource = "" }
                     if ($checkNameSource -eq "") {
@@ -2312,23 +2292,19 @@ foreach ($step in $plan) {
                     # Remove common numbering prefixes like "1) ", "2a) ", "X) ".
                     $checkNameSource = ($checkNameSource -replace '^(?i:\s*[0-9x]+[a-z]?\)\s*)', '')
                     $checkName = Convert-ToSafeFileSegment $checkNameSource
-                    $exportName = ("{0}_security-abuse_{1}.log" -f $runStamp, $checkName)
-                    $exportPath = Join-Path $effectiveExportFolder $exportName
-                    $exportLines = @($logSliceArr)
+                    $exportName = ("security-abuse_{0}.log" -f $checkName)
+                    $exportPath = Join-Path $effectiveExportRunFolder $exportName
+                    $exportLines = @()
+                    try { $exportLines = @(Build-CheckExportLines -Res $res) } catch { $exportLines = @() }
                     if ($exportLines.Count -le 0) {
-                        $modeHint = ""
-                        try { $modeHint = ("" + $res.data["log_slice_mode"]).Trim() } catch { $modeHint = "" }
-                        $fallback = New-Object System.Collections.Generic.List[string]
-                        $fallback.Add("# No log lines matched for this check.") | Out-Null
-                        $fallback.Add("# Check: " + ("" + $res.id)) | Out-Null
-                        $fallback.Add("# StartedAt: " + $checkStartedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
-                        $fallback.Add("# FinishedAt: " + $checkFinishedAt.ToString("yyyy-MM-dd HH:mm:ss")) | Out-Null
-                        if ($modeHint -ne "") { $fallback.Add("# LogSliceMode: " + $modeHint) | Out-Null }
-                        foreach ($ev in $sliceEvidenceArr) {
-                            $t = ("" + $ev).Trim()
-                            if ($t -ne "") { $fallback.Add("# Evidence: " + $t) | Out-Null }
-                        }
-                        $exportLines = @($fallback.ToArray())
+                        $exportLines = @(
+                            "Check: " + ("" + $res.id),
+                            "Title: " + ("" + $res.title),
+                            "Status: " + ("" + $res.status),
+                            "Summary: " + ("" + $res.summary),
+                            "",
+                            "LogSlice: none"
+                        )
                     }
                     [System.IO.File]::WriteAllLines($exportPath, @($exportLines), [System.Text.UTF8Encoding]::new($false))
                     $exports.Add($exportPath) | Out-Null
@@ -2344,10 +2320,31 @@ foreach ($step in $plan) {
         $score = Get-ResultScore $res
         if ($score -gt $maxScore) { $maxScore = $score }
 
-        Write-Host ""
-        Write-Host ((Format-StatusTag $res.status) + " " + $res.title + " - " + $res.summary + " (" + $res.duration_ms + "ms)")
+        switch (("" + $res.status).Trim().ToUpperInvariant()) {
+            "OK" { $summaryOkCount++ }
+            "WARN" { $summaryWarnCount++ }
+            "FAIL" { $summaryFailCount++ }
+            "CRITICAL" { $summaryCriticalCount++ }
+        }
+        try {
+            $summaryText = ("" + $res.summary).Trim()
+            if ($summaryText -match '^(?i:Skipped:)') { $summarySkipCount++ }
+        } catch { }
 
-        if ($detailsEnabledForThisCheck) {
+        Write-Host ""
+        $statusTag = Format-StatusTag $res.status
+        $visibleTitle = Get-CompactAuditTitle $res
+        $statusLine = ""
+        if (Test-IsNullRunResult $res) {
+            $statusLine = ("{0,-10} Null-Lauf - {1}" -f $statusTag, $visibleTitle)
+        } else {
+            $visibleTestIndex++
+            $statusLine = ("{0,-10} Test {1} - {2}" -f $statusTag, $visibleTestIndex, $visibleTitle)
+        }
+        Write-Host $statusLine
+
+        $shouldPrintDetailsForThisCheck = ($detailsEnabledForThisCheck -or (("" + $res.status).Trim().ToUpperInvariant() -ne "OK"))
+        if ($shouldPrintDetailsForThisCheck) {
             $detailsToPrint = Get-DetailsForOutput $res
             $detailsToPrintArr = ConvertTo-SafeStringArray $detailsToPrint
             $evToPrint = @()
@@ -2404,6 +2401,14 @@ switch ($finalStatus) {
 Write-Section "Audit result"
 Write-Host ("FinalStatus: " + $finalStatus)
 Write-Host ("ExitCode: " + $exitCode)
+Write-Host ""
+Write-Host "Audit Summary"
+Write-Host "-------------"
+Write-Host ("OK:   " + $summaryOkCount)
+Write-Host ("WARN: " + $summaryWarnCount)
+Write-Host ("FAIL: " + $summaryFailCount)
+Write-Host ("CRITICAL: " + $summaryCriticalCount)
+Write-Host ("SKIP: " + $summarySkipCount)
 
 if ($exports.Count -gt 0) {
     Write-Section "Exports"
@@ -2413,8 +2418,8 @@ if ($exports.Count -gt 0) {
 
     if ($effectiveAutoOpenExportFolder) {
         try {
-            Start-Process explorer.exe $effectiveExportFolder | Out-Null
-            Write-Host ("Explorer: opened " + $effectiveExportFolder)
+            Start-Process explorer.exe $effectiveExportRunFolder | Out-Null
+            Write-Host ("Explorer: opened " + $effectiveExportRunFolder)
         } catch {
             Write-Host ("[WARN] Could not open export folder: " + $_.Exception.Message)
         }
