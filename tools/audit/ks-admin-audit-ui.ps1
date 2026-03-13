@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 13-03-2026 01:07 (Europe/Berlin)
-# Version: 7.2
+# Changed: 14-03-2026 00:10 (Europe/Berlin)
+# Version: 7.3
 # =============================================================================
 
 [CmdletBinding()]
@@ -544,6 +544,10 @@ function Show-AuditGui() {
 
     # Keep full output to allow filtering without losing original
     $script:AuditOutputRaw = ""
+    $script:AuditOutputViewRaw = ""
+    $script:AuditSectionsByKey = @{}
+    $script:AuditStatusByKey = @{}
+    $script:AuditSelectedKey = ""
 
     # --- Layout: left settings / right output
     $split = New-Object System.Windows.Forms.SplitContainer
@@ -592,6 +596,7 @@ function Show-AuditGui() {
     # --- Left panel: settings
     $panelLeft = $split.Panel1
     $panelLeft.Padding = New-Object System.Windows.Forms.Padding(10, 10, 10, 10)
+    $panelLeft.AutoScroll = $true
 
     $lblTitle = New-Object System.Windows.Forms.Label
     $lblTitle.AutoSize = $true
@@ -1007,15 +1012,62 @@ function Show-AuditGui() {
     $lblStatus.Text = ""
     $panelLeft.Controls.Add($lblStatus)
 
-    # --- Right panel: output
+    # --- Right panel: output / details
     $panelRight = $split.Panel2
     $panelRight.Padding = New-Object System.Windows.Forms.Padding(10, 10, 10, 10)
+
+    $panelInfo = New-Object System.Windows.Forms.Panel
+    $panelInfo.Dock = "Fill"
+    $panelRight.Controls.Add($panelInfo)
+
+    $lblInfoTitle = New-Object System.Windows.Forms.Label
+    $lblInfoTitle.AutoSize = $true
+    $lblInfoTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+    $lblInfoTitle.Text = "Status / Detail"
+    $lblInfoTitle.Left = 0
+    $lblInfoTitle.Top = 0
+    $panelInfo.Controls.Add($lblInfoTitle)
+
+    $lblInfoHint = New-Object System.Windows.Forms.Label
+    $lblInfoHint.AutoSize = $false
+    $lblInfoHint.Left = 0
+    $lblInfoHint.Top = 28
+    $lblInfoHint.Width = 720
+    $lblInfoHint.Height = 60
+    $lblInfoHint.Text = "Das Logfenster dient jetzt als Detailansicht. Klick auf einen Check oder sein Statuslabel, um den zugehoerigen Abschnitt anzuzeigen."
+    $panelInfo.Controls.Add($lblInfoHint)
+
+    $panelDetail = New-Object System.Windows.Forms.Panel
+    $panelDetail.Dock = "Bottom"
+    $panelDetail.Height = 340
+    $panelRight.Controls.Add($panelDetail)
+
+    $panelDetailHeader = New-Object System.Windows.Forms.Panel
+    $panelDetailHeader.Dock = "Top"
+    $panelDetailHeader.Height = 28
+    $panelDetail.Controls.Add($panelDetailHeader)
+
+    $lblDetailTitle = New-Object System.Windows.Forms.Label
+    $lblDetailTitle.AutoSize = $false
+    $lblDetailTitle.Left = 0
+    $lblDetailTitle.Top = 4
+    $lblDetailTitle.Width = 540
+    $lblDetailTitle.Height = 20
+    $lblDetailTitle.Text = "Detailansicht: Gesamtausgabe"
+    $panelDetailHeader.Controls.Add($lblDetailTitle)
+
+    $btnShowFullOutput = New-Object System.Windows.Forms.Button
+    $btnShowFullOutput.Text = "Gesamtausgabe"
+    $btnShowFullOutput.Width = 116
+    $btnShowFullOutput.Height = 24
+    $btnShowFullOutput.Top = 2
+    $panelDetailHeader.Controls.Add($btnShowFullOutput)
 
     # Filter bar (top)
     $panelFilter = New-Object System.Windows.Forms.Panel
     $panelFilter.Dock = "Top"
     $panelFilter.Height = 34
-    $panelRight.Controls.Add($panelFilter)
+    $panelDetail.Controls.Add($panelFilter)
 
     $lblFilter = New-Object System.Windows.Forms.Label
     $lblFilter.AutoSize = $true
@@ -1124,6 +1176,10 @@ function Show-AuditGui() {
 
     $panelFilter.Add_Resize({ Update-FilterBarLayout })
     Update-FilterBarLayout
+    $panelLeft.Add_Resize({ Update-UiLayout })
+    $panelRight.Add_Resize({ Update-UiLayout })
+    $panelDetailHeader.Add_Resize({ Update-UiLayout })
+
 
     # Use RichTextBox to allow highlight for matches
     $txt = New-Object System.Windows.Forms.RichTextBox
@@ -1134,7 +1190,344 @@ function Show-AuditGui() {
     $txt.WordWrap = $false
     $txt.HideSelection = $false
     $txt.ReadOnly = $true
-    $panelRight.Controls.Add($txt)
+    $panelDetail.Controls.Add($txt)
+
+    function New-AuditStatusLabel([string]$Key) {
+        $lbl = New-Object System.Windows.Forms.Label
+        $lbl.Tag = $Key
+        $lbl.Width = 54
+        $lbl.Height = 20
+        $lbl.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+        $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+        $lbl.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Bold)
+        return $lbl
+    }
+
+    function Set-StatusVisual([System.Windows.Forms.Label]$Label, [string]$Status) {
+        if ($null -eq $Label) { return }
+        $value = "-"
+        try { $value = ("" + $Status).Trim().ToUpperInvariant() } catch { $value = "-" }
+        if ($value -eq "") { $value = "-" }
+        switch ($value) {
+            "PASS" {
+                $Label.Text = "PASS"
+                $Label.BackColor = [System.Drawing.Color]::FromArgb(209, 244, 214)
+                $Label.ForeColor = [System.Drawing.Color]::FromArgb(32, 96, 40)
+            }
+            "FAIL" {
+                $Label.Text = "FAIL"
+                $Label.BackColor = [System.Drawing.Color]::FromArgb(249, 213, 213)
+                $Label.ForeColor = [System.Drawing.Color]::FromArgb(150, 32, 32)
+            }
+            "WARN" {
+                $Label.Text = "WARN"
+                $Label.BackColor = [System.Drawing.Color]::FromArgb(252, 237, 179)
+                $Label.ForeColor = [System.Drawing.Color]::FromArgb(128, 88, 0)
+            }
+            "SKIP" {
+                $Label.Text = "SKIP"
+                $Label.BackColor = [System.Drawing.Color]::FromArgb(231, 231, 231)
+                $Label.ForeColor = [System.Drawing.Color]::FromArgb(96, 96, 96)
+            }
+            default {
+                $Label.Text = "-"
+                $Label.BackColor = [System.Drawing.Color]::FromArgb(243, 243, 243)
+                $Label.ForeColor = [System.Drawing.Color]::FromArgb(110, 110, 110)
+            }
+        }
+    }
+
+    $chkCoreRoutes = New-Object System.Windows.Forms.CheckBox
+    $chkCoreRoutes.Text = "Routes"
+    $chkCoreRoutes.Checked = $true
+    $chkCoreRoutes.AutoCheck = $false
+    $panelLeft.Controls.Add($chkCoreRoutes)
+
+    $chkCoreRouteOptionScan = New-Object System.Windows.Forms.CheckBox
+    $chkCoreRouteOptionScan.Text = "Route option scan"
+    $chkCoreRouteOptionScan.Checked = $true
+    $chkCoreRouteOptionScan.AutoCheck = $false
+    $panelLeft.Controls.Add($chkCoreRouteOptionScan)
+
+    $chkCoreSecurityBaseline = New-Object System.Windows.Forms.CheckBox
+    $chkCoreSecurityBaseline.Text = "Security baseline"
+    $chkCoreSecurityBaseline.Checked = $true
+    $chkCoreSecurityBaseline.AutoCheck = $false
+    $panelLeft.Controls.Add($chkCoreSecurityBaseline)
+
+    $statusLabels = @{
+        core_routes = (New-AuditStatusLabel "core_routes")
+        core_route_option_scan = (New-AuditStatusLabel "core_route_option_scan")
+        core_security_baseline = (New-AuditStatusLabel "core_security_baseline")
+        http_probe = (New-AuditStatusLabel "http_probe")
+        tail_log = (New-AuditStatusLabel "tail_log")
+        routes_verbose = (New-AuditStatusLabel "routes_verbose")
+        route_list_findstr_admin = (New-AuditStatusLabel "route_list_findstr_admin")
+        superadmin_count = (New-AuditStatusLabel "superadmin_count")
+        log_snapshot = (New-AuditStatusLabel "log_snapshot")
+        login_csrf_probe = (New-AuditStatusLabel "login_csrf_probe")
+        role_smoke_test = (New-AuditStatusLabel "role_smoke_test")
+        session_csrf_baseline = (New-AuditStatusLabel "session_csrf_baseline")
+        show_check_details = (New-AuditStatusLabel "show_check_details")
+        export_logs = (New-AuditStatusLabel "export_logs")
+        auto_open_export_folder = (New-AuditStatusLabel "auto_open_export_folder")
+        log_clear_before = (New-AuditStatusLabel "log_clear_before")
+        log_clear_after = (New-AuditStatusLabel "log_clear_after")
+    }
+    $checkMap = @{
+        core_routes = $chkCoreRoutes
+        core_route_option_scan = $chkCoreRouteOptionScan
+        core_security_baseline = $chkCoreSecurityBaseline
+        http_probe = $chkHttpProbe
+        tail_log = $chkTailLog
+        routes_verbose = $chkRoutesVerbose
+        route_list_findstr_admin = $chkRouteListFindstrAdmin
+        superadmin_count = $chkSuperadminCount
+        log_snapshot = $cmbLaravelLogHistory
+        login_csrf_probe = $chkLoginCsrfProbe
+        role_smoke_test = $chkRoleSmokeTest
+        session_csrf_baseline = $chkSessionCsrfBaseline
+        show_check_details = $chkShowCheckDetails
+        export_logs = $chkExportLogs
+        auto_open_export_folder = $chkAutoOpenExportFolder
+        log_clear_before = $chkLogClearBefore
+        log_clear_after = $chkLogClearAfter
+    }
+
+    $grpCoreChecks = New-Object System.Windows.Forms.GroupBox
+    $grpCoreChecks.Text = "Core Checks"
+    $panelLeft.Controls.Add($grpCoreChecks)
+
+    $grpPassiveChecks = New-Object System.Windows.Forms.GroupBox
+    $grpPassiveChecks.Text = "Passive Checks"
+    $panelLeft.Controls.Add($grpPassiveChecks)
+
+    $grpSecurityProbes = New-Object System.Windows.Forms.GroupBox
+    $grpSecurityProbes.Text = "Security Probes"
+    $panelLeft.Controls.Add($grpSecurityProbes)
+
+    $grpToolsExport = New-Object System.Windows.Forms.GroupBox
+    $grpToolsExport.Text = "Tools / Export"
+    $panelLeft.Controls.Add($grpToolsExport)
+
+    $lblTitle.Visible = $false
+    $lblSwitches.Visible = $false
+
+    foreach ($ctrl in @($chkCoreRoutes, $chkCoreRouteOptionScan, $chkCoreSecurityBaseline)) { $grpCoreChecks.Controls.Add($ctrl) }
+    foreach ($lbl in @($statusLabels["core_routes"], $statusLabels["core_route_option_scan"], $statusLabels["core_security_baseline"])) { $grpCoreChecks.Controls.Add($lbl) }
+    foreach ($ctrl in @($chkHttpProbe, $chkTailLog, $lblTailMode, $cmbTailMode, $chkRoutesVerbose, $chkRouteListFindstrAdmin, $chkSuperadminCount, $lblLaravelLogHistory, $cmbLaravelLogHistory)) { $grpPassiveChecks.Controls.Add($ctrl) }
+    foreach ($lbl in @($statusLabels["http_probe"], $statusLabels["tail_log"], $statusLabels["routes_verbose"], $statusLabels["route_list_findstr_admin"], $statusLabels["superadmin_count"], $statusLabels["log_snapshot"])) { $grpPassiveChecks.Controls.Add($lbl) }
+    foreach ($ctrl in @($chkLoginCsrfProbe, $chkRoleSmokeTest, $lblRoleCreds, $lblSuperadminEmail, $txtSuperadminEmail, $txtSuperadminPassword, $btnSaveSuperadmin, $btnClearSuperadmin, $lblAdminEmail, $txtAdminEmail, $txtAdminPassword, $btnSaveAdmin, $btnClearAdmin, $lblModeratorEmail, $txtModeratorEmail, $txtModeratorPassword, $btnSaveModerator, $btnClearModerator, $chkSessionCsrfBaseline)) { $grpSecurityProbes.Controls.Add($ctrl) }
+    foreach ($lbl in @($statusLabels["login_csrf_probe"], $statusLabels["role_smoke_test"], $statusLabels["session_csrf_baseline"])) { $grpSecurityProbes.Controls.Add($lbl) }
+    foreach ($ctrl in @($chkLogClearBefore, $chkLogClearAfter, $chkShowCheckDetails, $chkExportLogs, $chkAutoOpenExportFolder)) { $grpToolsExport.Controls.Add($ctrl) }
+    foreach ($lbl in @($statusLabels["log_clear_before"], $statusLabels["log_clear_after"], $statusLabels["show_check_details"], $statusLabels["export_logs"], $statusLabels["auto_open_export_folder"])) { $grpToolsExport.Controls.Add($lbl) }
+
+    function Layout-GroupRow([System.Windows.Forms.Control]$CheckControl, [System.Windows.Forms.Label]$StatusLabel, [int]$Top, [int]$Width) {
+        $CheckControl.Left = 12
+        $CheckControl.Top = $Top
+        $CheckControl.Width = $Width - 86
+        $StatusLabel.Left = $Width - 62
+        $StatusLabel.Top = $Top
+    }
+
+    function Reset-AuditStatuses {
+        foreach ($entry in $statusLabels.GetEnumerator()) {
+            Set-StatusVisual -Label $entry.Value -Status "-"
+        }
+    }
+
+    function Convert-ParsedStatus([string]$RawStatus) {
+        $value = ""
+        try { $value = ("" + $RawStatus).Trim().ToUpperInvariant() } catch { $value = "" }
+        switch ($value) {
+            "OK" { return "PASS" }
+            "FAIL" { return "FAIL" }
+            "CRITICAL" { return "FAIL" }
+            "WARN" { return "WARN" }
+            "SKIP" { return "SKIP" }
+            default { return "-" }
+        }
+    }
+
+    function Get-UiCheckKeyFromTitle([string]$Title) {
+        $t = ""
+        try { $t = ("" + $Title).Trim().ToLowerInvariant() } catch { $t = "" }
+        if ($t -match '^routes / collisions / admin scope$') { return "core_routes" }
+        if ($t -match '^route:list option scan') { return "core_route_option_scan" }
+        if ($t -match '^security / abuse protection$') { return "core_security_baseline" }
+        if ($t -match '^http exposure probe$') { return "http_probe" }
+        if ($t -match '^tail laravel\.log$') { return "tail_log" }
+        if ($t -match '^routes verbose inspection$' -or $t -eq 'routesverbose') { return "routes_verbose" }
+        if ($t -match '^route list filter \(admin-only\)$' -or $t -eq 'routelistfindstradmin') { return "route_list_findstr_admin" }
+        if ($t -match '^governance: superadmin fail-safe') { return "superadmin_count" }
+        if ($t -match '^laravel log snapshot$') { return "log_snapshot" }
+        if ($t -match '^login csrf probe$') { return "login_csrf_probe" }
+        if ($t -match '^role access smoke test') { return "role_smoke_test" }
+        if ($t -match '^session/csrf baseline') { return "session_csrf_baseline" }
+        return ""
+    }
+
+    function Select-AuditDetail([string]$Key) {
+        $targetKey = ""
+        try { $targetKey = ("" + $Key).Trim() } catch { $targetKey = "" }
+        if ($targetKey -ne "" -and $script:AuditSectionsByKey.ContainsKey($targetKey)) {
+            $script:AuditSelectedKey = $targetKey
+            $script:AuditOutputViewRaw = "" + $script:AuditSectionsByKey[$targetKey]
+            $detailName = $targetKey
+            try {
+                if ($checkMap.ContainsKey($targetKey)) {
+                    $detailName = ("" + $checkMap[$targetKey].Text).Trim()
+                }
+            } catch { $detailName = $targetKey }
+            $lblDetailTitle.Text = ("Detailansicht: " + $detailName)
+        } else {
+            $script:AuditSelectedKey = ""
+            $script:AuditOutputViewRaw = "" + $script:AuditOutputRaw
+            $lblDetailTitle.Text = "Detailansicht: Gesamtausgabe"
+        }
+        Set-OutputFilterView
+    }
+
+    function Parse-AuditOutput {
+        $script:AuditSectionsByKey = @{}
+        Reset-AuditStatuses
+        $raw = ""
+        try { $raw = "" + $script:AuditOutputRaw } catch { $raw = "" }
+        if ($raw.Trim() -eq "") { return }
+        $lines = @($raw -split "`r`n")
+        $currentKey = ""
+        $currentLines = New-Object System.Collections.Generic.List[string]
+
+        foreach ($line in $lines) {
+            if ($line -match '^\[(OK|FAIL|WARN|SKIP|CRITICAL)\]\s+(?:Test\s+\d+|Null-Lauf)\s+-\s+(.+)$') {
+                if ($currentKey -ne "" -and $currentLines.Count -gt 0) {
+                    $script:AuditSectionsByKey[$currentKey] = (($currentLines.ToArray()) -join "`r`n")
+                }
+                $currentLines = New-Object System.Collections.Generic.List[string]
+                $currentLines.Add($line) | Out-Null
+                $currentKey = Get-UiCheckKeyFromTitle $matches[2]
+                if ($currentKey -ne "" -and $statusLabels.ContainsKey($currentKey)) {
+                    Set-StatusVisual -Label $statusLabels[$currentKey] -Status (Convert-ParsedStatus $matches[1])
+                }
+            } elseif ($currentLines.Count -gt 0) {
+                $currentLines.Add($line) | Out-Null
+            }
+        }
+        if ($currentKey -ne "" -and $currentLines.Count -gt 0) {
+            $script:AuditSectionsByKey[$currentKey] = (($currentLines.ToArray()) -join "`r`n")
+        }
+        if ($chkShowCheckDetails.Checked) { Set-StatusVisual -Label $statusLabels["show_check_details"] -Status "PASS" }
+        if ($chkExportLogs.Checked -and $raw -match '(?m)^\s{2}Log:\s+exported -> ') { Set-StatusVisual -Label $statusLabels["export_logs"] -Status "PASS" }
+    }
+
+    function Update-UiLayout {
+        try {
+            $leftWidth = [Math]::Max(340, $panelLeft.ClientSize.Width - 24)
+            $statusLeft = $leftWidth - 72
+
+            $cmbBaseUrl.Width = $leftWidth
+            $txtProbePaths.Width = $leftWidth
+            $btnSavePaths.Width = $leftWidth
+
+            $grpCoreChecks.Left = 10
+            $grpCoreChecks.Top = 302
+            $grpCoreChecks.Width = $leftWidth + 12
+            $grpCoreChecks.Height = 108
+            Layout-GroupRow $chkCoreRoutes $statusLabels["core_routes"] 24 $leftWidth
+            Layout-GroupRow $chkCoreRouteOptionScan $statusLabels["core_route_option_scan"] 48 $leftWidth
+            Layout-GroupRow $chkCoreSecurityBaseline $statusLabels["core_security_baseline"] 72 $leftWidth
+
+            $grpPassiveChecks.Left = 10
+            $grpPassiveChecks.Top = 420
+            $grpPassiveChecks.Width = $leftWidth + 12
+            $grpPassiveChecks.Height = 250
+            Layout-GroupRow $chkHttpProbe $statusLabels["http_probe"] 24 $leftWidth
+            Layout-GroupRow $chkTailLog $statusLabels["tail_log"] 48 $leftWidth
+            $lblTailMode.Left = 12
+            $lblTailMode.Top = 74
+            $cmbTailMode.Left = 12
+            $cmbTailMode.Top = 92
+            $cmbTailMode.Width = $leftWidth
+            Layout-GroupRow $chkRoutesVerbose $statusLabels["routes_verbose"] 126 $leftWidth
+            Layout-GroupRow $chkRouteListFindstrAdmin $statusLabels["route_list_findstr_admin"] 150 $leftWidth
+            Layout-GroupRow $chkSuperadminCount $statusLabels["superadmin_count"] 174 $leftWidth
+            $lblLaravelLogHistory.Left = 12
+            $lblLaravelLogHistory.Top = 198
+            $cmbLaravelLogHistory.Left = 12
+            $cmbLaravelLogHistory.Top = 216
+            $cmbLaravelLogHistory.Width = $leftWidth - 74
+            $statusLabels["log_snapshot"].Left = $statusLeft
+            $statusLabels["log_snapshot"].Top = 216
+
+            $grpSecurityProbes.Left = 10
+            $grpSecurityProbes.Top = 680
+            $grpSecurityProbes.Width = $leftWidth + 12
+            $grpSecurityProbes.Height = 270
+            Layout-GroupRow $chkLoginCsrfProbe $statusLabels["login_csrf_probe"] 24 $leftWidth
+            Layout-GroupRow $chkRoleSmokeTest $statusLabels["role_smoke_test"] 48 $leftWidth
+            $lblRoleCreds.Left = 12
+            $lblRoleCreds.Top = 78
+            $lblSuperadminEmail.Left = 12
+            $lblSuperadminEmail.Top = 100
+            $txtSuperadminEmail.Left = 12
+            $txtSuperadminEmail.Top = 118
+            $txtSuperadminEmail.Width = 140
+            $txtSuperadminPassword.Left = 156
+            $txtSuperadminPassword.Top = 118
+            $txtSuperadminPassword.Width = [Math]::Max(120, $leftWidth - 240)
+            $btnSaveSuperadmin.Left = $leftWidth - 34
+            $btnSaveSuperadmin.Top = 118
+            $btnClearSuperadmin.Left = $leftWidth - 10
+            $btnClearSuperadmin.Top = 118
+            $lblAdminEmail.Left = 12
+            $lblAdminEmail.Top = 144
+            $txtAdminEmail.Left = 12
+            $txtAdminEmail.Top = 162
+            $txtAdminEmail.Width = 140
+            $txtAdminPassword.Left = 156
+            $txtAdminPassword.Top = 162
+            $txtAdminPassword.Width = [Math]::Max(120, $leftWidth - 240)
+            $btnSaveAdmin.Left = $leftWidth - 34
+            $btnSaveAdmin.Top = 162
+            $btnClearAdmin.Left = $leftWidth - 10
+            $btnClearAdmin.Top = 162
+            $lblModeratorEmail.Left = 12
+            $lblModeratorEmail.Top = 188
+            $txtModeratorEmail.Left = 12
+            $txtModeratorEmail.Top = 206
+            $txtModeratorEmail.Width = 140
+            $txtModeratorPassword.Left = 156
+            $txtModeratorPassword.Top = 206
+            $txtModeratorPassword.Width = [Math]::Max(120, $leftWidth - 240)
+            $btnSaveModerator.Left = $leftWidth - 34
+            $btnSaveModerator.Top = 206
+            $btnClearModerator.Left = $leftWidth - 10
+            $btnClearModerator.Top = 206
+            Layout-GroupRow $chkSessionCsrfBaseline $statusLabels["session_csrf_baseline"] 236 $leftWidth
+
+            $grpToolsExport.Left = 10
+            $grpToolsExport.Top = 960
+            $grpToolsExport.Width = $leftWidth + 12
+            $grpToolsExport.Height = 158
+            Layout-GroupRow $chkLogClearBefore $statusLabels["log_clear_before"] 24 $leftWidth
+            Layout-GroupRow $chkLogClearAfter $statusLabels["log_clear_after"] 48 $leftWidth
+            Layout-GroupRow $chkShowCheckDetails $statusLabels["show_check_details"] 72 $leftWidth
+            Layout-GroupRow $chkExportLogs $statusLabels["export_logs"] 96 $leftWidth
+            Layout-GroupRow $chkAutoOpenExportFolder $statusLabels["auto_open_export_folder"] 120 $leftWidth
+
+            $btnRun.Top = 1132
+            $btnCopy.Top = 1132
+            $btnClear.Top = 1132
+            $lblStatus.Top = 1170
+
+            $btnShowFullOutput.Left = [Math]::Max(540, $panelDetailHeader.ClientSize.Width - $btnShowFullOutput.Width)
+            $lblInfoHint.Width = [Math]::Max(240, $panelInfo.ClientSize.Width - 10)
+            $lblDetailTitle.Width = [Math]::Max(260, $btnShowFullOutput.Left - 10)
+            $panelDetail.Height = [Math]::Max(240, [Math]::Floor($panelRight.ClientSize.Height * 0.38))
+        } catch { }
+    }
+
+    Update-UiLayout
 
     function Add-TopPaddingLine([string]$s) {
         try {
@@ -1240,7 +1633,7 @@ function Show-AuditGui() {
     function Set-OutputFilterView {
         try {
             $raw = ""
-            try { $raw = "" + $script:AuditOutputRaw } catch { $raw = "" }
+            try { $raw = "" + $script:AuditOutputViewRaw } catch { $raw = "" }
 
             $q = ""
             try { $q = ("" + $txtFilter.Text).Trim() } catch { $q = "" }
@@ -1330,7 +1723,7 @@ function Show-AuditGui() {
 
             Set-MatchHighlighting -query $q -ignoreCase $ignoreCase -useRegex $useRegex
         } catch {
-            try { $txt.Text = Add-TopPaddingLine ("" + $script:AuditOutputRaw) } catch { }
+            try { $txt.Text = Add-TopPaddingLine ("" + $script:AuditOutputViewRaw) } catch { }
             try { $lblFilterStatus.Text = "" } catch { }
             try { Reset-Highlighting } catch { }
         }
@@ -1399,9 +1792,34 @@ function Show-AuditGui() {
         $toolTip.SetToolTip($chkFilterRegex, "Mehrere Suchbegriffe mit Komma trennen.")
         $toolTip.SetToolTip($btnApplyFilter, "Sucht im Output mit dem gesetzten Filter (ohne erneuten Run).")
         $toolTip.SetToolTip($btnClearFilter, "Setzt den Filter zurueck und zeigt wieder die volle Ausgabe.")
+        $toolTip.SetToolTip($btnShowFullOutput, "Zeigt wieder die komplette Audit-Ausgabe.")
+        $toolTip.SetToolTip($chkCoreRoutes, "Wird vom Core immer ausgefuehrt.")
+        $toolTip.SetToolTip($chkCoreRouteOptionScan, "Wird vom Core immer ausgefuehrt.")
+        $toolTip.SetToolTip($chkCoreSecurityBaseline, "Wird vom Core immer ausgefuehrt.")
     } catch {
         # ignore
     }
+
+    foreach ($key in $statusLabels.Keys) {
+        if (-not $checkMap.ContainsKey($key)) { continue }
+        $statusLabel = $statusLabels[$key]
+        $control = $checkMap[$key]
+        $statusLabel.Add_Click({
+            try { Select-AuditDetail ([string]$this.Tag) } catch { }
+        })
+        $control.Tag = $key
+        if ($control -is [System.Windows.Forms.CheckBox]) {
+            $control.Add_Click({
+                try { Select-AuditDetail ([string]$this.Tag) } catch { }
+            })
+        }
+    }
+
+    $btnShowFullOutput.Add_Click({
+        try { Select-AuditDetail "" } catch { }
+    })
+
+    Reset-AuditStatuses
 
     # --- Determine core script path deterministically (MUST be ks-admin-audit.ps1 next to this UI file)
     $uiPath = $null
@@ -1623,6 +2041,11 @@ function Show-AuditGui() {
         $txt.Clear()
         $lblFilterStatus.Text = ""
         $script:AuditOutputRaw = ""
+        $script:AuditOutputViewRaw = ""
+        $script:AuditSectionsByKey = @{}
+        $script:AuditSelectedKey = ""
+        Reset-AuditStatuses
+        $lblDetailTitle.Text = "Detailansicht: Gesamtausgabe"
         $lblStatus.Text = "Laeuft..."
         $preRunNotice = ""
 
@@ -1705,6 +2128,8 @@ function Show-AuditGui() {
             $combined = ConvertTo-NormalizedText $combined
 
             $script:AuditOutputRaw = $combined
+            $script:AuditOutputViewRaw = $combined
+            Parse-AuditOutput
             Set-OutputFilterView
 
             $btnCopy.Enabled = $true
@@ -1722,6 +2147,8 @@ function Show-AuditGui() {
 
             $combinedErr = ConvertTo-NormalizedText ("GUI-Fehler:`r`n" + ($_ | Out-String).TrimEnd() + $argDump)
             $script:AuditOutputRaw = $combinedErr
+            $script:AuditOutputViewRaw = $combinedErr
+            Parse-AuditOutput
             Set-OutputFilterView
 
             $lblStatus.Text = "Fehler"
@@ -1828,8 +2255,13 @@ function Show-AuditGui() {
             $txtFilter.Text = ""
             $lblFilterStatus.Text = ""
             $script:AuditOutputRaw = ""
+            $script:AuditOutputViewRaw = ""
+            $script:AuditSectionsByKey = @{}
+            $script:AuditSelectedKey = ""
+            Reset-AuditStatuses
             $btnCopy.Enabled = $false
             $lblStatus.Text = ""
+            $lblDetailTitle.Text = "Detailansicht: Gesamtausgabe"
         } catch {
             # ignore
         }

@@ -3,8 +3,8 @@ REM ============================================================================
 REM File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-gui.cmd
 REM Purpose: Desktop launcher for KiezSingles Admin Audit GUI (UI-only, no fallback)
 REM Created: 19-02-2026 23:50 (Europe/Berlin)
-REM Changed: 22-02-2026 02:38 (Europe/Berlin)
-REM Version: 1.8
+REM Changed: 14-03-2026 00:10 (Europe/Berlin)
+REM Version: 1.9
 REM ============================================================================
 
 SETLOCAL ENABLEEXTENSIONS
@@ -29,9 +29,9 @@ echo Launching Audit UI:
 echo   %SCRIPT_UI%
 echo.
 
-REM Detached start (so this CMD can exit) + minimized PowerShell window.
+REM Detached start (so this CMD can exit) with normal PowerShell window.
 REM -STA is required for reliable WinForms + Clipboard behavior.
-start "" /min powershell.exe -NoLogo -STA -NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File "%SCRIPT_UI%"
+start "" powershell.exe -NoLogo -STA -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_UI%"
 
 set "EC=0"
 
