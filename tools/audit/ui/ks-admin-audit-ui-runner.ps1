@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-runner.ps1
 # Purpose: Runner/core bridge helpers for ks-admin-audit-ui
 # Created: 14-03-2026 03:09 (Europe/Berlin)
-# Changed: 14-03-2026 03:09 (Europe/Berlin)
-# Version: 0.1
+# Changed: 14-03-2026 03:55 (Europe/Berlin)
+# Version: 0.2
 # =============================================================================
 
 function ConvertTo-NormalizedText([string]$s) {
@@ -228,6 +228,9 @@ function Build-UiRunPlanNotice() {
     if ($chkRoleSmokeTest.Checked) { $selectedItems.Add("Role Smoke Test") | Out-Null }
     if ($chkSuperadminCount.Checked) { $selectedItems.Add("Governance: Superadmin Fail-Safe") | Out-Null }
     if ($chkSessionCsrfBaseline.Checked) { $selectedItems.Add("Session/CSRF Baseline") | Out-Null }
+    if ($chkSecurityProbe.Checked) { $selectedItems.Add("Security / Abuse Protection") | Out-Null }
+    if ($chkSecurityCheckIpBan.Checked) { $selectedItems.Add("Security: IP Ban Probe") | Out-Null }
+    if ($chkSecurityCheckRegister.Checked) { $selectedItems.Add("Security: Register Probe") | Out-Null }
     if ($chkRoutesVerbose.Checked) { $selectedItems.Add("Routes Verbose Inspection") | Out-Null }
     if ($chkRouteListFindstrAdmin.Checked) { $selectedItems.Add("Route List Filter (admin-only)") | Out-Null }
 
@@ -306,11 +309,24 @@ function Get-UiArgs() {
     $argsList.Add($(if ($chkShowCheckDetails.Checked) { "true" } else { "false" })) | Out-Null
     $argsList.Add("-ExportLogs") | Out-Null
     $argsList.Add($(if ($chkExportLogs.Checked) { "true" } else { "false" })) | Out-Null
+    $exportLines = "200"
+    try { $exportLines = ("" + $cmbExportLogsLines.Text).Trim() } catch { $exportLines = "200" }
+    if ($exportLines -eq "") { $exportLines = "200" }
+    $argsList.Add("-ExportLogsLines") | Out-Null
+    $argsList.Add($exportLines) | Out-Null
     $argsList.Add("-AutoOpenExportFolder") | Out-Null
     $argsList.Add($(if ($chkAutoOpenExportFolder.Checked) { "true" } else { "false" })) | Out-Null
     if ($chkLoginCsrfProbe.Checked) { $argsList.Add("-LoginCsrfProbe") | Out-Null }
     if ($chkRoleSmokeTest.Checked) { $argsList.Add("-RoleSmokeTest") | Out-Null }
     if ($chkSessionCsrfBaseline.Checked) { $argsList.Add("-SessionCsrfBaseline") | Out-Null }
+    if ($chkSecurityProbe.Checked) { $argsList.Add("-SecurityProbe") | Out-Null }
+    if ($chkSecurityCheckIpBan.Checked) { $argsList.Add("-SecurityCheckIpBan") | Out-Null }
+    if ($chkSecurityCheckRegister.Checked) { $argsList.Add("-SecurityCheckRegister") | Out-Null }
+    $securityLoginAttempts = "8"
+    try { $securityLoginAttempts = ("" + $cmbSecurityLoginAttempts.Text).Trim() } catch { $securityLoginAttempts = "8" }
+    if ($securityLoginAttempts -eq "") { $securityLoginAttempts = "8" }
+    $argsList.Add("-SecurityLoginAttempts") | Out-Null
+    $argsList.Add($securityLoginAttempts) | Out-Null
 
     if ($chkRoleSmokeTest.Checked) {
         $rsLines = @()
@@ -357,6 +373,7 @@ function Invoke-UiAuditRun {
     Reset-AuditStatuses
     $lblDetailTitle.Text = "Detailansicht: Gesamtausgabe"
     $lblStatus.Text = "Laeuft..."
+    try { Sync-OutputPopupButtons } catch { }
     $preRunNotice = ""
 
     $argsList = $null
@@ -441,6 +458,7 @@ function Invoke-UiAuditRun {
         Set-OutputFilterView
 
         $btnCopy.Enabled = $true
+        try { Sync-OutputPopupButtons } catch { }
 
         $ec = 0
         try { $ec = [int]$proc.ExitCode } catch { $ec = 0 }
@@ -460,6 +478,7 @@ function Invoke-UiAuditRun {
         Set-OutputFilterView
 
         $lblStatus.Text = "Fehler"
+        try { Sync-OutputPopupButtons } catch { }
     } finally {
         $btnRun.Enabled = $true
     }

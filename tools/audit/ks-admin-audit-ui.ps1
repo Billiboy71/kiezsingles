@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 14-03-2026 03:34 (Europe/Berlin)
-# Version: 7.9
+# Changed: 14-03-2026 03:55 (Europe/Berlin)
+# Version: 8.0
 # =============================================================================
 
 [CmdletBinding()]
@@ -58,6 +58,18 @@ param(
     # If set, prints session/CSRF baseline (read-only)
     [switch]$SessionCsrfBaseline,
 
+    # If set, runs the security / abuse protection check suite.
+    [switch]$SecurityProbe,
+
+    # Login attempts used by the security / abuse protection suite.
+    [string]$SecurityLoginAttempts = "8",
+
+    # If set, includes IP-ban probe in the security suite.
+    [switch]$SecurityCheckIpBan,
+
+    # If set, includes register probe in the security suite.
+    [switch]$SecurityCheckRegister,
+
     # If set, appends Laravel log snapshot (tail) to output (handled by CLI core).
     [switch]$LogSnapshot,
 
@@ -75,6 +87,9 @@ param(
 
     # If true, exports per-check log slices in the core.
     [string]$ExportLogs = "false",
+
+    # Max line count per exported log slice.
+    [int]$ExportLogsLines = 200,
 
     # If true, opens the export folder after the core run when exports exist.
     [string]$AutoOpenExportFolder = "false",
@@ -219,6 +234,13 @@ if ($SuperadminCount) { $argList.Add("-SuperadminCount") | Out-Null }
 if ($LoginCsrfProbe) { $argList.Add("-LoginCsrfProbe") | Out-Null }
 if ($RoleSmokeTest) { $argList.Add("-RoleSmokeTest") | Out-Null }
 if ($SessionCsrfBaseline) { $argList.Add("-SessionCsrfBaseline") | Out-Null }
+if ($SecurityProbe) { $argList.Add("-SecurityProbe") | Out-Null }
+if ($SecurityCheckIpBan) { $argList.Add("-SecurityCheckIpBan") | Out-Null }
+if ($SecurityCheckRegister) { $argList.Add("-SecurityCheckRegister") | Out-Null }
+if (("" + $SecurityLoginAttempts).Trim() -ne "") {
+    $argList.Add("-SecurityLoginAttempts") | Out-Null
+    $argList.Add(("" + $SecurityLoginAttempts).Trim()) | Out-Null
+}
 if ($LogSnapshot) {
     $argList.Add("-LogSnapshot") | Out-Null
     $snapLines = 200
@@ -236,6 +258,8 @@ $argList.Add("-ShowCheckDetails") | Out-Null
 $argList.Add(("" + $ShowCheckDetails)) | Out-Null
 $argList.Add("-ExportLogs") | Out-Null
 $argList.Add(("" + $ExportLogs)) | Out-Null
+$argList.Add("-ExportLogsLines") | Out-Null
+$argList.Add(("" + [int]$ExportLogsLines)) | Out-Null
 $argList.Add("-AutoOpenExportFolder") | Out-Null
 $argList.Add(("" + $AutoOpenExportFolder)) | Out-Null
 
