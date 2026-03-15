@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-runner.ps1
 # Purpose: Runner/core bridge helpers for ks-admin-audit-ui
 # Created: 14-03-2026 03:09 (Europe/Berlin)
-# Changed: 15-03-2026 01:50 (Europe/Berlin)
-# Version: 0.4
+# Changed: 15-03-2026 20:22 (Europe/Berlin)
+# Version: 0.6
 # =============================================================================
 
 function ConvertTo-NormalizedText([string]$s) {
@@ -114,6 +114,75 @@ function Invoke-ProcessToFiles(
             StdOut   = ""
             StdErr   = ("PROCESS RUNNER ERROR: " + $msg)
         }
+    }
+}
+
+function Start-UiProcessAsync(
+    [string]$File,
+    [string[]]$ArgumentList,
+    [string]$WorkingDirectory = ""
+) {
+    if ($null -eq $ArgumentList) { $ArgumentList = @() }
+    $ArgumentList = @($ArgumentList | Where-Object { $_ -ne $null })
+
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = ("" + $File)
+
+    $quotedArgs = New-Object System.Collections.Generic.List[string]
+    foreach ($a in $ArgumentList) {
+        $t = "" + $a
+        if ($t -eq "") {
+            $quotedArgs.Add('""') | Out-Null
+            continue
+        }
+
+        if ($t -match '[\s"]') {
+            $q = $t -replace '(\\*)"', '$1$1\"'
+            $q = $q -replace '(\\+)$', '$1$1'
+            $quotedArgs.Add('"' + $q + '"') | Out-Null
+            continue
+        }
+
+        $quotedArgs.Add($t) | Out-Null
+    }
+
+    $psi.Arguments = ($quotedArgs -join " ")
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+
+    if ($WorkingDirectory -and ($WorkingDirectory.Trim() -ne "")) {
+        $psi.WorkingDirectory = $WorkingDirectory
+    }
+
+    try { $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+    try { $psi.StandardErrorEncoding  = [System.Text.Encoding]::UTF8 } catch { }
+
+    $proc = [System.Diagnostics.Process]::new()
+    $proc.StartInfo = $psi
+    $null = $proc.Start()
+
+    try {
+        $proc.StandardInput.Write("")
+        $proc.StandardInput.Close()
+    } catch { }
+
+    return [pscustomobject]@{
+        Process = $proc
+        OutTask = $proc.StandardOutput.ReadToEndAsync()
+        ErrTask = $proc.StandardError.ReadToEndAsync()
+    }
+}
+
+function Get-UiAuditRunContext {
+    try {
+        $var = Get-Variable -Scope Script -Name UiAuditRunContext -ErrorAction SilentlyContinue
+        if ($null -eq $var) { return $null }
+        return $var.Value
+    } catch {
+        return $null
     }
 }
 
@@ -251,6 +320,123 @@ function Build-UiRunPlanNotice() {
     }
 
     return (($lines.ToArray()) -join "`r`n")
+}
+
+function Complete-UiAuditRun([bool]$TimedOut = $false) {
+    $ctx = $null
+    try { $ctx = Get-UiAuditRunContext } catch { $ctx = $null }
+    if ($null -eq $ctx) { return }
+
+    try {
+        $proc = $ctx.Process
+        $outTask = $ctx.OutTask
+        $errTask = $ctx.ErrTask
+        $preRunNotice = "" + $ctx.PreRunNotice
+        $childCmdLine = "" + $ctx.ChildCmdLine
+        $timedOutSeconds = 0
+        try { $timedOutSeconds = [int]$ctx.TimeoutSeconds } catch { $timedOutSeconds = 0 }
+
+        $out = ""
+        $err = ""
+        try { $out = "" + $outTask.GetAwaiter().GetResult() } catch { $out = "" }
+        try { $err = "" + $errTask.GetAwaiter().GetResult() } catch { $err = "" }
+
+        if ($TimedOut) {
+            $timeoutText = "TIMEOUT"
+            if ($timedOutSeconds -gt 0) {
+                $timeoutText = ("TIMEOUT after {0}s" -f $timedOutSeconds)
+            }
+            if (($err.Trim()) -ne "") {
+                $err = $timeoutText + "`r`n" + $err
+            } else {
+                $err = $timeoutText
+            }
+        }
+
+        $out = ConvertTo-NormalizedText $out
+        $err = ConvertTo-NormalizedText $err
+
+        $combined = ""
+        if ($err -and ($err.Trim() -ne "")) { $combined += $err.TrimEnd() + "`r`n" }
+        if ($out -and ($out.Trim() -ne "")) { $combined += $out.TrimEnd() + "`r`n" }
+
+        if ($combined.Trim() -eq "") {
+            $combined = "(keine Ausgabe)`r`n"
+            $combined += "Hinweis: Der Prozess hat nichts auf STDOUT/STDERR geschrieben.`r`n"
+        }
+
+        if ($preRunNotice -and ($preRunNotice.Trim() -ne "")) {
+            $combined = $preRunNotice + "`r`n`r`n" + $combined
+        }
+
+        if ($childCmdLine -and ($childCmdLine.Trim() -ne "")) {
+            $combined += "`r`n=== Core-Command (subprocess, hidden) ===`r`n" + $childCmdLine.TrimEnd() + "`r`n"
+        }
+
+        if ($chkTailLog.Checked) {
+            $modeLabel = "live"
+            try { if ($cmbTailMode.SelectedIndex -eq 1) { $modeLabel = "history" } else { $modeLabel = "live" } } catch { $modeLabel = "live" }
+
+            $combined += "`r`n`r`n=== Hinweis TailLog (GUI) ===`r`n"
+            $combined += "TailLog wird von der GUI geoeffnet (separates PowerShell-Fenster).`r`n"
+            $combined += ("Modus: " + $modeLabel + "`r`n")
+
+            if ($modeLabel -eq "history") {
+                $combined += "history = letzte 200 Zeilen (kein Follow).`r`n"
+            } else {
+                $combined += "live = nur neue Zeilen (Follow).`r`n"
+            }
+
+            $combined += "Das ist NICHT dasselbe wie 'Laravel log (Snapshot)' (Core -LogSnapshot).`r`n"
+        }
+
+        $combined = ConvertTo-NormalizedText $combined
+
+        $script:AuditOutputRaw = $combined
+        $script:AuditOutputViewRaw = $combined
+        Parse-AuditOutput
+        Update-UiStatusesFromAuditOutput -OutputText $combined
+        Set-OutputFilterView
+
+        $btnCopy.Enabled = $true
+        try { Sync-OutputPopupButtons } catch { }
+
+        $ec = 0
+        try { $ec = [int]$proc.ExitCode } catch { $ec = 0 }
+        if ($TimedOut) {
+            $lblStatus.Text = "Fehler"
+        } elseif ($ec -eq 0) {
+            $lblStatus.Text = "Fertig"
+        } else {
+            $lblStatus.Text = ("Fertig (ExitCode " + $ec + ")")
+        }
+    } catch {
+        $argDump = ""
+        try {
+            if ($ctx.ChildCmdLine -and (("" + $ctx.ChildCmdLine).Trim() -ne "")) {
+                $argDump = "`r`n`r`nCore-Command:`r`n" + $ctx.ChildCmdLine
+            }
+        } catch { }
+
+        $combinedErr = ConvertTo-NormalizedText ("GUI-Fehler:`r`n" + ($_ | Out-String).TrimEnd() + $argDump)
+        $script:AuditOutputRaw = $combinedErr
+        $script:AuditOutputViewRaw = $combinedErr
+        Parse-AuditOutput
+        Update-UiStatusesFromAuditOutput -OutputText $combinedErr
+        Set-OutputFilterView
+
+        $lblStatus.Text = "Fehler"
+        try { Sync-OutputPopupButtons } catch { }
+    } finally {
+        try {
+            if ($null -ne $ctx.Timer) {
+                $ctx.Timer.Stop()
+                $ctx.Timer.Dispose()
+            }
+        } catch { }
+        $script:UiAuditRunContext = $null
+        $btnRun.Enabled = $true
+    }
 }
 
 function Get-UiArgs() {
@@ -541,6 +727,8 @@ function Update-UiStatusesFromAuditOutput([string]$OutputText) {
 }
 
 function Invoke-UiAuditRun {
+    if ($null -ne (Get-UiAuditRunContext)) { return }
+
     $btnRun.Enabled = $false
     $btnCopy.Enabled = $false
     $txt.Clear()
@@ -585,64 +773,46 @@ function Invoke-UiAuditRun {
         $maskedPsArgs = @(Get-MaskedArgumentList -InputArgs @($psArgs.ToArray()))
         $childCmdLine = ("powershell.exe " + (($maskedPsArgs | ForEach-Object { ConvertTo-QuotedArg $_ }) -join " ")).Trim()
 
-        $proc = Invoke-ProcessToFiles -File "powershell.exe" -ArgumentList @($psArgs.ToArray()) -TimeoutSeconds 600 -WorkingDirectory $uiProjectRoot
+        $asyncProc = Start-UiProcessAsync -File "powershell.exe" -ArgumentList @($psArgs.ToArray()) -WorkingDirectory $uiProjectRoot
+        $timer = New-Object System.Windows.Forms.Timer
+        $timer.Interval = 300
 
-        $out = ""
-        $err = ""
-        try { $out = "" + $proc.StdOut } catch { $out = "" }
-        try { $err = "" + $proc.StdErr } catch { $err = "" }
-
-        $out = ConvertTo-NormalizedText $out
-        $err = ConvertTo-NormalizedText $err
-
-        $combined = ""
-        if ($err -and ($err.Trim() -ne "")) { $combined += $err.TrimEnd() + "`r`n" }
-        if ($out -and ($out.Trim() -ne "")) { $combined += $out.TrimEnd() + "`r`n" }
-
-        if ($combined.Trim() -eq "") {
-            $combined = "(keine Ausgabe)`r`n"
-            $combined += "Hinweis: Der Prozess hat nichts auf STDOUT/STDERR geschrieben.`r`n"
+        $script:UiAuditRunContext = [pscustomobject]@{
+            Process        = $asyncProc.Process
+            OutTask        = $asyncProc.OutTask
+            ErrTask        = $asyncProc.ErrTask
+            PreRunNotice   = $preRunNotice
+            ChildCmdLine   = $childCmdLine
+            StartedAt      = [DateTime]::Now
+            TimeoutSeconds = 600
+            Timer          = $timer
         }
 
-        if ($preRunNotice -and ($preRunNotice.Trim() -ne "")) {
-            $combined = $preRunNotice + "`r`n`r`n" + $combined
-        }
+        $timer.Add_Tick({
+            try {
+                $ctx = $script:UiAuditRunContext
+                if ($null -eq $ctx) {
+                    $this.Stop()
+                    return
+                }
 
-        if ($childCmdLine -and ($childCmdLine.Trim() -ne "")) {
-            $combined += "`r`n=== Core-Command (subprocess, hidden) ===`r`n" + $childCmdLine.TrimEnd() + "`r`n"
-        }
+                $elapsedSeconds = 0
+                try { $elapsedSeconds = [int]([DateTime]::Now - $ctx.StartedAt).TotalSeconds } catch { $elapsedSeconds = 0 }
+                if ($elapsedSeconds -ge [int]$ctx.TimeoutSeconds) {
+                    try { $ctx.Process.Kill($true) } catch { }
+                    Complete-UiAuditRun -TimedOut:$true
+                    return
+                }
 
-        if ($chkTailLog.Checked) {
-            $modeLabel = "live"
-            try { if ($cmbTailMode.SelectedIndex -eq 1) { $modeLabel = "history" } else { $modeLabel = "live" } } catch { $modeLabel = "live" }
-
-            $combined += "`r`n`r`n=== Hinweis TailLog (GUI) ===`r`n"
-            $combined += "TailLog wird von der GUI geoeffnet (separates PowerShell-Fenster).`r`n"
-            $combined += ("Modus: " + $modeLabel + "`r`n")
-
-            if ($modeLabel -eq "history") {
-                $combined += "history = letzte 200 Zeilen (kein Follow).`r`n"
-            } else {
-                $combined += "live = nur neue Zeilen (Follow).`r`n"
+                if ($ctx.Process.HasExited) {
+                    Complete-UiAuditRun -TimedOut:$false
+                }
+            } catch {
+                Complete-UiAuditRun -TimedOut:$false
             }
+        })
 
-            $combined += "Das ist NICHT dasselbe wie 'Laravel log (Snapshot)' (Core -LogSnapshot).`r`n"
-        }
-
-        $combined = ConvertTo-NormalizedText $combined
-
-        $script:AuditOutputRaw = $combined
-        $script:AuditOutputViewRaw = $combined
-        Parse-AuditOutput
-        Update-UiStatusesFromAuditOutput -OutputText $combined
-        Set-OutputFilterView
-
-        $btnCopy.Enabled = $true
-        try { Sync-OutputPopupButtons } catch { }
-
-        $ec = 0
-        try { $ec = [int]$proc.ExitCode } catch { $ec = 0 }
-        if ($ec -eq 0) { $lblStatus.Text = "Fertig" } else { $lblStatus.Text = ("Fertig (ExitCode " + $ec + ")") }
+        $timer.Start()
     } catch {
         $argDump = ""
         try {
@@ -660,7 +830,5 @@ function Invoke-UiAuditRun {
 
         $lblStatus.Text = "Fehler"
         try { Sync-OutputPopupButtons } catch { }
-    } finally {
-        $btnRun.Enabled = $true
     }
 }

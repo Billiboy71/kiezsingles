@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 14-03-2026 19:00 (Europe/Berlin)
-# Version: 8.3
+# Changed: 15-03-2026 20:54 (Europe/Berlin)
+# Version: 8.4
 # =============================================================================
 
 [CmdletBinding()]
@@ -117,7 +117,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $script:KsAuditUiScriptRoot = $PSScriptRoot
-$script:KsAuditGuiVersion = "2.0"
+$script:KsAuditGuiVersion = "2.1"
 
 function Get-GuiEnabledFlag {
     $enabled = $true

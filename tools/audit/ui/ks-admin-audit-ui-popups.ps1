@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-popups.ps1
 # Purpose: Popup/viewer helper functions for ks-admin-audit-ui
 # Created: 14-03-2026 02:31 (Europe/Berlin)
-# Changed: 15-03-2026 13:40 (Europe/Berlin)
-# Version: 0.4
+# Changed: 15-03-2026 20:40 (Europe/Berlin)
+# Version: 0.5
 # =============================================================================
 
 function Show-AuditTextPopup([string]$Title, [string]$Body) {
@@ -177,37 +177,31 @@ function Get-AuditErrorPopupBody([string]$Body) {
     if ($raw.Trim() -eq "") { return "" }
 
     $result = New-Object System.Collections.Generic.List[string]
-    $currentBlock = New-Object System.Collections.Generic.List[string]
-    $keepBlock = $false
+    $currentSection = ""
 
     foreach ($line in @($raw -split "`r`n")) {
-        if ($line -match '^\[(OK|WARN|SKIP|FAIL|CRITICAL)\]\s*(.*)$') {
-            if ($keepBlock -and $currentBlock.Count -gt 0) {
-                foreach ($entry in @($currentBlock)) {
-                    $result.Add($entry) | Out-Null
-                }
-                if ($result.Count -gt 0 -and $result[$result.Count - 1] -ne "") {
-                    $result.Add("") | Out-Null
-                }
-            }
-
-            $currentBlock = New-Object System.Collections.Generic.List[string]
-            $keepBlock = ($matches[1] -in @('FAIL','CRITICAL'))
-
-            if ($keepBlock) {
-                $headerText = ("" + $matches[2]).Trim()
-                if ($headerText -ne "") {
-                    $currentBlock.Add($headerText) | Out-Null
-                }
-            }
-        } elseif ($keepBlock) {
-            $currentBlock.Add($line) | Out-Null
+        if ($line -match '^\s*Test\s+\d+\s+-\s+(.+?)\s*$') {
+            $currentSection = ("" + $matches[1]).Trim()
+            continue
         }
-    }
 
-    if ($keepBlock -and $currentBlock.Count -gt 0) {
-        foreach ($entry in @($currentBlock)) {
-            $result.Add($entry) | Out-Null
+        if ($line -match '^\s*\[(FAIL|CRITICAL)\]\s+(.+?)\s*$') {
+            $message = ("" + $matches[2]).Trim()
+            $message = [System.Text.RegularExpressions.Regex]::Replace($message, '\s+\(\d+ms\)\s*$', '')
+
+            if ($currentSection -ne "") {
+                if ($result.Count -gt 0) { $result.Add("") | Out-Null }
+                $result.Add($currentSection) | Out-Null
+            }
+
+            if ($message -match '^\s*(.+?)\s+-\s+(.+?)\s*$') {
+                $headline = ("" + $matches[1]).Trim()
+                $detail = ("" + $matches[2]).Trim()
+                if ($headline -ne "") { $result.Add($headline) | Out-Null }
+                if ($detail -ne "") { $result.Add($detail) | Out-Null }
+            } else {
+                if ($message -ne "") { $result.Add($message) | Out-Null }
+            }
         }
     }
 

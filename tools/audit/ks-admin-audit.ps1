@@ -2,14 +2,14 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 13-03-2026 22:45 (Europe/Berlin)
-# Version: 5.4
+# Changed: 15-03-2026 20:49 (Europe/Berlin)
+# Version: 5.6
 # =============================================================================
 
 [CmdletBinding()]
 param(
     # Base URL for optional HTTP checks
-    [string]$BaseUrl = "http://127.0.0.1:8000",
+    [string]$BaseUrl = "http://kiezsingles.test",
 
     # Admin endpoints to probe (relative to BaseUrl) - only used if -HttpProbe is set
     [string[]]$ProbePaths = @("/admin", "/admin/status", "/admin/moderation", "/admin/maintenance", "/admin/debug"),
@@ -170,6 +170,92 @@ function ConvertTo-SafeStringArray([object]$Value) {
     } catch {
         try { return @($out.ToArray()) } catch { return @() }
     }
+}
+
+function Mask-SensitiveValue([string]$Text) {
+    if ($null -eq $Text) { return "" }
+
+    $masked = "" + $Text
+
+    try {
+        $masked = [System.Text.RegularExpressions.Regex]::Replace(
+            $masked,
+            '(?im)^(\s*(?:Cookie|Set-Cookie)\s*:\s*)(.+)$',
+            {
+                param($m)
+                $pairs = @()
+                try { $pairs = @(([string]$m.Groups[2].Value) -split '\s*;\s*') } catch { $pairs = @() }
+                $maskedPairs = New-Object System.Collections.Generic.List[string]
+
+                foreach ($pair in @($pairs)) {
+                    $entry = ("" + $pair).Trim()
+                    if ($entry -eq "") { continue }
+
+                    if ($entry -match '^([^=]+)=') {
+                        $cookieName = ("" + $matches[1]).Trim()
+                        $maskedPairs.Add(($cookieName + '=[masked]')) | Out-Null
+                    } else {
+                        $maskedPairs.Add($entry) | Out-Null
+                    }
+                }
+
+                return ($m.Groups[1].Value + (($maskedPairs.ToArray()) -join '; '))
+            }
+        )
+    } catch { }
+
+    foreach ($pattern in @(
+        '(?i)\b(laravel_session)\s*=\s*([^;\s,]+)',
+        '(?i)\b(XSRF-TOKEN)\s*=\s*([^;\s,]+)',
+        '(?i)\b(laravel_session)\s*:\s*([^\s,;]+)',
+        '(?i)\b(XSRF-TOKEN)\s*:\s*([^\s,;]+)',
+        '(?i)\b(session(?:[_-]?id)?)\s*:\s*([^\s,;]+)',
+        '(?i)\b(session(?:[_-]?id)?)\s*=\s*([^\s,;]+)'
+    )) {
+        try {
+            $masked = [System.Text.RegularExpressions.Regex]::Replace(
+                $masked,
+                $pattern,
+                {
+                    param($m)
+                    return ($m.Groups[1].Value + $(if ($m.Value.Contains(':')) { ': ' } else { '=' }) + '[masked]')
+                }
+            )
+        } catch { }
+    }
+
+    return $masked
+}
+
+function Write-Host {
+    [CmdletBinding(DefaultParameterSetName = 'NoNewline')]
+    param(
+        [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
+        [object[]]$Object,
+
+        [switch]$NoNewline,
+        [object]$Separator = ' ',
+        [System.ConsoleColor]$ForegroundColor,
+        [System.ConsoleColor]$BackgroundColor
+    )
+
+    $sanitizedObjects = @()
+    foreach ($item in @($Object)) {
+        if ($item -is [string]) {
+            $sanitizedObjects += (Mask-SensitiveValue ("" + $item))
+        } else {
+            $sanitizedObjects += $item
+        }
+    }
+
+    $forward = @{}
+    foreach ($entry in $PSBoundParameters.GetEnumerator()) {
+        if ($entry.Key -eq 'Object') { continue }
+        $forward[$entry.Key] = $entry.Value
+    }
+    $forward['Object'] = $sanitizedObjects
+
+    Microsoft.PowerShell.Utility\Write-Host @forward
 }
 
 function Stop-Program([int]$Code) {
@@ -1439,10 +1525,10 @@ function Build-CheckExportLines {
     $resSummary = ""
     try { $resSummary = ("" + $Res.summary).Trim() } catch { $resSummary = "" }
 
-    $out.Add("Check: " + $resId) | Out-Null
-    $out.Add("Title: " + $resTitle) | Out-Null
-    $out.Add("Status: " + $resStatus) | Out-Null
-    $out.Add("Summary: " + $resSummary) | Out-Null
+    $out.Add((Mask-SensitiveValue ("Check: " + $resId))) | Out-Null
+    $out.Add((Mask-SensitiveValue ("Title: " + $resTitle))) | Out-Null
+    $out.Add((Mask-SensitiveValue ("Status: " + $resStatus))) | Out-Null
+    $out.Add((Mask-SensitiveValue ("Summary: " + $resSummary))) | Out-Null
 
     $evArr = @()
     try { $evArr = @(ConvertTo-SafeStringArray $Res.evidence) } catch { $evArr = @() }
@@ -1450,7 +1536,7 @@ function Build-CheckExportLines {
         $out.Add("") | Out-Null
         $out.Add("Evidence:") | Out-Null
         foreach ($x in $evArr) {
-            $out.Add("- " + ("" + $x)) | Out-Null
+            $out.Add((Mask-SensitiveValue ("- " + ("" + $x)))) | Out-Null
         }
     }
 
@@ -1460,7 +1546,7 @@ function Build-CheckExportLines {
         $out.Add("") | Out-Null
         $out.Add("Details:") | Out-Null
         foreach ($d in $detailsArr) {
-            $out.Add("" + $d) | Out-Null
+            $out.Add((Mask-SensitiveValue ("" + $d))) | Out-Null
         }
     }
 
@@ -1478,7 +1564,7 @@ function Build-CheckExportLines {
         $out.Add("") | Out-Null
         $out.Add("DetailsText:") | Out-Null
         foreach ($dt in $detailsTextArr) {
-            $out.Add("" + $dt) | Out-Null
+            $out.Add((Mask-SensitiveValue ("" + $dt))) | Out-Null
         }
     }
 
@@ -1488,7 +1574,7 @@ function Build-CheckExportLines {
     if ($sliceArr.Count -gt 0) {
         $out.Add("LogSlice:") | Out-Null
         foreach ($line in $sliceArr) {
-            $out.Add("" + $line) | Out-Null
+            $out.Add((Mask-SensitiveValue ("" + $line))) | Out-Null
         }
     } else {
         $out.Add("LogSlice: none") | Out-Null

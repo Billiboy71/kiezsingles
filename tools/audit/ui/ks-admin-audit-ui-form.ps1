@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-form.ps1
 # Purpose: Form/layout/control helpers for ks-admin-audit-ui
 # Created: 14-03-2026 03:28 (Europe/Berlin)
-# Changed: 15-03-2026 20:15 (Europe/Berlin)
-# Version: 2.0
+# Changed: 15-03-2026 20:51 (Europe/Berlin)
+# Version: 2.1
 # =============================================================================
 
 function Set-RoundButtonShape([System.Windows.Forms.Button]$Button) {
@@ -557,8 +557,7 @@ function Show-AuditGui() {
     $cmbBaseUrl.Width = 640
     $cmbBaseUrl.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDown
     [void]$cmbBaseUrl.Items.Add("http://kiezsingles.test")
-    [void]$cmbBaseUrl.Items.Add("http://127.0.0.1:8000")
-    [void]$cmbBaseUrl.Items.Add("http://localhost:8000")
+    [void]$cmbBaseUrl.Items.Add("https://kiezsingles.de")
     $baseRow.Controls.Add($cmbBaseUrl)
     $initialBaseUrl = ("" + $BaseUrl).Trim()
     if (-not $PSBoundParameters.ContainsKey("BaseUrl")) { $initialBaseUrl = "http://kiezsingles.test" }
@@ -1158,6 +1157,36 @@ function Show-AuditGui() {
         try {
             $killed = 0
             $coreNeedle = ("" + $script:corePath).Trim().ToLowerInvariant()
+            $uiRunContext = $null
+            $hadUiRunContext = $false
+
+            try {
+                $ctxVar = Get-Variable -Scope Script -Name UiAuditRunContext -ErrorAction SilentlyContinue
+                if ($null -ne $ctxVar) { $uiRunContext = $ctxVar.Value }
+            } catch { $uiRunContext = $null }
+            try { $hadUiRunContext = ($null -ne $uiRunContext) } catch { $hadUiRunContext = $false }
+
+            try {
+                if ($null -ne $uiRunContext) {
+                    if ($null -ne $uiRunContext.Timer) {
+                        $uiRunContext.Timer.Stop()
+                        $uiRunContext.Timer.Dispose()
+                    }
+                }
+            } catch { }
+
+            try {
+                if ($null -ne $uiRunContext) {
+                    if ($null -ne $uiRunContext.Process) {
+                        if (-not $uiRunContext.Process.HasExited) {
+                            $uiRunContext.Process.Kill($true)
+                            $killed++
+                        }
+                    }
+                }
+            } catch { }
+
+            try { $script:UiAuditRunContext = $null } catch { }
 
             try {
                 $procs = @(Get-CimInstance Win32_Process -Filter "name = 'powershell.exe' OR name = 'pwsh.exe'" -ErrorAction Stop)
@@ -1178,8 +1207,24 @@ function Show-AuditGui() {
                 }
             }
 
-            if ($killed -gt 0) {
-                $lblStatus.Text = ("Audit gestoppt ({0} Prozess(e) beendet)" -f $killed)
+            if ($killed -gt 0 -or $hadUiRunContext) {
+                try { $txt.Clear() } catch { }
+                try { $txtFilter.Text = "" } catch { }
+                try { $lblFilterStatus.Text = "" } catch { }
+                try { $script:AuditOutputRaw = "" } catch { }
+                try { $script:AuditOutputViewRaw = "" } catch { }
+                try { $script:AuditSectionsByKey = @{} } catch { }
+                try { $script:AuditSelectedKey = "" } catch { }
+                try { Reset-AuditStatuses } catch { }
+                try { $btnRun.Enabled = $true } catch { }
+                try { $btnCopy.Enabled = $false } catch { }
+                try { $lblDetailTitle.Text = "Detailansicht: Gesamtausgabe" } catch { }
+                try { Sync-OutputPopupButtons } catch { }
+                if ($killed -gt 0) {
+                    $lblStatus.Text = ("Audit gestoppt ({0} Prozess(e) beendet)" -f $killed)
+                } else {
+                    $lblStatus.Text = "Audit gestoppt"
+                }
             } else {
                 $lblStatus.Text = "Kein laufender Audit-Prozess gefunden"
             }
