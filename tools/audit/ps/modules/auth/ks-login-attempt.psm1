@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\auth\ks-login-attempt.psm1
 # Purpose: Login attempt helper (GET /login + POST /login + redirect follow)
 # Created: 06-03-2026 22:55 (Europe/Berlin)
-# Changed: 11-03-2026 22:17 (Europe/Berlin)
-# Version: 1.2
+# Changed: 15-03-2026 22:05 (Europe/Berlin)
+# Version: 1.3
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -55,6 +55,21 @@ function Post-LoginAttempt {
             }
 
             if (-not [string]::IsNullOrWhiteSpace($cookieDomain)) {
+
+                # Remove existing device cookies to avoid server-generated UUID taking precedence
+                try {
+                    if ($null -ne $baseUri) {
+                        $existing = $Session.Cookies.GetCookies($baseUri)
+                        foreach ($c in $existing) {
+                            if ($c.Name -eq $cookieName) {
+                                $c.Expired = $true
+                            }
+                        }
+                    }
+                }
+                catch {
+                }
+
                 try {
                     $deviceCookie = New-Object System.Net.Cookie($cookieName, ("" + $DeviceCookieId), "/", $cookieDomain)
                     $Session.Cookies.Add($deviceCookie)
