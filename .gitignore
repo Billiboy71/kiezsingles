@@ -20,6 +20,8 @@
 /storage/pail
 /storage/framework/
 /storage/logs/
+/tools/audit/ps/output
+/tools/audit/output
 /vendor
 Homestead.json
 Homestead.yaml

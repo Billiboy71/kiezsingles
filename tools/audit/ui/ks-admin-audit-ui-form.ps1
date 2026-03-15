@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-form.ps1
 # Purpose: Form/layout/control helpers for ks-admin-audit-ui
 # Created: 14-03-2026 03:28 (Europe/Berlin)
-# Changed: 15-03-2026 13:44 (Europe/Berlin)
-# Version: 1.8
+# Changed: 15-03-2026 20:15 (Europe/Berlin)
+# Version: 2.0
 # =============================================================================
 
 function Set-RoundButtonShape([System.Windows.Forms.Button]$Button) {
@@ -686,7 +686,12 @@ function Show-AuditGui() {
     $btnStop.Dock = "Fill"
     $btnStop.BackColor = [System.Drawing.Color]::FromArgb(255, 199, 206)
     $actionsLayout.Controls.Add($btnStop, 0, 4)
-    $actionsLayout.SetColumnSpan($btnStop, 2)
+
+    $btnClear = New-Object System.Windows.Forms.Button
+    $btnClear.Text = "Clear"
+    $btnClear.Dock = "Fill"
+    $btnClear.BackColor = [System.Drawing.Color]::FromArgb(255, 235, 156)
+    $actionsLayout.Controls.Add($btnClear, 1, 4)
 
     [System.Windows.Forms.Button]$btnRun = New-Object System.Windows.Forms.Button
     $btnRun.Text = "Run"
@@ -694,12 +699,7 @@ function Show-AuditGui() {
     $btnRun.BackColor = [System.Drawing.Color]::FromArgb(198, 239, 206)
     $script:btnRun = $btnRun
     $actionsLayout.Controls.Add($btnRun, 0, 5)
-
-    $btnClear = New-Object System.Windows.Forms.Button
-    $btnClear.Text = "Clear"
-    $btnClear.Dock = "Fill"
-    $btnClear.BackColor = [System.Drawing.Color]::FromArgb(255, 235, 156)
-    $actionsLayout.Controls.Add($btnClear, 1, 5)
+    $actionsLayout.SetColumnSpan($btnRun, 2)
 
     $lblDetailTitle = New-Object System.Windows.Forms.Label
     $lblDetailTitle.Dock = "Fill"
