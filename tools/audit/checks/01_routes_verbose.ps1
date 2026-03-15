@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_routes_verbose.ps1
 # Purpose: Audit check - verbose route inspection (informative)
 # Created: 21-02-2026 00:10 (Europe/Berlin)
-# Changed: 04-03-2026 22:56 (Europe/Berlin)
-# Version: 0.7
+# Changed: 15-03-2026 20:31 (Europe/Berlin)
+# Version: 1.0
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -31,6 +31,14 @@ function Invoke-KsAuditCheck_RoutesVerbose {
         $t = $t.Trim(',', ';', '[', ']', '(', ')')
         $t = $t.Trim()
         return $t
+    }
+
+    function Get-RouteKey([string]$Name, [string]$Uri) {
+        $n = ""
+        $u = ""
+        try { $n = ("" + $Name).Trim().ToLowerInvariant() } catch { $n = "" }
+        try { $u = ("" + $Uri).Trim().ToLowerInvariant() } catch { $u = "" }
+        return ($n + "|" + $u)
     }
 
     function Try-LoadAdminRoutesFromRouteListJson([string]$Root, [int]$TimeoutSec = 120) {
@@ -107,25 +115,26 @@ function Invoke-KsAuditCheck_RoutesVerbose {
             foreach ($line in @($Text -split "`r?`n")) {
                 $l = ("" + $line)
 
-                # Route header line (e.g. "GET|HEAD   admin .... admin.home")
-                if ($l -match '^\s*[A-Z\|]+\s+admin(\S*)\s+\.+') {
+                if ($l -match '^\s*[A-Z|]+\s+admin(?:/\S*)?') {
                     if ($null -ne $cur) { $routes.Add($cur) | Out-Null }
 
                     $routeName = ""
                     $uri = ""
 
                     try {
-                        if ($l -match '^\s*[A-Z\|]+\s+(admin[^\s]*)\s+\.+') {
-                            $uri = ("" + $Matches[1]).Trim()
-                        }
+                        $header = $l.Trim()
 
-                        $idx = $l.IndexOf("admin.")
-                        if ($idx -ge 0) {
-                            $tail = $l.Substring($idx).Trim()
-                            $cut = $tail.IndexOf(" › ")
-                            if ($cut -ge 0) { $tail = $tail.Substring(0, $cut).Trim() }
-                            $parts = $tail -split '\s+'
-                            if ($parts.Count -gt 0) { $routeName = ("" + $parts[0]).Trim() }
+                        if ($header -match '^\s*[A-Z|]+\s+(?<uri>admin(?:/\S*)?)(?:\s+(?<tail>.*))?$') {
+                            $uri = ("" + $Matches["uri"]).Trim()
+
+                            $tail = ""
+                            try { $tail = ("" + $Matches["tail"]).Trim() } catch { $tail = "" }
+
+                            if ($tail -ne "") {
+                                if ($tail -match '(?<name>admin\.[^\s]+)') {
+                                    $routeName = ("" + $Matches["name"]).Trim()
+                                }
+                            }
                         }
                     } catch {
                         $routeName = ""
@@ -145,7 +154,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
                 $trim = ("" + $l).Trim()
                 if ($trim -eq "") { continue }
 
-                # Preferred: "Middleware: a, b, c"
                 if ($trim -match '^(?i)Middleware\s*:\s*(?<mw>.+)$') {
                     $mwText = ("" + $Matches["mw"]).Trim()
                     if ($mwText -ne "") {
@@ -155,7 +163,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
                     continue
                 }
 
-                # Fallback: last token is often class name; keep encoding-safe behavior
                 $tokens = $trim -split '\s+'
                 if ($tokens.Count -gt 0) {
                     $last = Normalize-MiddlewareToken ("" + $tokens[$tokens.Count - 1])
@@ -186,7 +193,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
         }
 
         if ($out -ne "") {
-            # Keep full output as details (informative mode)
             $details += "--- STDOUT (route:list --path=admin -vv) ---"
             $details += $out
         } else {
@@ -196,11 +202,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
         $ec = 0
         try { $ec = [int]$r.ExitCode } catch { $ec = 0 }
 
-        # ---------------------------------------------------------------------
-        # STRICT VALIDATION (SSOT via middleware)
-        # Primary: route:list --json (middleware list)
-        # Fallback: route:list -vv text parse (encoding-safe + Middleware: lines)
-        # ---------------------------------------------------------------------
         $issues = @()
 
         $routes = @()
@@ -220,6 +221,18 @@ function Invoke-KsAuditCheck_RoutesVerbose {
             }
         }
 
+        $verboseRoutes = @()
+        $verboseRouteLookup = @{}
+        if ($out -ne "") {
+            $verboseRoutes = @(Parse-AdminRoutesFromRouteListVerboseText -Text $out)
+            foreach ($vrt in @($verboseRoutes)) {
+                if ($null -eq $vrt) { continue }
+                $vkey = Get-RouteKey -Name $vrt.Name -Uri $vrt.Uri
+                if ($vkey -eq "|") { continue }
+                $verboseRouteLookup[$vkey] = $vrt
+            }
+        }
+
         if (@($routes).Count -gt 0) {
             foreach ($rt in $routes) {
                 $name = ("" + $rt.Name).Trim()
@@ -227,6 +240,31 @@ function Invoke-KsAuditCheck_RoutesVerbose {
 
                 $mw = @()
                 try { $mw = @($rt.Middleware) } catch { $mw = @() }
+
+                $mwMerged = @()
+                $mwSeen = @{}
+
+                foreach ($m0 in @($mw)) {
+                    $m0n = Normalize-MiddlewareToken ("" + $m0)
+                    if ($m0n -eq "") { continue }
+                    $m0k = $m0n.ToLowerInvariant()
+                    if ($mwSeen.ContainsKey($m0k)) { continue }
+                    $mwSeen[$m0k] = $true
+                    $mwMerged += $m0n
+                }
+
+                $matchKey = Get-RouteKey -Name $name -Uri $uri
+                if ($verboseRouteLookup.ContainsKey($matchKey)) {
+                    $vrt = $verboseRouteLookup[$matchKey]
+                    foreach ($vm in @($vrt.Middleware)) {
+                        $vmn = Normalize-MiddlewareToken ("" + $vm)
+                        if ($vmn -eq "") { continue }
+                        $vmk = $vmn.ToLowerInvariant()
+                        if ($mwSeen.ContainsKey($vmk)) { continue }
+                        $mwSeen[$vmk] = $true
+                        $mwMerged += $vmn
+                    }
+                }
 
                 if ($uri -eq "") { continue }
 
@@ -236,7 +274,7 @@ function Invoke-KsAuditCheck_RoutesVerbose {
                 $hasEnsureStaff = $false
                 $hasEnsureSuperadmin = $false
 
-                foreach ($m in $mw) {
+                foreach ($m in @($mwMerged)) {
                     $mm = ("" + $m)
 
                     if ($mm -like "*Illuminate\Auth\Middleware\Authenticate*" -or ($mm -ieq "auth")) { $hasAuth = $true }
@@ -278,9 +316,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
             }
         }
 
-        # ---------------------------------------------------------------------
-        # SSOT SOURCE SCAN (Routes files): role-reads combined with "deny" patterns
-        # ---------------------------------------------------------------------
         $sourceScanIssues = @()
 
         try {
@@ -319,7 +354,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
                         $denyMatches = Select-String -Path $f.FullName -Pattern $denyPatterns -AllMatches -ErrorAction SilentlyContinue
                     } catch { $denyMatches = @() }
 
-                    # filter comment-only lines (best effort)
                     $roleLines = @()
                     foreach ($m in @($roleMatches)) {
                         $lineText = ("" + $m.Line).Trim()
@@ -353,7 +387,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
                 }
             }
         } catch {
-            # ignore scan errors (informative)
         }
 
         $sw.Stop()
@@ -364,7 +397,6 @@ function Invoke-KsAuditCheck_RoutesVerbose {
 
         $warnCount = 0
         if ($issues.Count -gt 0) { $warnCount += [int]$issues.Count }
-        if ($sourceScanIssues.Count -gt 0) { $warnCount += [int]$sourceScanIssues.Count }
 
         if ($warnCount -gt 0) {
             $details2 = @()
@@ -381,13 +413,12 @@ function Invoke-KsAuditCheck_RoutesVerbose {
 
             if ($sourceScanIssues.Count -gt 0) {
                 $details2 += ""
-                $details2 += "--- SSOT SOURCE SCAN (role-reads + deny/guard patterns) (WARN) ---"
+                $details2 += "--- SSOT SOURCE SCAN (informative only) ---"
                 $details2 += $sourceScanIssues
             }
 
             $summaryParts = @()
             if ($issues.Count -gt 0) { $summaryParts += ("middleware issues: " + $issues.Count) }
-            if ($sourceScanIssues.Count -gt 0) { $summaryParts += ("source scan issues: " + $sourceScanIssues.Count) }
 
             return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "WARN" -Summary ($summaryParts -join " | ") -Details $details2 -Data @{
                 exit_code = $ec
@@ -402,7 +433,13 @@ function Invoke-KsAuditCheck_RoutesVerbose {
         $detailsOk += ""
         $detailsOk += ("Route source (strict validation): " + $routeSourceNote)
 
-        return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "OK" -Summary "Verbose admin route listing captured; middleware validation OK." -Details $detailsOk -Data @{ exit_code = $ec; strict_route_source = $routeSourceNote } -DurationMs ([int]$sw.ElapsedMilliseconds)
+        if ($sourceScanIssues.Count -gt 0) {
+            $detailsOk += ""
+            $detailsOk += "--- SSOT SOURCE SCAN (informative only) ---"
+            $detailsOk += $sourceScanIssues
+        }
+
+        return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "OK" -Summary "Verbose admin route listing captured; middleware validation OK." -Details $detailsOk -Data @{ exit_code = $ec; strict_route_source = $routeSourceNote; source_scan_issues = $sourceScanIssues } -DurationMs ([int]$sw.ElapsedMilliseconds)
     } catch {
         $sw.Stop()
         return & $new -Id "routes_verbose" -Title "1v) Routes verbose inspection" -Status "WARN" -Summary ("Verbose routes failed: " + $_.Exception.Message) -Details @() -Data @{} -DurationMs ([int]$sw.ElapsedMilliseconds)

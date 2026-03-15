@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-popups.ps1
 # Purpose: Popup/viewer helper functions for ks-admin-audit-ui
 # Created: 14-03-2026 02:31 (Europe/Berlin)
-# Changed: 14-03-2026 03:55 (Europe/Berlin)
-# Version: 0.2
+# Changed: 15-03-2026 13:40 (Europe/Berlin)
+# Version: 0.4
 # =============================================================================
 
 function Show-AuditTextPopup([string]$Title, [string]$Body) {
@@ -12,18 +12,55 @@ function Show-AuditTextPopup([string]$Title, [string]$Body) {
 
     $popup = New-Object System.Windows.Forms.Form
     $popup.Text = $Title
-    $popup.Width = 1040
-    $popup.Height = 760
+    $popup.Width = 1080
+    $popup.Height = 780
     $popup.StartPosition = "CenterParent"
     $popup.MinimumSize = New-Object System.Drawing.Size(760, 520)
 
     $layout = New-Object System.Windows.Forms.TableLayoutPanel
     $layout.Dock = "Fill"
     $layout.ColumnCount = 1
-    $layout.RowCount = 2
+    $layout.RowCount = 3
+    $layout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 60)))
     $layout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
     $layout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 44)))
     $popup.Controls.Add($layout)
+
+    $toolbar = New-Object System.Windows.Forms.TableLayoutPanel
+    $toolbar.Dock = "Fill"
+    $toolbar.ColumnCount = 4
+    $toolbar.RowCount = 2
+    $toolbar.Padding = New-Object System.Windows.Forms.Padding(10, 8, 10, 4)
+    $toolbar.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+    $toolbar.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 110)))
+    $toolbar.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 80)))
+    $toolbar.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 150)))
+    $layout.Controls.Add($toolbar, 0, 0)
+
+    $lblSearch = New-Object System.Windows.Forms.Label
+    $lblSearch.AutoSize = $true
+    $lblSearch.Text = "Filter"
+    $toolbar.Controls.Add($lblSearch, 0, 0)
+
+    $txtSearch = New-Object System.Windows.Forms.TextBox
+    $txtSearch.Dock = "Fill"
+    $toolbar.Controls.Add($txtSearch, 0, 1)
+
+    $chkIgnoreCase = New-Object System.Windows.Forms.CheckBox
+    $chkIgnoreCase.Text = "Ignore Case"
+    $chkIgnoreCase.Checked = $true
+    $chkIgnoreCase.Dock = "Fill"
+    $toolbar.Controls.Add($chkIgnoreCase, 1, 1)
+
+    $chkRegex = New-Object System.Windows.Forms.CheckBox
+    $chkRegex.Text = "Regex"
+    $chkRegex.Dock = "Fill"
+    $toolbar.Controls.Add($chkRegex, 2, 1)
+
+    $lblFilterInfo = New-Object System.Windows.Forms.Label
+    $lblFilterInfo.Dock = "Fill"
+    $lblFilterInfo.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+    $toolbar.Controls.Add($lblFilterInfo, 3, 1)
 
     $viewer = New-Object System.Windows.Forms.RichTextBox
     $viewer.Dock = "Fill"
@@ -31,12 +68,13 @@ function Show-AuditTextPopup([string]$Title, [string]$Body) {
     $viewer.WordWrap = $false
     $viewer.ScrollBars = "Both"
     $viewer.Font = New-Object System.Drawing.Font("Consolas", 9)
-    $viewer.Text = (Add-TopPaddingLine (ConvertTo-NormalizedText $Body))
-    $layout.Controls.Add($viewer, 0, 0)
+    $fullText = Add-TopPaddingLine (ConvertTo-NormalizedText $Body)
+    $viewer.Text = $fullText
+    $layout.Controls.Add($viewer, 0, 1)
 
     $buttonPanel = New-Object System.Windows.Forms.Panel
     $buttonPanel.Dock = "Fill"
-    $layout.Controls.Add($buttonPanel, 0, 1)
+    $layout.Controls.Add($buttonPanel, 0, 2)
 
     $btnClosePopup = New-Object System.Windows.Forms.Button
     $btnClosePopup.Text = "Close"
@@ -66,6 +104,59 @@ function Show-AuditTextPopup([string]$Title, [string]$Body) {
     })
     $btnClosePopup.Add_Click({ $popup.Close() })
 
+    $applyPopupFilter = {
+        $current = $fullText
+        $query = ""
+        try { $query = ("" + $txtSearch.Text).Trim() } catch { $query = "" }
+
+        if ($query -eq "") {
+            $viewer.Text = $current
+            $lblFilterInfo.Text = ""
+            return
+        }
+
+        $ignoreCase = $true
+        try { $ignoreCase = [bool]$chkIgnoreCase.Checked } catch { $ignoreCase = $true }
+        $useRegex = $false
+        try { $useRegex = [bool]$chkRegex.Checked } catch { $useRegex = $false }
+
+        if ($useRegex -and $query.Contains(",")) {
+            $query = ((@($query -split "\s*,\s*" | Where-Object { ("" + $_).Trim() -ne "" })) -join "|")
+        }
+
+        $matchCount = 0
+        if ($useRegex) {
+            $opts = [System.Text.RegularExpressions.RegexOptions]::None
+            if ($ignoreCase) { $opts = $opts -bor [System.Text.RegularExpressions.RegexOptions]::IgnoreCase }
+            try {
+                $rx = [System.Text.RegularExpressions.Regex]::new($query, $opts)
+                $matchCount = [int]$rx.Matches($current).Count
+            } catch {
+                $lblFilterInfo.Text = "Ungueltiger Regex"
+                $viewer.Text = $current
+                return
+            }
+        } else {
+            $comparison = [System.StringComparison]::Ordinal
+            if ($ignoreCase) { $comparison = [System.StringComparison]::OrdinalIgnoreCase }
+            $offset = 0
+            while ($true) {
+                $pos = $current.IndexOf($query, $offset, $comparison)
+                if ($pos -lt 0) { break }
+                $matchCount++
+                $offset = $pos + [Math]::Max(1, $query.Length)
+                if ($offset -ge $current.Length) { break }
+            }
+        }
+
+        $viewer.Text = $current
+        $lblFilterInfo.Text = ("Treffer: " + $matchCount)
+    }
+
+    $txtSearch.Add_TextChanged($applyPopupFilter)
+    $chkIgnoreCase.Add_CheckedChanged($applyPopupFilter)
+    $chkRegex.Add_CheckedChanged($applyPopupFilter)
+
     [void]$popup.ShowDialog($form)
 }
 
@@ -74,10 +165,57 @@ function Sync-OutputPopupButtons {
     $hasDetailOutput = $false
 
     try { $hasAnyOutput = (("" + $script:AuditOutputRaw).Trim() -ne "") } catch { $hasAnyOutput = $false }
-    try { $hasDetailOutput = (("" + $script:AuditOutputViewRaw).Trim() -ne "") } catch { $hasDetailOutput = $false }
+    try { $hasDetailOutput = ((Get-AuditErrorPopupBody ("" + $script:AuditOutputViewRaw)).Trim() -ne "") } catch { $hasDetailOutput = $false }
 
     try { if ($btnOpenDetails) { $btnOpenDetails.Enabled = $hasDetailOutput } } catch { }
     try { if ($btnShowFullOutput) { $btnShowFullOutput.Enabled = $hasAnyOutput } } catch { }
+}
+
+function Get-AuditErrorPopupBody([string]$Body) {
+    $raw = ""
+    try { $raw = "" + $Body } catch { $raw = "" }
+    if ($raw.Trim() -eq "") { return "" }
+
+    $result = New-Object System.Collections.Generic.List[string]
+    $currentBlock = New-Object System.Collections.Generic.List[string]
+    $keepBlock = $false
+
+    foreach ($line in @($raw -split "`r`n")) {
+        if ($line -match '^\[(OK|WARN|SKIP|FAIL|CRITICAL)\]\s*(.*)$') {
+            if ($keepBlock -and $currentBlock.Count -gt 0) {
+                foreach ($entry in @($currentBlock)) {
+                    $result.Add($entry) | Out-Null
+                }
+                if ($result.Count -gt 0 -and $result[$result.Count - 1] -ne "") {
+                    $result.Add("") | Out-Null
+                }
+            }
+
+            $currentBlock = New-Object System.Collections.Generic.List[string]
+            $keepBlock = ($matches[1] -in @('FAIL','CRITICAL'))
+
+            if ($keepBlock) {
+                $headerText = ("" + $matches[2]).Trim()
+                if ($headerText -ne "") {
+                    $currentBlock.Add($headerText) | Out-Null
+                }
+            }
+        } elseif ($keepBlock) {
+            $currentBlock.Add($line) | Out-Null
+        }
+    }
+
+    if ($keepBlock -and $currentBlock.Count -gt 0) {
+        foreach ($entry in @($currentBlock)) {
+            $result.Add($entry) | Out-Null
+        }
+    }
+
+    while ($result.Count -gt 0 -and ("" + $result[$result.Count - 1]).Trim() -eq "") {
+        $result.RemoveAt($result.Count - 1)
+    }
+
+    return (($result.ToArray()) -join "`r`n")
 }
 
 function Open-AuditDetailPopup {
@@ -86,9 +224,7 @@ function Open-AuditDetailPopup {
 
     try { $title = ("" + $lblDetailTitle.Text).Trim() } catch { $title = "Audit Details" }
     try { $body = "" + $script:AuditOutputViewRaw } catch { $body = "" }
-    if ($body.Trim() -eq "") {
-        try { $body = "" + $script:AuditOutputRaw } catch { $body = "" }
-    }
+    $body = Get-AuditErrorPopupBody $body
     if ($body.Trim() -eq "") { return }
 
     Show-AuditTextPopup -Title $title -Body $body

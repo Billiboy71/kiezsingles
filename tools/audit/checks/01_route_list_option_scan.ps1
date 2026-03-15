@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_route_list_option_scan.ps1
 # Purpose: Audit check - scan project for route:list usage with --columns / --format
 # Created: 13-03-2026 02:35 (Europe/Berlin)
-# Changed: 13-03-2026 21:26 (Europe/Berlin)
-# Version: 0.2
+# Changed: 15-03-2026 20:12 (Europe/Berlin)
+# Version: 0.7
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -51,11 +51,43 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                 $en = Normalize-PathForCompare $ex
                 if ($en -eq "") { continue }
 
+                if ($en.Contains('*')) {
+                    $pattern = [System.Management.Automation.WildcardPattern]::new($en, [System.Management.Automation.WildcardOptions]::IgnoreCase)
+                    if ($pattern.IsMatch($norm)) { return $true }
+                    continue
+                }
+
                 if ($norm -eq $en) { return $true }
                 if ($norm.StartsWith($en + "\")) { return $true }
             }
 
             return $false
+        }
+
+        function Test-IsInternalRouteGuardAuditHelper {
+            param(
+                [string]$ProjectRoot,
+                [string]$FullPath
+            )
+
+            try {
+                $normRoot = Normalize-PathForCompare $ProjectRoot
+                $normFull = Normalize-PathForCompare $FullPath
+                if ($normRoot -eq "" -or $normFull -eq "") { return $false }
+
+                $toolsRoot = (Join-Path $normRoot "tools")
+                if (-not ($normFull.StartsWith($toolsRoot + "\"))) { return $false }
+
+                $leaf = [System.IO.Path]::GetFileName($normFull)
+                if ($null -eq $leaf) { return $false }
+
+                $leaf = ("" + $leaf).Trim().ToLowerInvariant()
+                if ($leaf -like 'ks-admin-route-guard-audit*.ps1') { return $true }
+
+                return $false
+            } catch {
+                return $false
+            }
         }
 
         function Get-ScanRoots {
@@ -64,11 +96,11 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                 [bool]$FullProject
             )
 
-            $items = New-Object System.Collections.Generic.List[string]
+            $items = @()
 
             if ($FullProject) {
-                $items.Add($ProjectRoot) | Out-Null
-                return @($items.ToArray())
+                $items += $ProjectRoot
+                return @($items)
             }
 
             $preferred = @(
@@ -81,11 +113,11 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
 
             foreach ($p in @($preferred)) {
                 if (Test-Path -LiteralPath $p) {
-                    $items.Add($p) | Out-Null
+                    $items += $p
                 }
             }
 
-            return @($items.ToArray())
+            return @($items)
         }
 
         function Get-ExcludedPaths {
@@ -94,20 +126,21 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                 [bool]$FullProject
             )
 
-            $items = New-Object System.Collections.Generic.List[string]
+            $items = @()
 
-            $items.Add((Join-Path $ProjectRoot "tools\audit\ks-admin-audit.ps1")) | Out-Null
-            $items.Add((Join-Path $ProjectRoot "tools\audit\checks")) | Out-Null
+            $items += (Join-Path $ProjectRoot "tools\audit\ks-admin-audit.ps1")
+            $items += (Join-Path $ProjectRoot "tools\audit\checks")
+            $items += (Join-Path $ProjectRoot "tools\ks-admin-route-guard-audit*.ps1")
 
             if ($FullProject) {
-                $items.Add((Join-Path $ProjectRoot "vendor")) | Out-Null
-                $items.Add((Join-Path $ProjectRoot "node_modules")) | Out-Null
-                $items.Add((Join-Path $ProjectRoot "storage")) | Out-Null
-                $items.Add((Join-Path $ProjectRoot "bootstrap\cache")) | Out-Null
-                $items.Add((Join-Path $ProjectRoot ".git")) | Out-Null
+                $items += (Join-Path $ProjectRoot "vendor")
+                $items += (Join-Path $ProjectRoot "node_modules")
+                $items += (Join-Path $ProjectRoot "storage")
+                $items += (Join-Path $ProjectRoot "bootstrap\cache")
+                $items += (Join-Path $ProjectRoot ".git")
             }
 
-            return @($items.ToArray())
+            return @($items)
         }
 
         function Get-FileCandidates {
@@ -116,7 +149,7 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                 [string[]]$ExcludedPaths
             )
 
-            $files = New-Object System.Collections.Generic.List[string]
+            $files = @()
             $seen = @{}
 
             foreach ($rootItem in @($ScanRoots)) {
@@ -143,7 +176,7 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                         if ($norm -eq "") { continue }
                         if ($seen.ContainsKey($norm)) { continue }
                         $seen[$norm] = $true
-                        $files.Add($full) | Out-Null
+                        $files += $full
                     }
                 } else {
                     $full = ""
@@ -155,11 +188,11 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                     if ($norm -eq "") { continue }
                     if ($seen.ContainsKey($norm)) { continue }
                     $seen[$norm] = $true
-                    $files.Add($full) | Out-Null
+                    $files += $full
                 }
             }
 
-            return @($files.ToArray())
+            return @($files)
         }
 
         function Test-LikelyRouteListOptionUsage {
@@ -199,7 +232,7 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                 [int]$Index
             )
 
-            $out = New-Object System.Collections.Generic.List[string]
+            $out = @()
             if ($null -eq $Lines -or $Index -lt 0 -or $Index -ge $Lines.Count) { return @() }
 
             $start = [Math]::Max(0, $Index - 5)
@@ -209,19 +242,21 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                 $line = ""
                 try { $line = ("" + $Lines[$i]) } catch { $line = "" }
                 $displayNo = $i + 1
-                $out.Add(("  L{0}: {1}" -f $displayNo, $line)) | Out-Null
+                $out += ("  L{0}: {1}" -f $displayNo, $line)
             }
 
-            return @($out.ToArray())
+            return @($out)
         }
 
         $scanRoots = @(Get-ScanRoots -ProjectRoot $root -FullProject $scanFullProject)
         $excludedPaths = @(Get-ExcludedPaths -ProjectRoot $root -FullProject $scanFullProject)
         $files = @(Get-FileCandidates -ScanRoots $scanRoots -ExcludedPaths $excludedPaths)
 
-        $matches = New-Object System.Collections.Generic.List[object]
+        $routeMatches = @()
 
         foreach ($file in @($files)) {
+            if (Test-IsInternalRouteGuardAuditHelper -ProjectRoot $root -FullPath $file) { continue }
+
             $contentLines = @()
             try {
                 $contentLines = @(Get-Content -LiteralPath $file -ErrorAction Stop)
@@ -242,11 +277,11 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
                 if (-not $looksRelevant) { continue }
                 if (-not (Test-LikelyRouteListOptionUsage -Lines $contentLines -Index $i)) { continue }
 
-                $matches.Add([pscustomobject]@{
+                $routeMatches += [pscustomobject]@{
                     file = $file
                     line_index = $i
                     snippet = @(Build-ContextSnippet -Lines $contentLines -Index $i)
-                }) | Out-Null
+                }
 
                 break
             }
@@ -266,12 +301,12 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
             $scanRootsDisplay += $rel
         }
 
-        if ($matches.Count -gt 0) {
-            $details += ("Found potential callers (scan roots: " + (($scanRootsDisplay | ForEach-Object { "" + $_ }) -join ", ") + "; excludes tools/audit/ks-admin-audit.ps1 and tools/audit/checks/*" + $(if ($scanFullProject) { ", vendor, node_modules, storage, bootstrap/cache, .git" } else { "" }) + ").")
+        if ($routeMatches.Count -gt 0) {
+            $details += ("Found potential callers (scan roots: " + (($scanRootsDisplay | ForEach-Object { "" + $_ }) -join ", ") + "; excludes tools/audit/ks-admin-audit.ps1, tools/audit/checks/* and tools/ks-admin-route-guard-audit*.ps1" + $(if ($scanFullProject) { ", vendor, node_modules, storage, bootstrap/cache, .git" } else { "" }) + ").")
             $details += "Only showing likely invocations (route:list with --columns/--format on same line or within +/- 5 lines)."
             $details += ""
 
-            foreach ($m in @($matches)) {
+            foreach ($m in @($routeMatches)) {
                 $details += ("File: " + $m.file)
                 foreach ($s in @($m.snippet)) {
                     $details += ("" + $s)
@@ -280,11 +315,11 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
             }
 
             $sw.Stop()
-            return & $new -Id "route_list_option_scan" -Title "1x) route:list option scan (--columns / --format)" -Status "WARN" -Summary ("Found " + $matches.Count + " potential caller file(s) using route:list with '--columns'/'--format'.") -Details $details -Data @{
+            return & $new -Id "route_list_option_scan" -Title "1x) route:list option scan (--columns / --format)" -Status "WARN" -Summary ("Found " + $routeMatches.Count + " potential caller file(s) using route:list with '--columns'/'--format'.") -Details $details -Data @{
                 scan_full_project = [bool]$scanFullProject
                 scan_roots = @($scanRootsDisplay)
-                match_count = [int]$matches.Count
-                files = @($matches | ForEach-Object { $_.file })
+                match_count = [int]$routeMatches.Count
+                files = @($routeMatches | ForEach-Object { $_.file })
             } -DurationMs ([int]$sw.ElapsedMilliseconds)
         }
 

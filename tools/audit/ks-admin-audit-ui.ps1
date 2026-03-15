@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 14-03-2026 03:55 (Europe/Berlin)
-# Version: 8.0
+# Changed: 14-03-2026 19:00 (Europe/Berlin)
+# Version: 8.3
 # =============================================================================
 
 [CmdletBinding()]
@@ -116,12 +116,130 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$script:KsAuditUiScriptRoot = $PSScriptRoot
+$script:KsAuditGuiVersion = "2.0"
+
+function Get-GuiEnabledFlag {
+    $enabled = $true
+    if ($PSBoundParameters.ContainsKey('Gui')) {
+        $s = ("" + $Gui).Trim()
+        if ($s -eq "") {
+            $enabled = $true
+        } elseif ($s -match '^(?i:false|\$false|0|no|off|disable|disabled)$') {
+            $enabled = $false
+        } elseif ($s -match '^(?i:true|\$true|1|yes|on|enable|enabled)$') {
+            $enabled = $true
+        } else {
+            $enabled = $true
+        }
+    }
+    return $enabled
+}
+
+function Get-GuiRelaunchArgumentList {
+    $argsList = New-Object System.Collections.Generic.List[string]
+
+    foreach ($entry in $PSBoundParameters.GetEnumerator()) {
+        $name = "" + $entry.Key
+        $value = $entry.Value
+
+        if ($name -eq "Gui") { continue }
+        if ($name -eq "IgnoredArgs") { continue }
+
+        if ($value -is [System.Management.Automation.SwitchParameter]) {
+            if ([bool]$value.IsPresent) {
+                $argsList.Add(("-" + $name)) | Out-Null
+            }
+            continue
+        }
+
+        if ($null -eq $value) {
+            continue
+        }
+
+        if ($value -is [System.Array]) {
+            $items = @($value | ForEach-Object { "" + $_ } | Where-Object { ("" + $_).Trim() -ne "" })
+            if ($items.Count -gt 0) {
+                $argsList.Add(("-" + $name)) | Out-Null
+                foreach ($item in $items) {
+                    $argsList.Add($item) | Out-Null
+                }
+            }
+            continue
+        }
+
+        $argsList.Add(("-" + $name)) | Out-Null
+        $argsList.Add(("" + $value)) | Out-Null
+    }
+
+    $argsList.Add("-Gui") | Out-Null
+    $argsList.Add("true") | Out-Null
+
+    if ($IgnoredArgs -and $IgnoredArgs.Count -gt 0) {
+        foreach ($token in $IgnoredArgs) {
+            if (("" + $token).Trim() -ne "") {
+                $argsList.Add(("" + $token)) | Out-Null
+            }
+        }
+    }
+
+    return @($argsList.ToArray())
+}
+
+$GuiEnabled = Get-GuiEnabledFlag
+
+if ($GuiEnabled -and $env:KS_AUDIT_GUI_HIDDEN_LAUNCH -ne "1") {
+    try {
+        $launcherExe = Join-Path $PSHOME "powershell.exe"
+        if (-not (Test-Path $launcherExe)) {
+            $launcherExe = "powershell.exe"
+        }
+
+        $relaunchArgs = New-Object System.Collections.Generic.List[string]
+        $relaunchArgs.Add("-NoProfile") | Out-Null
+        $relaunchArgs.Add("-ExecutionPolicy") | Out-Null
+        $relaunchArgs.Add("Bypass") | Out-Null
+        $relaunchArgs.Add("-File") | Out-Null
+        $relaunchArgs.Add($PSCommandPath) | Out-Null
+
+        foreach ($arg in @(Get-GuiRelaunchArgumentList)) {
+            $relaunchArgs.Add(("" + $arg)) | Out-Null
+        }
+
+        $isWindowsPlatform = $false
+        try { $isWindowsPlatform = ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) } catch { $isWindowsPlatform = $false }
+
+        if ($isWindowsPlatform) {
+            $psi = [System.Diagnostics.ProcessStartInfo]::new()
+            $psi.FileName = $launcherExe
+            $psi.WorkingDirectory = (Get-Location).Path
+            $psi.UseShellExecute = $false
+            $psi.CreateNoWindow = $true
+            $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+            $psi.RedirectStandardOutput = $false
+            $psi.RedirectStandardError = $false
+            $psi.RedirectStandardInput = $false
+            $psi.EnvironmentVariables["KS_AUDIT_GUI_HIDDEN_LAUNCH"] = "1"
+            $psi.Arguments = (($relaunchArgs.ToArray() | ForEach-Object {
+                $t = "" + $_
+                if ($t -match '[\s"]') {
+                    '"' + (($t -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
+                } else {
+                    $t
+                }
+            }) -join " ")
+
+            [void][System.Diagnostics.Process]::Start($psi)
+            return
+        }
+    } catch {
+    }
+}
+
 # Ensure predictable UTF-8 output (console + child processes consuming stdout)
 try { chcp 65001 | Out-Null } catch { }
 try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
 try { [Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
-
-$script:KsAuditUiScriptRoot = $PSScriptRoot
 
 . (Join-Path $PSScriptRoot "ui\ks-admin-audit-ui-config.ps1")
 . (Join-Path $PSScriptRoot "ui\ks-admin-audit-ui-popups.ps1")
@@ -129,19 +247,79 @@ $script:KsAuditUiScriptRoot = $PSScriptRoot
 . (Join-Path $PSScriptRoot "ui\ks-admin-audit-ui-status.ps1")
 . (Join-Path $PSScriptRoot "ui\ks-admin-audit-ui-form.ps1")
 
-# Default behavior: ALWAYS open UI unless explicitly disabled (-Gui:false / -Gui:0 / -Gui:$false).
-$GuiEnabled = $true
-if ($PSBoundParameters.ContainsKey('Gui')) {
-    $s = ("" + $Gui).Trim()
-    if ($s -eq "") {
-        $GuiEnabled = $true
-    } elseif ($s -match '^(?i:false|\$false|0|no|off|disable|disabled)$') {
-        $GuiEnabled = $false
-    } elseif ($s -match '^(?i:true|\$true|1|yes|on|enable|enabled)$') {
-        $GuiEnabled = $true
-    } else {
-        # Unknown tokens (e.g. "System.String") -> treat as enabled to avoid hard crash.
-        $GuiEnabled = $true
+if (Get-Command Show-AuditGui -CommandType Function -ErrorAction SilentlyContinue) {
+    $script:KsAuditOriginalShowAuditGui = ${function:Show-AuditGui}
+
+    function Show-AuditGui {
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+
+        $titleTimer = New-Object System.Windows.Forms.Timer
+        $titleTimer.Interval = 150
+
+        $titleTimer.Add_Tick({
+            try {
+                $forms = [System.Windows.Forms.Application]::OpenForms
+                if ($null -eq $forms -or $forms.Count -le 0) { return }
+
+                $mainForm = $null
+                foreach ($form in $forms) {
+                    if ($form -is [System.Windows.Forms.Form]) {
+                        $mainForm = $form
+                        break
+                    }
+                }
+
+                if ($null -eq $mainForm) { return }
+
+                $targetTitle = "KiezSingles Admin Audit v$($script:KsAuditGuiVersion)"
+                if (("" + $mainForm.Text) -ne $targetTitle) {
+                    $mainForm.Text = $targetTitle
+                }
+
+                $versionLabel = $mainForm.Controls.Find("lblKsAuditGuiVersion", $true)
+                if ($null -eq $versionLabel -or $versionLabel.Count -le 0) {
+                    $dashboardGroup = $null
+                    foreach ($control in $mainForm.Controls) {
+                        if ($control -is [System.Windows.Forms.GroupBox] -and ("" + $control.Text).Trim() -eq "Audit Dashboard") {
+                            $dashboardGroup = $control
+                            break
+                        }
+                    }
+
+                    if ($null -ne $dashboardGroup) {
+                        $lblVersion = New-Object System.Windows.Forms.Label
+                        $lblVersion.Name = "lblKsAuditGuiVersion"
+                        $lblVersion.AutoSize = $true
+                        $lblVersion.Text = ("Version " + $script:KsAuditGuiVersion)
+                        $lblVersion.ForeColor = [System.Drawing.Color]::DimGray
+                        $lblVersion.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+                        $lblVersion.Location = New-Object System.Drawing.Point(([Math]::Max(12, $dashboardGroup.ClientSize.Width - 100)), 18)
+                        $dashboardGroup.Controls.Add($lblVersion)
+
+                        $dashboardGroup.Add_Resize({
+                            try {
+                                $found = $this.Controls.Find("lblKsAuditGuiVersion", $false)
+                                if ($found -and $found.Count -gt 0) {
+                                    $found[0].Location = New-Object System.Drawing.Point(([Math]::Max(12, $this.ClientSize.Width - 100)), 18)
+                                }
+                            } catch { }
+                        })
+                    }
+                }
+
+                $titleTimer.Stop()
+                $titleTimer.Dispose()
+            } catch {
+                try {
+                    $titleTimer.Stop()
+                    $titleTimer.Dispose()
+                } catch { }
+            }
+        })
+
+        $titleTimer.Start()
+        & $script:KsAuditOriginalShowAuditGui
     }
 }
 

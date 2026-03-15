@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-runner.ps1
 # Purpose: Runner/core bridge helpers for ks-admin-audit-ui
 # Created: 14-03-2026 03:09 (Europe/Berlin)
-# Changed: 14-03-2026 03:55 (Europe/Berlin)
-# Version: 0.2
+# Changed: 15-03-2026 01:50 (Europe/Berlin)
+# Version: 0.4
 # =============================================================================
 
 function ConvertTo-NormalizedText([string]$s) {
@@ -228,7 +228,7 @@ function Build-UiRunPlanNotice() {
     if ($chkRoleSmokeTest.Checked) { $selectedItems.Add("Role Smoke Test") | Out-Null }
     if ($chkSuperadminCount.Checked) { $selectedItems.Add("Governance: Superadmin Fail-Safe") | Out-Null }
     if ($chkSessionCsrfBaseline.Checked) { $selectedItems.Add("Session/CSRF Baseline") | Out-Null }
-    if ($chkSecurityProbe.Checked) { $selectedItems.Add("Security / Abuse Protection") | Out-Null }
+    if ($chkSecurityProbe.Checked) { $selectedItems.Add("Security Probe") | Out-Null }
     if ($chkSecurityCheckIpBan.Checked) { $selectedItems.Add("Security: IP Ban Probe") | Out-Null }
     if ($chkSecurityCheckRegister.Checked) { $selectedItems.Add("Security: Register Probe") | Out-Null }
     if ($chkRoutesVerbose.Checked) { $selectedItems.Add("Routes Verbose Inspection") | Out-Null }
@@ -361,6 +361,185 @@ function Get-UiArgs() {
     return @($argsList.ToArray())
 }
 
+function Convert-AuditStatusToken([string]$Token) {
+    $value = ""
+    try { $value = ("" + $Token).Trim().ToUpperInvariant() } catch { $value = "" }
+
+    switch ($value) {
+        "OK" { return "PASS" }
+        "PASS" { return "PASS" }
+        "WARN" { return "WARN" }
+        "FAIL" { return "FAIL" }
+        "CRITICAL" { return "FAIL" }
+        "SKIP" { return "SKIP" }
+        default { return "-" }
+    }
+}
+
+function Set-UiStatusLabelValue([string]$Key, [string]$Value) {
+    try {
+        if ($null -eq $statusLabels) { return }
+        if (-not $statusLabels.ContainsKey($Key)) { return }
+        $statusLabels[$Key].Text = (Convert-AuditStatusToken $Value)
+    } catch { }
+}
+
+function Get-AuditStatusFromPatterns([string]$Text, [string[]]$Patterns) {
+    $source = ""
+    try { $source = "" + $Text } catch { $source = "" }
+    if ($source -eq "") { return "" }
+
+    foreach ($pattern in @($Patterns)) {
+        if ($pattern -eq "") { continue }
+
+        $m = $null
+        try { $m = [System.Text.RegularExpressions.Regex]::Match($source, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Multiline) } catch { $m = $null }
+        if ($null -eq $m) { continue }
+        if (-not $m.Success) { continue }
+
+        try {
+            $statusValue = ("" + $m.Groups["status"].Value).Trim()
+            if ($statusValue -ne "") { return $statusValue }
+        } catch { }
+    }
+
+    return ""
+}
+
+function Update-UiStatusesFromAuditOutput([string]$OutputText) {
+    $source = ""
+    try { $source = ConvertTo-NormalizedText $OutputText } catch { $source = "" }
+
+    if ($source -eq "") {
+        foreach ($key in @(
+            'core_routes',
+            'core_route_option_scan',
+            'core_security_baseline',
+            'http_probe',
+            'tail_log',
+            'routes_verbose',
+            'route_list_findstr_admin',
+            'superadmin_count',
+            'log_snapshot',
+            'login_csrf_probe',
+            'role_smoke_test',
+            'session_csrf_baseline',
+            'security_probe',
+            'security_check_ip_ban',
+            'security_check_register'
+        )) {
+            Set-UiStatusLabelValue -Key $key -Value "SKIP"
+        }
+        return
+    }
+
+    $patternMap = @{
+        core_routes = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+Routes\s*/\s*collisions\s*/\s*admin\s*scope\b'
+        )
+        core_route_option_scan = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+route:list option scan\b'
+        )
+        core_security_baseline = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+Security\s*/\s*Abuse\s*Protection\b'
+        )
+        http_probe = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+HTTP-Probe\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*HTTP exposure probe\b'
+        )
+        tail_log = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Tail Laravel Log\b'
+        )
+        routes_verbose = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+Routes Verbose Inspection\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Routes verbose inspection\b'
+        )
+        route_list_findstr_admin = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+Route List Filter \(admin-only\)\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Route list filter\b'
+        )
+        superadmin_count = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Superadmin count\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Governance: Superadmin Fail-Safe\b'
+        )
+        log_snapshot = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Laravel Log Snapshot\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Log snapshot\b'
+        )
+        login_csrf_probe = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+Login CSRF Probe\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Login CSRF\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Login/CSRF probe\b'
+        )
+        role_smoke_test = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+Role Smoke Test\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Role access smoke test\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Role smoke test\b'
+        )
+        session_csrf_baseline = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Test\s+\d+\s+-\s+Session/CSRF Baseline\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Session/CSRF baseline\b'
+        )
+        security_probe = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Security Login Rate Limit\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Security IP Ban\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Security Registration Abuse\b'
+        )
+        security_check_ip_ban = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Security IP Ban\b'
+        )
+        security_check_register = @(
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\]\s+Security Registration Abuse\b',
+            '^\[(?<status>OK|PASS|WARN|FAIL|CRITICAL|SKIP)\].*Register Probe\b'
+        )
+    }
+
+    foreach ($entry in $patternMap.GetEnumerator()) {
+        $key = "" + $entry.Key
+        $statusValue = Get-AuditStatusFromPatterns -Text $source -Patterns @($entry.Value)
+        if ($statusValue -ne "") {
+            Set-UiStatusLabelValue -Key $key -Value $statusValue
+        }
+    }
+
+    $controlFallbacks = @(
+        @{ Key = 'core_routes'; Enabled = $true },
+        @{ Key = 'core_route_option_scan'; Enabled = $true },
+        @{ Key = 'core_security_baseline'; Enabled = $true },
+        @{ Key = 'http_probe'; Enabled = [bool]$chkHttpProbe.Checked },
+        @{ Key = 'tail_log'; Enabled = [bool]$chkTailLog.Checked },
+        @{ Key = 'routes_verbose'; Enabled = [bool]$chkRoutesVerbose.Checked },
+        @{ Key = 'route_list_findstr_admin'; Enabled = [bool]$chkRouteListFindstrAdmin.Checked },
+        @{ Key = 'superadmin_count'; Enabled = [bool]$chkSuperadminCount.Checked },
+        @{ Key = 'log_snapshot'; Enabled = (((("" + $cmbLaravelLogHistory.Text).Trim().ToUpper()) -ne "OFF")) },
+        @{ Key = 'login_csrf_probe'; Enabled = [bool]$chkLoginCsrfProbe.Checked },
+        @{ Key = 'role_smoke_test'; Enabled = [bool]$chkRoleSmokeTest.Checked },
+        @{ Key = 'session_csrf_baseline'; Enabled = [bool]$chkSessionCsrfBaseline.Checked },
+        @{ Key = 'security_probe'; Enabled = [bool]$chkSecurityProbe.Checked },
+        @{ Key = 'security_check_ip_ban'; Enabled = [bool]$chkSecurityCheckIpBan.Checked },
+        @{ Key = 'security_check_register'; Enabled = [bool]$chkSecurityCheckRegister.Checked }
+    )
+
+    foreach ($item in @($controlFallbacks)) {
+        $key = "" + $item.Key
+        $enabled = [bool]$item.Enabled
+
+        if ($null -eq $statusLabels) { continue }
+        if (-not $statusLabels.ContainsKey($key)) { continue }
+
+        $current = ""
+        try { $current = ("" + $statusLabels[$key].Text).Trim().ToUpperInvariant() } catch { $current = "" }
+
+        if ($current -eq "" -or $current -eq "-") {
+            if ($enabled) {
+                Set-UiStatusLabelValue -Key $key -Value "SKIP"
+            } else {
+                Set-UiStatusLabelValue -Key $key -Value "SKIP"
+            }
+        }
+    }
+}
+
 function Invoke-UiAuditRun {
     $btnRun.Enabled = $false
     $btnCopy.Enabled = $false
@@ -455,6 +634,7 @@ function Invoke-UiAuditRun {
         $script:AuditOutputRaw = $combined
         $script:AuditOutputViewRaw = $combined
         Parse-AuditOutput
+        Update-UiStatusesFromAuditOutput -OutputText $combined
         Set-OutputFilterView
 
         $btnCopy.Enabled = $true
@@ -475,6 +655,7 @@ function Invoke-UiAuditRun {
         $script:AuditOutputRaw = $combinedErr
         $script:AuditOutputViewRaw = $combinedErr
         Parse-AuditOutput
+        Update-UiStatusesFromAuditOutput -OutputText $combinedErr
         Set-OutputFilterView
 
         $lblStatus.Text = "Fehler"
