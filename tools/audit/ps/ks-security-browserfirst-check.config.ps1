@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.config.ps1
 # Purpose: Central config for browser-first Security Login/Ban/Abuse audit checks
 # Created: 08-03-2026 00:12 (Europe/Berlin)
-# Changed: 11-03-2026 00:10 (Europe/Berlin)
-# Version: 1.6
+# Changed: 16-03-2026 17:10 (Europe/Berlin)
+# Version: 1.7
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -19,12 +19,12 @@ $script:LockoutAttempts       = 7
 # -----------------------------------------------------------------------------
 # MODE
 # -----------------------------------------------------------------------------
-# Reiner Abuse-/Korrelations-Testlauf
-$script:CheckIpBan            = $false
-$script:CheckIdentityBan      = $false
-$script:CheckDeviceBan        = $false
+# Ban / Lockout Testlauf
+$script:CheckIpBan            = $true
+$script:CheckIdentityBan      = $true
+$script:CheckDeviceBan        = $true
 
-$script:CheckAbuseSimulation           = $true
+$script:CheckAbuseSimulation           = $false
 $script:AbuseSimulationAttemptsPerStep = 6
 $script:AbuseSimulationSkipSupportFlow = $true
 
@@ -104,7 +104,7 @@ $script:AbuseIpPoolCount     = 50
 # -----------------------------------------------------------------------------
 # ABUSE ADMIN VALIDATION
 # -----------------------------------------------------------------------------
-$script:AbuseAdminValidationEnabled          = $true
+$script:AbuseAdminValidationEnabled          = $false
 $script:AbuseAdminValidationExpectedSteps    = 115
 $script:AbuseAdminValidationTopDevicesLimit  = 10
 $script:AbuseAdminValidationTopEmailsLimit   = 10
