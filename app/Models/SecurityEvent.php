@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Models\SecurityEvent.php
 // Purpose: Eloquent model for persisted security incidents.
-// Changed: 17-03-2026 01:23 (Europe/Berlin)
-// Version: 0.1
+// Changed: 17-03-2026 12:26 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Models;
@@ -20,10 +20,12 @@ class SecurityEvent extends Model
         'email',
         'device_hash',
         'meta',
+        'reasons',
     ];
 
     protected $casts = [
         'user_id' => 'integer',
         'meta' => 'array',
+        'reasons' => 'array',
     ];
 }

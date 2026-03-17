@@ -2,12 +2,19 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 17-03-2026 10:32 (Europe/Berlin)
-# Version: 6.5
+# Changed: 17-03-2026 12:04 (Europe/Berlin)
+# Version: 6.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+function Global:Write-Section([string]$t){
+    Write-Host ""
+    Write-Host ("="*70)
+    Write-Host $t
+    Write-Host ("="*70)
+}
 
 # -----------------------------------------------------------------------------
 # MODULES
@@ -659,13 +666,6 @@ $script:ForcedClientIp = ""
 
 # Resolved lockout IP (either pinned or auto-selected)
 $script:ResolvedLockoutTestIp = ""
-
-function Write-Section([string]$t){
-    Write-Host ""
-    Write-Host ("="*70)
-    Write-Host $t
-    Write-Host ("="*70)
-}
 
 function Invoke-AccountEnumerationProtectionCheck {
     $checkName = "AccountEnumerationProtection"

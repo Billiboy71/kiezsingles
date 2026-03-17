@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedEmail.php
 // Purpose: Block requests for active email bans and log blocking events
-// Changed: 09-03-2026 01:34 (Europe/Berlin)
-// Version: 0.7
+// Changed: 17-03-2026 12:26 (Europe/Berlin)
+// Version: 0.9
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -41,24 +41,24 @@ class EnsureNotBannedEmail
         }
 
         $ip = (string) ($request->ip() ?? '');
+        $deviceHash = $this->deviceHashService->forRequest($request);
         $banId = isset($banRow['id']) && $banRow['id'] !== null ? (int) $banRow['id'] : 0;
         $caseKey = 'email_ban:'.$banId.':email:'.$email;
-        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
-            caseKey: $caseKey,
-            securityEventType: 'email_blocked',
-            sourceContext: 'security_login_block',
-            contactEmail: $email,
+        $incidentKey = $this->buildSecurityIncidentKey(
+            path: $request->path(),
+            ip: $ip !== '' ? $ip : null,
+            email: $email,
+            deviceHash: $deviceHash,
         );
-        $supportRef = (string) $supportAccess['support_reference'];
-        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $meta = [
-            'support_ref' => $supportRef,
+            'reason' => 'email_ban',
+            'incident_key' => $incidentKey,
             'path' => $request->path(),
         ];
 
         if (isset($banRow['reason']) && $banRow['reason'] !== null) {
-            $meta['reason'] = (string) $banRow['reason'];
+            $meta['ban_reason'] = (string) $banRow['reason'];
         }
 
         if (array_key_exists('banned_until', $banRow)) {
@@ -69,9 +69,19 @@ class EnsureNotBannedEmail
             type: 'email_blocked',
             ip: $ip !== '' ? $ip : null,
             email: $email,
-            deviceHash: $this->deviceHashService->forRequest($request),
+            deviceHash: $deviceHash,
             meta: $meta,
         );
+
+        $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+            caseKey: $caseKey,
+            securityEventType: 'email_blocked',
+            sourceContext: 'security_login_block',
+            contactEmail: $email,
+            preferredSupportReference: $supportRef,
+        );
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         if ($request->expectsJson()) {
             return response()->json(['message' => 'Forbidden'], 403);
@@ -149,6 +159,44 @@ class EnsureNotBannedEmail
         $value = mb_strtolower(trim($email));
 
         return $value !== '' ? $value : null;
+    }
+
+    private function resolveLatestSecurityReference(string $incidentKey): string
+    {
+        $query = \App\Models\SecurityEvent::query()
+            ->where('meta->incident_key', $incidentKey)
+            ->latest('id');
+
+        $event = $query->first(['reference']);
+
+        if ($event === null || !is_string($event->reference) || trim($event->reference) === '') {
+            abort(403);
+        }
+
+        return trim($event->reference);
+    }
+
+    private function buildSecurityIncidentKey(
+        string $path,
+        ?string $ip,
+        ?string $email,
+        ?string $deviceHash,
+    ): string {
+        $normalizedPath = trim($path, '/');
+        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
+        $normalizedIp = $ip !== null ? trim($ip) : '';
+        $normalizedEmail = $email !== null ? trim($email) : '';
+        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
+
+        if ($normalizedDeviceHash !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
+        }
+
+        if ($normalizedEmail !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
+        }
+
+        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 
 }

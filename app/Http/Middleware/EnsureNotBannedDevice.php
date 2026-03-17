@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedDevice.php
 // Purpose: Block requests for active device bans and log blocking events
-// Changed: 12-03-2026 03:11 (Europe/Berlin)
-// Version: 1.2
+// Changed: 17-03-2026 12:26 (Europe/Berlin)
+// Version: 1.4
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -45,17 +45,17 @@ class EnsureNotBannedDevice
 
         $banId = isset($banRow['id']) && $banRow['id'] !== null ? (int) $banRow['id'] : 0;
         $caseKey = 'device_ban:'.$banId.':device:'.$deviceHash;
-        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
-            caseKey: $caseKey,
-            securityEventType: 'device_blocked',
-            sourceContext: 'security_login_block',
-            contactEmail: $contactEmail,
+
+        $incidentKey = $this->buildSecurityIncidentKey(
+            path: $request->path(),
+            ip: $ip !== '' ? $ip : null,
+            email: $contactEmail,
+            deviceHash: $deviceHash,
         );
-        $supportRef = (string) $supportAccess['support_reference'];
-        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $meta = [
-            'support_ref' => $supportRef,
+            'reason' => 'device_ban',
+            'incident_key' => $incidentKey,
             'path' => $request->path(),
             'device_hash' => $deviceHash,
             'device_correlation_key' => 'device:'.$deviceHash,
@@ -63,7 +63,7 @@ class EnsureNotBannedDevice
         ];
 
         if (isset($banRow['reason']) && $banRow['reason'] !== null) {
-            $meta['reason'] = (string) $banRow['reason'];
+            $meta['ban_reason'] = (string) $banRow['reason'];
         }
 
         if (array_key_exists('banned_until', $banRow)) {
@@ -77,6 +77,16 @@ class EnsureNotBannedDevice
             deviceHash: $deviceHash,
             meta: $meta,
         );
+
+        $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+            caseKey: $caseKey,
+            securityEventType: 'device_blocked',
+            sourceContext: 'security_login_block',
+            contactEmail: $contactEmail,
+            preferredSupportReference: $supportRef,
+        );
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         if ($request->expectsJson()) {
             return response()->json(['message' => 'Forbidden'], 403);
@@ -162,6 +172,44 @@ class EnsureNotBannedDevice
         }
 
         return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
+    }
+
+    private function resolveLatestSecurityReference(string $incidentKey): string
+    {
+        $query = \App\Models\SecurityEvent::query()
+            ->where('meta->incident_key', $incidentKey)
+            ->latest('id');
+
+        $event = $query->first(['reference']);
+
+        if ($event === null || !is_string($event->reference) || trim($event->reference) === '') {
+            abort(403);
+        }
+
+        return trim($event->reference);
+    }
+
+    private function buildSecurityIncidentKey(
+        string $path,
+        ?string $ip,
+        ?string $email,
+        ?string $deviceHash,
+    ): string {
+        $normalizedPath = trim($path, '/');
+        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
+        $normalizedIp = $ip !== null ? trim($ip) : '';
+        $normalizedEmail = $email !== null ? trim($email) : '';
+        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
+
+        if ($normalizedDeviceHash !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
+        }
+
+        if ($normalizedEmail !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
+        }
+
+        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 
     private function normalizedDeviceHash(string $hash): ?string

@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedIp.php
 // Purpose: Block requests for active IP bans and log blocking events
-// Changed: 09-03-2026 15:43 (Europe/Berlin)
-// Version: 1.2
+// Changed: 17-03-2026 12:26 (Europe/Berlin)
+// Version: 1.4
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -44,28 +44,39 @@ class EnsureNotBannedIp
         }
 
         $caseKey = 'ip_ban:'.(string) $activeBan->id.':ip:'.$ip;
-        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
-            caseKey: $caseKey,
-            securityEventType: 'ip_blocked',
-            sourceContext: 'security_login_block',
-            contactEmail: $this->normalizedEmail((string) $request->input('email', '')),
+        $email = $this->normalizedEmail((string) $request->input('email', ''));
+        $deviceHash = $this->deviceHashService->forRequest($request);
+        $incidentKey = $this->buildSecurityIncidentKey(
+            path: $request->path(),
+            ip: $ip,
+            email: $email,
+            deviceHash: $deviceHash,
         );
-        $supportRef = (string) $supportAccess['support_reference'];
-        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $this->securityEventLogger->log(
             type: 'ip_blocked',
             ip: $ip,
-            email: $this->normalizedEmail((string) $request->input('email', '')),
-            deviceHash: $this->deviceHashService->forRequest($request),
+            email: $email,
+            deviceHash: $deviceHash,
             meta: [
-                'support_ref' => $supportRef,
-                'reason' => $activeBan->reason,
+                'reason' => 'ip_ban',
+                'incident_key' => $incidentKey,
+                'ban_reason' => $activeBan->reason,
                 'banned_until' => $activeBan->banned_until?->toIso8601String(),
                 'path' => $request->path(),
                 'ip_source' => $ipInfo['source'],
             ],
         );
+
+        $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+        $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+            caseKey: $caseKey,
+            securityEventType: 'ip_blocked',
+            sourceContext: 'security_login_block',
+            contactEmail: $email,
+            preferredSupportReference: $supportRef,
+        );
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         // IMPORTANT:
         // - Avoid redirect-loops on GET /login (would break CSRF extraction and cause 419 in PS tests).
@@ -119,6 +130,44 @@ class EnsureNotBannedIp
         }
 
         return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
+    }
+
+    private function resolveLatestSecurityReference(string $incidentKey): string
+    {
+        $query = \App\Models\SecurityEvent::query()
+            ->where('meta->incident_key', $incidentKey)
+            ->latest('id');
+
+        $event = $query->first(['reference']);
+
+        if ($event === null || !is_string($event->reference) || trim($event->reference) === '') {
+            abort(403);
+        }
+
+        return trim($event->reference);
+    }
+
+    private function buildSecurityIncidentKey(
+        string $path,
+        ?string $ip,
+        ?string $email,
+        ?string $deviceHash,
+    ): string {
+        $normalizedPath = trim($path, '/');
+        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
+        $normalizedIp = $ip !== null ? trim($ip) : '';
+        $normalizedEmail = $email !== null ? trim($email) : '';
+        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
+
+        if ($normalizedDeviceHash !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
+        }
+
+        if ($normalizedEmail !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
+        }
+
+        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 
     /**

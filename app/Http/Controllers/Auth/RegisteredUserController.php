@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\RegisteredUserController.php
 // Purpose: Register new users (sends verification email, does NOT auto-login)
-// Changed: 10-03-2026 22:33 (Europe/Berlin)
-// Version: 0.2
+// Changed: 17-03-2026 12:26 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -72,25 +72,33 @@ class RegisteredUserController extends Controller
 
             if ($activeIdentityBan) {
                 $caseKey = 'identity_ban:'.(string) $activeIdentityBan->id.':email:'.$registerEmail;
-                $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
-                    caseKey: $caseKey,
-                    securityEventType: 'identity_blocked',
-                    sourceContext: 'security_login_block',
-                    contactEmail: $registerEmail,
+                $incidentKey = $this->buildSecurityIncidentKey(
+                    path: $request->path(),
+                    ip: $request->ip(),
+                    email: $registerEmail,
+                    deviceHash: $deviceHash,
                 );
-                $supportRef = (string) $supportAccess['support_reference'];
-
                 $this->securityEventLogger->log(
                     type: 'identity_blocked',
                     ip: $request->ip(),
                     email: $registerEmail,
                     deviceHash: $deviceHash,
                     meta: [
-                        'support_ref' => $supportRef,
-                        'reason' => $activeIdentityBan->reason,
+                        'reason' => 'identity_ban',
+                        'incident_key' => $incidentKey,
+                        'ban_reason' => $activeIdentityBan->reason,
                         'banned_until' => $activeIdentityBan->banned_until?->toIso8601String(),
                         'path' => $request->path(),
                     ],
+                );
+
+                $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+                $this->securitySupportAccessTokenService->issueForCase(
+                    caseKey: $caseKey,
+                    securityEventType: 'identity_blocked',
+                    sourceContext: 'security_login_block',
+                    contactEmail: $registerEmail,
+                    preferredSupportReference: $supportRef,
                 );
 
                 abort(403, 'This identity is banned.');
@@ -350,5 +358,43 @@ class RegisteredUserController extends Controller
             ->withInput(['email' => strtolower($validated['email'])])
             ->with('email_not_verified', true)
             ->with('status', "Registrierung erfolgreich.\nBitte prüfe dein Postfach und bestätige deine E-Mail-Adresse, bevor du dich einloggen kannst.");
+    }
+
+    private function resolveLatestSecurityReference(string $incidentKey): string
+    {
+        $query = \App\Models\SecurityEvent::query()
+            ->where('meta->incident_key', $incidentKey)
+            ->latest('id');
+
+        $event = $query->first(['reference']);
+
+        if ($event === null || !is_string($event->reference) || trim($event->reference) === '') {
+            abort(403, 'This identity is banned.');
+        }
+
+        return trim($event->reference);
+    }
+
+    private function buildSecurityIncidentKey(
+        string $path,
+        ?string $ip,
+        ?string $email,
+        ?string $deviceHash,
+    ): string {
+        $normalizedPath = trim($path, '/');
+        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
+        $normalizedIp = $ip !== null ? trim($ip) : '';
+        $normalizedEmail = $email !== null ? trim($email) : '';
+        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
+
+        if ($normalizedDeviceHash !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
+        }
+
+        if ($normalizedEmail !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
+        }
+
+        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 }

@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
 // Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
 //          + supports login via email OR username (entered in the same "email" field)
-// Changed: 16-03-2026 23:27 (Europe/Berlin)
-// Version: 0.5
+// Changed: 17-03-2026 12:26 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -75,26 +75,42 @@ class AuthenticatedSessionController extends Controller
 
             if ($activeIdentityBan) {
                 $caseKey = 'identity_ban:'.(string) $activeIdentityBan->id.':email:'.$normalizedEmail;
-                $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
-                    caseKey: $caseKey,
-                    securityEventType: 'identity_blocked',
-                    sourceContext: 'security_login_block',
-                    contactEmail: $normalizedEmail,
+                $deviceHash = $this->deviceHashService->forRequest($request);
+                $incidentKey = $this->buildSecurityIncidentKey(
+                    path: $request->path(),
+                    ip: $request->ip(),
+                    email: $normalizedEmail,
+                    deviceHash: $deviceHash,
                 );
-                $supportRef = (string) $supportAccess['support_reference'];
 
                 $this->securityEventLogger->log(
                     type: 'identity_blocked',
                     ip: $request->ip(),
                     email: $normalizedEmail,
-                    deviceHash: $this->deviceHashService->forRequest($request),
+                    deviceHash: $deviceHash,
                     meta: [
-                        'support_ref' => $supportRef,
-                        'reason' => $activeIdentityBan->reason,
+                        'reason' => 'identity_ban',
+                        'incident_key' => $incidentKey,
+                        'ban_reason' => $activeIdentityBan->reason,
                         'banned_until' => $activeIdentityBan->banned_until?->toIso8601String(),
                         'path' => $request->path(),
                     ],
                 );
+
+                $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+                $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
+                    caseKey: $caseKey,
+                    securityEventType: 'identity_blocked',
+                    sourceContext: 'security_login_block',
+                    contactEmail: $normalizedEmail,
+                    preferredSupportReference: $supportRef,
+                );
+                $supportAccessToken = (string) $supportAccess['plain_token'];
+
+                $request->session()->flash('security_ban_support_ref', $supportRef);
+                $request->session()->flash('security_ban_support_reference', $supportRef);
+                $request->session()->flash('security_support_reference', $supportRef);
+                $request->session()->flash('security_ban_support_access_token', $supportAccessToken);
 
                 throw ValidationException::withMessages([
                     'email' => trans('auth.failed'),
@@ -191,5 +207,45 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function resolveLatestSecurityReference(string $incidentKey): string
+    {
+        $query = \App\Models\SecurityEvent::query()
+            ->where('meta->incident_key', $incidentKey)
+            ->latest('id');
+
+        $event = $query->first(['reference']);
+
+        if ($event === null || !is_string($event->reference) || trim($event->reference) === '') {
+            throw ValidationException::withMessages([
+                'email' => trans('auth.failed'),
+            ]);
+        }
+
+        return trim($event->reference);
+    }
+
+    private function buildSecurityIncidentKey(
+        string $path,
+        ?string $ip,
+        ?string $email,
+        ?string $deviceHash,
+    ): string {
+        $normalizedPath = trim($path, '/');
+        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
+        $normalizedIp = $ip !== null ? trim($ip) : '';
+        $normalizedEmail = $email !== null ? trim($email) : '';
+        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
+
+        if ($normalizedDeviceHash !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
+        }
+
+        if ($normalizedEmail !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
+        }
+
+        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 }

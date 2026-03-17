@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\tickets_frontend.php
 // Purpose: Minimal frontend routes for support + report tickets (dev-ready).
-// Changed: 09-03-2026 01:34 (Europe/Berlin)
-// Version: 0.8
+// Changed: 17-03-2026 11:36 (Europe/Berlin)
+// Version: 0.9
 // ============================================================================
 
 use App\Events\TicketCreated;
@@ -23,9 +23,6 @@ $resolveSecuritySupportAccess = function (Request $request): ?object {
     $plainToken = trim((string) $request->input('support_access_token', ''));
     if ($plainToken === '') {
         $plainToken = trim((string) $request->query('support_access_token', ''));
-    }
-    if ($plainToken === '') {
-        $plainToken = trim((string) $request->session()->get('security_ban_support_access_token', ''));
     }
 
     if ($plainToken === '') {
@@ -47,12 +44,6 @@ $resolveSecuritySupportAccess = function (Request $request): ?object {
     $supportReferenceInput = trim((string) $request->input('support_reference', ''));
     if ($supportReferenceInput === '') {
         $supportReferenceInput = trim((string) $request->query('support_reference', ''));
-    }
-    if ($supportReferenceInput === '') {
-        $supportReferenceInput = trim((string) $request->session()->get('security_ban_support_reference', ''));
-    }
-    if ($supportReferenceInput === '') {
-        $supportReferenceInput = trim((string) $request->session()->get('security_support_reference', ''));
     }
 
     if ($supportReferenceInput !== '' && !hash_equals((string) $row->support_reference, $supportReferenceInput)) {
@@ -93,20 +84,6 @@ Route::middleware('guest')->group(function () use ($resolveSecuritySupportAccess
             $requestContactEmail = mb_strtolower(trim((string) $request->query('contact_email', '')));
             if ($requestContactEmail !== '' && filter_var($requestContactEmail, FILTER_VALIDATE_EMAIL) !== false) {
                 $resolvedContactEmail = $requestContactEmail;
-            }
-        }
-
-        if ($resolvedContactEmail === '') {
-            $sessionContactEmail = mb_strtolower(trim((string) $request->session()->get('security_ban_contact_email', '')));
-            if ($sessionContactEmail !== '' && filter_var($sessionContactEmail, FILTER_VALIDATE_EMAIL) !== false) {
-                $resolvedContactEmail = $sessionContactEmail;
-            }
-        }
-
-        if ($resolvedContactEmail === '') {
-            $sessionContactEmail = mb_strtolower(trim((string) $request->session()->get('security_support_contact_email', '')));
-            if ($sessionContactEmail !== '' && filter_var($sessionContactEmail, FILTER_VALIDATE_EMAIL) !== false) {
-                $resolvedContactEmail = $sessionContactEmail;
             }
         }
 

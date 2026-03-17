@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Requests\Auth\LoginRequest.php
 // Purpose: Login request validation (rate limited, no user enumeration)
-// Changed: 17-03-2026 01:35 (Europe/Berlin)
-// Version: 1.0
+// Changed: 17-03-2026 12:26 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 namespace App\Http\Requests\Auth;
@@ -17,9 +17,7 @@ use App\Services\Security\SecuritySettingsService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -119,15 +117,6 @@ class LoginRequest extends FormRequest
         }
 
         $seconds = RateLimiter::availableIn($this->throttleKey());
-        $supportRef = $this->deterministicLockoutSupportReference();
-        $supportAccessToken = $this->createSecuritySupportAccessToken(
-            supportReference: $supportRef,
-            securityEventType: 'login_lockout',
-            sourceContext: 'security_login_block',
-            caseKey: 'login_lockout:ip:'.trim((string) ($this->ip() ?? '')),
-            contactEmail: $this->normalizedContactEmail((string) $this->input('email', '')),
-        );
-
         $displaySeconds = max(60, (int) (ceil(max(1, $seconds) / 60) * 60));
 
         /** @var SecurityEventLogger $logger */
@@ -137,18 +126,37 @@ class LoginRequest extends FormRequest
         $deviceHashService = app(DeviceHashService::class);
 
         $email = mb_strtolower(trim((string) $this->input('email', '')));
+        $deviceHash = $deviceHashService->forRequest($this);
+        $incidentKey = $this->buildSecurityIncidentKey(
+            path: $this->path(),
+            ip: $this->ip(),
+            email: $email !== '' ? $email : null,
+            deviceHash: $deviceHash,
+        );
 
         $logger->log(
             type: 'login_lockout',
             ip: $this->ip(),
             email: $email !== '' ? $email : null,
-            deviceHash: $deviceHashService->forRequest($this),
+            deviceHash: $deviceHash,
             meta: [
+                'reason' => 'lockout',
+                'incident_key' => $incidentKey,
                 'seconds' => $seconds,
                 'attempt_limit' => $attemptLimit,
-                'support_ref' => $supportRef,
             ],
         );
+
+        $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+
+        $supportAccess = app(\App\Services\Security\SecuritySupportAccessTokenService::class)->issueForCase(
+            caseKey: 'login_lockout:ip:'.trim((string) ($this->ip() ?? '')),
+            securityEventType: 'login_lockout',
+            sourceContext: 'security_login_block',
+            contactEmail: $this->normalizedContactEmail((string) $this->input('email', '')),
+            preferredSupportReference: $supportRef,
+        );
+        $supportAccessToken = (string) $supportAccess['plain_token'];
 
         $this->session()->flash('security_ban_support_ref', $supportRef);
         $this->session()->flash('security_ban_support_reference', $supportRef);
@@ -353,70 +361,6 @@ class LoginRequest extends FormRequest
         return $current->greaterThan($newUntil) ? $current : $newUntil;
     }
 
-    private function generateSupportReference(): string
-    {
-        return 'SEC-'.Str::upper(Str::random(8));
-    }
-
-    private function createSecuritySupportAccessToken(
-        string $supportReference,
-        string $securityEventType,
-        string $sourceContext,
-        string $caseKey,
-        ?string $contactEmail = null
-    ): string {
-        $plainToken = Str::random(64);
-        $tokenHash = hash('sha256', $plainToken);
-
-        DB::table('security_support_access_tokens')->insert([
-            'token_hash' => $tokenHash,
-            'support_reference' => $supportReference,
-            'security_event_type' => $securityEventType,
-            'source_context' => $sourceContext,
-            'case_key' => $caseKey,
-            'contact_email' => $contactEmail,
-            'expires_at' => Carbon::now()->addMinutes(30),
-            'consumed_at' => null,
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now(),
-        ]);
-
-        return $plainToken;
-    }
-
-    private function deterministicLockoutSupportReference(): string
-    {
-        do {
-            $reference = $this->generateSupportReference();
-        } while ($this->referenceExists($reference));
-
-        return $reference;
-    }
-
-    private function referenceExists(string $reference): bool
-    {
-        if (Schema::hasTable('security_support_access_tokens')) {
-            $supportReferenceExists = DB::table('security_support_access_tokens')
-                ->where('support_reference', $reference)
-                ->exists();
-
-            if ($supportReferenceExists) {
-                return true;
-            }
-        }
-
-        if (
-            Schema::hasTable('security_events')
-            && Schema::hasColumn('security_events', 'reference')
-        ) {
-            return DB::table('security_events')
-                ->where('reference', $reference)
-                ->exists();
-        }
-
-        return false;
-    }
-
     private function normalizedContactEmail(string $email): ?string
     {
         $value = mb_strtolower(trim($email));
@@ -426,6 +370,46 @@ class LoginRequest extends FormRequest
         }
 
         return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
+    }
+
+    private function resolveLatestSecurityReference(string $incidentKey): string
+    {
+        $query = \App\Models\SecurityEvent::query()
+            ->where('meta->incident_key', $incidentKey)
+            ->latest('id');
+
+        $event = $query->first(['reference']);
+
+        if ($event === null || !is_string($event->reference) || trim($event->reference) === '') {
+            throw ValidationException::withMessages([
+                'email' => trans('auth.failed'),
+            ]);
+        }
+
+        return trim($event->reference);
+    }
+
+    private function buildSecurityIncidentKey(
+        string $path,
+        ?string $ip,
+        ?string $email,
+        ?string $deviceHash,
+    ): string {
+        $normalizedPath = trim($path, '/');
+        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
+        $normalizedIp = $ip !== null ? trim($ip) : '';
+        $normalizedEmail = $email !== null ? trim($email) : '';
+        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
+
+        if ($normalizedDeviceHash !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
+        }
+
+        if ($normalizedEmail !== '') {
+            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
+        }
+
+        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 
     /**
