@@ -2,9 +2,15 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.config.ps1
 # Purpose: Central config for browser-first Security Login/Ban/Abuse audit checks
 # Created: 08-03-2026 00:12 (Europe/Berlin)
-# Changed: 16-03-2026 17:10 (Europe/Berlin)
-# Version: 1.7
+# Changed: 17-03-2026 14:00 (Europe/Berlin)
+# Version: 2.0
 # =============================================================================
+
+$script:BanTestData = @{
+    Ip     = "192.168.200.13"
+    Email  = "audit_banned@web.de"
+    Device = "5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4"
+}
 
 # -----------------------------------------------------------------------------
 # BASE
@@ -12,7 +18,7 @@
 $script:BaseUrl               = "http://kiezsingles.test"
 $script:RegisteredEmail       = "audit_admin@web.de"
 $script:UnregisteredEmail     = "audit-test1@kiezsingles.local"
-$script:IdentityBanEmail      = "audit_banned@web.de"
+$script:IdentityBanEmail      = $script:BanTestData.Email
 $script:WrongPassword         = "falschespasswort"
 $script:LockoutAttempts       = 7
 
@@ -24,7 +30,8 @@ $script:CheckIpBan            = $true
 $script:CheckIdentityBan      = $true
 $script:CheckDeviceBan        = $true
 
-$script:CheckAbuseSimulation           = $false
+# ✅ ABUSE TEST AKTIVIERT
+$script:CheckAbuseSimulation           = $true
 $script:AbuseSimulationAttemptsPerStep = 6
 $script:AbuseSimulationSkipSupportFlow = $true
 
@@ -40,9 +47,36 @@ $script:PinnedDeviceCookieId  = ""
 # LOCKOUT / BAN TEST IP HANDLING
 # -----------------------------------------------------------------------------
 $script:SkipLockoutScenariosIfIpBanPass = $true
-$script:PinnedIpBanTestIp               = ""
+$script:PinnedIpBanTestIp               = $script:BanTestData.Ip
 $script:PinnedLockoutTestIp             = ""
 $script:AutoSelectFreeLockoutTestIp     = $true
+
+# zentrale Szenario-Isolation (stabile RateLimiter-Keys)
+$script:ScenarioIpMap = @{
+    unregistered_email     = "198.51.100.10"
+    registered_email       = "198.51.100.11"
+    security_event_lockout = "198.51.100.12"
+    ban_ip                 = "198.51.100.13"
+    ban_identity           = "198.51.100.14"
+    ban_device             = "198.51.100.15"
+}
+
+$script:ScenarioDeviceMap = @{
+    unregistered_email     = "ks-audit-unregistered"
+    registered_email       = "ks-audit-registered"
+    security_event_lockout = "ks-audit-security-event"
+    ban_ip                 = "ks-audit-ban-ip"
+    ban_identity           = "ks-audit-ban-identity"
+    ban_device             = "ks-audit-ban-device"
+}
+
+$script:ScenarioIpMap["ban_ip"]       = $script:BanTestData.Ip
+$script:ScenarioIpMap["ban_identity"] = $script:BanTestData.Ip
+$script:ScenarioIpMap["ban_device"]   = $script:BanTestData.Ip
+
+$script:ScenarioDeviceMap["ban_device"]   = $script:BanTestData.Device
+$script:ScenarioDeviceMap["ban_identity"] = $script:BanTestData.Device
+$script:ScenarioDeviceMap["ban_ip"]       = $script:BanTestData.Device
 
 # -----------------------------------------------------------------------------
 # UI EVIDENCE PATTERNS
@@ -126,7 +160,7 @@ $script:AdminValidationClientIpHeaderMode    = "standard"
 # SESSION REUSE TEST LOGIN
 # -----------------------------------------------------------------------------
 $script:SessionTestLoginEmail    = "audit_session@web.de"
-$script:SessionTestLoginPassword = "DeinPasswortHier"
+$script:SessionTestLoginPassword = "HundKatzeMaus123$"
 
 # -----------------------------------------------------------------------------
 # EXPORT / EVIDENCE
