@@ -3,14 +3,15 @@
 // File: C:\laragon\www\kiezsingles\app\Services\Security\SecuritySupportAccessTokenService.php
 // Purpose: Central SSOT service to issue/reuse security support access tokens by case key.
 // Created: 09-03-2026 (Europe/Berlin)
-// Changed: 09-03-2026 01:34 (Europe/Berlin)
-// Version: 0.1
+// Changed: 17-03-2026 01:23 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 namespace App\Services\Security;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class SecuritySupportAccessTokenService
@@ -25,64 +26,64 @@ class SecuritySupportAccessTokenService
         ?string $contactEmail = null,
         ?string $preferredSupportReference = null
     ): array {
-        return DB::transaction(function () use (
-            $caseKey,
-            $securityEventType,
-            $sourceContext,
-            $contactEmail,
-            $preferredSupportReference
-        ): array {
-            $now = Carbon::now();
+        $now = Carbon::now();
+        $plainToken = Str::random(64);
+        $tokenHash = hash('sha256', $plainToken);
 
-            $existingToken = DB::table('security_support_access_tokens')
-                ->select(['id', 'support_reference'])
-                ->where('case_key', $caseKey)
-                ->whereNull('consumed_at')
-                ->where('expires_at', '>', $now)
-                ->orderByDesc('id')
-                ->lockForUpdate()
-                ->first();
+        $supportReference = trim((string) ($preferredSupportReference ?? ''));
+        if ($supportReference === '' || $this->referenceExists($supportReference)) {
+            $supportReference = $this->generateUniqueSupportReference();
+        }
 
-            $plainToken = Str::random(64);
-            $tokenHash = hash('sha256', $plainToken);
+        DB::table('security_support_access_tokens')->insert([
+            'token_hash' => $tokenHash,
+            'support_reference' => $supportReference,
+            'security_event_type' => $securityEventType,
+            'source_context' => $sourceContext,
+            'case_key' => $caseKey,
+            'contact_email' => $contactEmail,
+            'expires_at' => $now->copy()->addMinutes(30),
+            'consumed_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
-            if ($existingToken !== null) {
-                DB::table('security_support_access_tokens')
-                    ->where('id', (int) $existingToken->id)
-                    ->update([
-                        'token_hash' => $tokenHash,
-                        'contact_email' => $contactEmail,
-                        'updated_at' => $now,
-                    ]);
+        return [
+            'plain_token' => $plainToken,
+            'support_reference' => $supportReference,
+        ];
+    }
 
-                return [
-                    'plain_token' => $plainToken,
-                    'support_reference' => (string) $existingToken->support_reference,
-                ];
+    private function generateUniqueSupportReference(): string
+    {
+        do {
+            $reference = 'SEC-'.Str::upper(Str::random(8));
+        } while ($this->referenceExists($reference));
+
+        return $reference;
+    }
+
+    private function referenceExists(string $reference): bool
+    {
+        if (Schema::hasTable('security_support_access_tokens')) {
+            $supportReferenceExists = DB::table('security_support_access_tokens')
+                ->where('support_reference', $reference)
+                ->exists();
+
+            if ($supportReferenceExists) {
+                return true;
             }
+        }
 
-            $supportReference = trim((string) ($preferredSupportReference ?? ''));
-            if ($supportReference === '') {
-                $supportReference = 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
-            }
+        if (
+            Schema::hasTable('security_events')
+            && Schema::hasColumn('security_events', 'reference')
+        ) {
+            return DB::table('security_events')
+                ->where('reference', $reference)
+                ->exists();
+        }
 
-            DB::table('security_support_access_tokens')->insert([
-                'token_hash' => $tokenHash,
-                'support_reference' => $supportReference,
-                'security_event_type' => $securityEventType,
-                'source_context' => $sourceContext,
-                'case_key' => $caseKey,
-                'contact_email' => $contactEmail,
-                'expires_at' => $now->copy()->addMinutes(30),
-                'consumed_at' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            return [
-                'plain_token' => $plainToken,
-                'support_reference' => $supportReference,
-            ];
-        });
+        return false;
     }
 }

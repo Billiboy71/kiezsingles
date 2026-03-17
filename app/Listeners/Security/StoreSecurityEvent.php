@@ -2,15 +2,18 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\StoreSecurityEvent.php
 // Purpose: Persist SecurityEventTriggered events into security_events (with minimal de-duplication)
-// Changed: 10-03-2026 20:49 (Europe/Berlin)
-// Version: 0.4
+// Changed: 17-03-2026 01:23 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 
 namespace App\Listeners\Security;
 
 use App\Events\Security\SecurityEventTriggered;
 use App\Models\SecurityEvent;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class StoreSecurityEvent
 {
@@ -40,8 +43,11 @@ class StoreSecurityEvent
         }
 
         RateLimiter::hit($dedupeKey, $dedupeTtlSeconds);
+        $reference = $this->resolveReference($meta);
+        $meta['support_ref'] = $reference;
 
         SecurityEvent::query()->create([
+            'reference' => $reference,
             'type' => $event->type,
             'ip' => $event->ip,
             'user_id' => $event->userId,
@@ -122,5 +128,48 @@ class StoreSecurityEvent
         $path = trim($path, '/');
 
         return $path !== '' ? $path : '/';
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function resolveReference(array $meta): string
+    {
+        $requestedReference = $this->metaString($meta, 'support_ref');
+        $requestedReference = $requestedReference !== null ? mb_strtoupper($requestedReference) : null;
+
+        if ($requestedReference !== null && $requestedReference !== '' && ! $this->referenceExists($requestedReference)) {
+            return $requestedReference;
+        }
+
+        do {
+            $reference = 'SEC-'.Str::upper(Str::random(8));
+        } while ($this->referenceExists($reference));
+
+        return $reference;
+    }
+
+    private function referenceExists(string $reference): bool
+    {
+        if (
+            Schema::hasTable('security_events')
+            && Schema::hasColumn('security_events', 'reference')
+        ) {
+            $eventReferenceExists = DB::table('security_events')
+                ->where('reference', $reference)
+                ->exists();
+
+            if ($eventReferenceExists) {
+                return true;
+            }
+        }
+
+        if (Schema::hasTable('security_support_access_tokens')) {
+            return DB::table('security_support_access_tokens')
+                ->where('support_reference', $reference)
+                ->exists();
+        }
+
+        return false;
     }
 }

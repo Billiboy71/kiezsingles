@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Requests\Auth\LoginRequest.php
 // Purpose: Login request validation (rate limited, no user enumeration)
-// Changed: 17-03-2026 00:12 (Europe/Berlin)
-// Version: 0.8
+// Changed: 17-03-2026 01:35 (Europe/Berlin)
+// Version: 1.0
 // ============================================================================
 
 namespace App\Http\Requests\Auth;
@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -155,10 +156,13 @@ class LoginRequest extends FormRequest
         $this->session()->flash('security_ban_support_access_token', $supportAccessToken);
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $displaySeconds,
-                'minutes' => ceil($displaySeconds / 60),
-            ]),
+            'email' => [
+                trans('auth.failed'),
+                trans('auth.throttle', [
+                    'seconds' => $displaySeconds,
+                    'minutes' => ceil($displaySeconds / 60),
+                ]),
+            ],
         ]);
     }
 
@@ -351,7 +355,7 @@ class LoginRequest extends FormRequest
 
     private function generateSupportReference(): string
     {
-        return 'SEC-'.Str::upper(Str::random(random_int(6, 8)));
+        return 'SEC-'.Str::upper(Str::random(8));
     }
 
     private function createSecuritySupportAccessToken(
@@ -382,10 +386,35 @@ class LoginRequest extends FormRequest
 
     private function deterministicLockoutSupportReference(): string
     {
-        $ip = trim((string) ($this->ip() ?? ''));
-        $seed = $ip !== '' ? $ip : 'login-lockout';
+        do {
+            $reference = $this->generateSupportReference();
+        } while ($this->referenceExists($reference));
 
-        return 'SEC-'.strtoupper(substr(hash('sha256', 'lockout:'.$seed), 0, 8));
+        return $reference;
+    }
+
+    private function referenceExists(string $reference): bool
+    {
+        if (Schema::hasTable('security_support_access_tokens')) {
+            $supportReferenceExists = DB::table('security_support_access_tokens')
+                ->where('support_reference', $reference)
+                ->exists();
+
+            if ($supportReferenceExists) {
+                return true;
+            }
+        }
+
+        if (
+            Schema::hasTable('security_events')
+            && Schema::hasColumn('security_events', 'reference')
+        ) {
+            return DB::table('security_events')
+                ->where('reference', $reference)
+                ->exists();
+        }
+
+        return false;
     }
 
     private function normalizedContactEmail(string $email): ?string
