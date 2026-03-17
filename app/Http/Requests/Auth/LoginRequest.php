@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Requests\Auth\LoginRequest.php
 // Purpose: Login request validation (rate limited, no user enumeration)
-// Changed: 10-03-2026 20:54 (Europe/Berlin)
-// Version: 0.7
+// Changed: 17-03-2026 00:12 (Europe/Berlin)
+// Version: 0.8
 // ============================================================================
 
 namespace App\Http\Requests\Auth;
@@ -118,14 +118,16 @@ class LoginRequest extends FormRequest
         }
 
         $seconds = RateLimiter::availableIn($this->throttleKey());
-        $supportRef = $this->generateSupportReference();
+        $supportRef = $this->deterministicLockoutSupportReference();
         $supportAccessToken = $this->createSecuritySupportAccessToken(
             supportReference: $supportRef,
             securityEventType: 'login_lockout',
             sourceContext: 'security_login_block',
-            caseKey: 'login_lockout:throttle:'.$this->throttleKey(),
+            caseKey: 'login_lockout:ip:'.trim((string) ($this->ip() ?? '')),
             contactEmail: $this->normalizedContactEmail((string) $this->input('email', '')),
         );
+
+        $displaySeconds = max(60, (int) (ceil(max(1, $seconds) / 60) * 60));
 
         /** @var SecurityEventLogger $logger */
         $logger = app(SecurityEventLogger::class);
@@ -154,8 +156,8 @@ class LoginRequest extends FormRequest
 
         throw ValidationException::withMessages([
             'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
+                'seconds' => $displaySeconds,
+                'minutes' => ceil($displaySeconds / 60),
             ]),
         ]);
     }
@@ -376,6 +378,14 @@ class LoginRequest extends FormRequest
         ]);
 
         return $plainToken;
+    }
+
+    private function deterministicLockoutSupportReference(): string
+    {
+        $ip = trim((string) ($this->ip() ?? ''));
+        $seed = $ip !== '' ? $ip : 'login-lockout';
+
+        return 'SEC-'.strtoupper(substr(hash('sha256', 'lockout:'.$seed), 0, 8));
     }
 
     private function normalizedContactEmail(string $email): ?string

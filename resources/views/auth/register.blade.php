@@ -1,7 +1,7 @@
 {{-- ========================================================================= --}}
 {{-- File: C:\laragon\www\kiezsingles\resources\views\auth\register.blade.php  --}}
-{{-- Changed: 23-02-2026 23:28 (Europe/Berlin)                                 --}}
-{{-- Version: 0.4                                                              --}}
+{{-- Changed: 16-03-2026 21:28 (Europe/Berlin)                                 --}}
+{{-- Version: 0.6                                                              --}}
 {{-- Purpose: Register view (user registration with Turnstile & feature flags) --}}
 {{-- ========================================================================= --}}
 <x-guest-layout>
@@ -39,7 +39,7 @@
 
         <!-- Pseudonym -->
         <div class="mt-4">
-            <x-input-label for="username" value="Pseudonym (4–14 Zeichen)" />
+            <x-input-label for="username" value="Pseudonym (4–20 Zeichen)" />
             <x-text-input
                 id="username"
                 class="block mt-1 w-full"
@@ -48,7 +48,7 @@
                 value="{{ old('username') }}"
                 required
                 minlength="4"
-                maxlength="14"
+                maxlength="20"
             />
             <x-input-error :messages="$errors->get('username')" class="mt-2" />
         </div>

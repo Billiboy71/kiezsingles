@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\Security\SecurityEventLogger.php
 // Purpose: Dispatch security events with consistent context (ip/email/deviceHash) and device correlation meta when available
-// Changed: 10-03-2026 21:00 (Europe/Berlin)
-// Version: 0.4
+// Changed: 17-03-2026 00:12 (Europe/Berlin)
+// Version: 0.6
 // ============================================================================
 
 namespace App\Services\Security;
@@ -29,10 +29,11 @@ class SecurityEventLogger
         array $meta = [],
     ): void {
         $request = $this->currentRequest();
+        $resolvedIpInfo = $request !== null ? $this->resolveClientIp($request) : ['ip' => null, 'source' => null];
 
-        $ipFinal = $ip;
-        if (($ipFinal === null || trim($ipFinal) === '') && $request !== null) {
-            $ipFinal = (string) $request->ip();
+        $ipFinal = $ip !== null ? trim($ip) : null;
+        if (($ipFinal === null || $ipFinal === '') && $request !== null) {
+            $ipFinal = $resolvedIpInfo['ip'];
         }
         $ipFinal = $ipFinal !== null ? trim($ipFinal) : null;
         if ($ipFinal === '') {
@@ -60,6 +61,10 @@ class SecurityEventLogger
         if (!array_key_exists('path', $metaFinal) && $request !== null) {
             $path = trim((string) $request->path());
             $metaFinal['path'] = $path !== '' ? $path : '/';
+        }
+
+        if (!array_key_exists('ip_source', $metaFinal) && $resolvedIpInfo['source'] !== null) {
+            $metaFinal['ip_source'] = $resolvedIpInfo['source'];
         }
 
         if ($deviceHashFinal !== null) {
@@ -113,6 +118,70 @@ class SecurityEventLogger
         }
 
         return null;
+    }
+
+    /**
+     * @return array{ip:?string,source:?string}
+     */
+    private function resolveClientIp(Request $request): array
+    {
+        $baseIp = trim((string) ($request->ip() ?? ''));
+
+        $isLocal = false;
+        $isTesting = false;
+
+        try {
+            if (function_exists('app')) {
+                $isLocal = app()->environment('local');
+                $isTesting = app()->environment('testing');
+            }
+        } catch (\Throwable $ignore) {
+            $isLocal = false;
+            $isTesting = false;
+        }
+
+        if (! $isLocal && ! $isTesting) {
+            return [
+                'ip' => $baseIp !== '' ? $baseIp : null,
+                'source' => 'request_ip',
+            ];
+        }
+
+        $cfIp = $this->firstValidIpFromHeaderValue(trim((string) ($request->headers->get('CF-Connecting-IP') ?? '')));
+        if ($cfIp !== '') {
+            return [
+                'ip' => $cfIp,
+                'source' => 'cf_connecting_ip',
+            ];
+        }
+
+        $xRealIp = $this->firstValidIpFromHeaderValue(trim((string) ($request->headers->get('X-Real-IP') ?? '')));
+        if ($xRealIp !== '') {
+            return [
+                'ip' => $xRealIp,
+                'source' => 'x_real_ip',
+            ];
+        }
+
+        $xffIp = $this->firstValidIpFromHeaderValue(trim((string) ($request->headers->get('X-Forwarded-For') ?? '')));
+        if ($xffIp !== '') {
+            return [
+                'ip' => $xffIp,
+                'source' => 'x_forwarded_for',
+            ];
+        }
+
+        if ($isTesting) {
+            return [
+                'ip' => '198.51.100.10',
+                'source' => 'testing_fallback_ip',
+            ];
+        }
+
+        return [
+            'ip' => $baseIp !== '' ? $baseIp : null,
+            'source' => 'request_ip',
+        ];
     }
 
     private function resolveDeviceHash(Request $request): ?string
@@ -196,6 +265,33 @@ class SecurityEventLogger
         $value = mb_strtolower(trim($value));
 
         return $value !== '' ? $value : null;
+    }
+
+    private function firstValidIpFromHeaderValue(string $value): string
+    {
+        $v = trim($value);
+        if ($v === '') {
+            return '';
+        }
+
+        $first = $v;
+        $parts = explode(',', $v);
+        if (count($parts) > 0) {
+            $first = trim((string) $parts[0]);
+        }
+
+        if ($first === '') {
+            return '';
+        }
+
+        $ok = false;
+        try {
+            $ok = filter_var($first, FILTER_VALIDATE_IP) !== false;
+        } catch (\Throwable $ignore) {
+            $ok = false;
+        }
+
+        return $ok ? $first : '';
     }
 
     private function extractRawCookieValue(string $cookieHeader, string $cookieName): string

@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 11-03-2026 23:34 (Europe/Berlin)
-# Version: 5.9
+# Changed: 16-03-2026 19:04 (Europe/Berlin)
+# Version: 6.0
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -22,6 +22,10 @@ Import-Module "$PSScriptRoot\modules\checks\ks-ban-check.psm1" -Force -DisableNa
 Import-Module "$PSScriptRoot\modules\checks\ks-lockout-scenario.psm1" -Force -DisableNameChecking
 Import-Module "$PSScriptRoot\modules\checks\ks-abuse-admin-validation.psm1" -Force -DisableNameChecking
 Import-Module "$PSScriptRoot\modules\auth\ks-login-attempt.psm1" -Force -DisableNameChecking
+
+. "$PSScriptRoot\modules\checks\check-session-reuse.ps1"
+. "$PSScriptRoot\modules\checks\check-account-enumeration.ps1"
+. "$PSScriptRoot\modules\checks\check-security-event-logging.ps1"
 
 # DEBUG: anzeigen welche Version geladen wurde
 try {
@@ -492,6 +496,28 @@ function Write-Section([string]$t){
     Write-Host ("="*70)
     Write-Host $t
     Write-Host ("="*70)
+}
+
+function Invoke-SessionSecurityChecks {
+    $checks = New-Object System.Collections.ArrayList
+
+    [void]$checks.Add((Invoke-SessionReuseProtectionCheck))
+    [void]$checks.Add((Invoke-AccountEnumerationProtectionCheck))
+    [void]$checks.Add((Invoke-SecurityEventLoggingCheck))
+
+    return @($checks.ToArray())
+}
+
+function Write-SessionSecurityChecksSummary {
+    param(
+        [Parameter(Mandatory=$true)]$Checks
+    )
+
+    Write-Section "SESSION SECURITY CHECKS"
+
+    foreach ($check in @($Checks)) {
+        Write-Host ("{0} -> {1}" -f $check.CheckName, $check.Result)
+    }
 }
 
 function New-SkippedScenarioResult {
@@ -1173,6 +1199,8 @@ $res1 = $null
 $res2 = $null
 $abuseSimulationResult = $null
 $abuseAdminValidationResult = $null
+$sessionSecurityChecks = @()
+$sessionSecurityExports = $null
 
 if (Test-IsBanOnlyMode) {
     Write-Section "SCENARIOS"
@@ -1204,6 +1232,11 @@ if ($CheckAbuseSimulation) {
     }
 }
 
+$sessionSecurityChecks = @(Invoke-SessionSecurityChecks)
+if (@($sessionSecurityChecks).Count -gt 0) {
+    $sessionSecurityExports = Export-SessionSecurityCheckArtifacts -Checks $sessionSecurityChecks
+}
+
 Write-Section "RESULT SUMMARY"
 Write-Host "UnregisteredEmail -> WrongCredsDetected:" $res1.WrongCredsDetected "LockoutDetected:" $res1.LockoutDetected "Seconds:" $res1.LockoutSeconds "SupportCodeDetected:" $res1.SupportCodeDetected "SupportCode:" $res1.SupportCodeValue "SupportFlow:" $res1.SupportFlowResult "SupportLinkFound:" $res1.SupportLinkFound "SupportTargetPathOk:" $res1.SupportTargetPathOk "SupportTargetCsrfPresent:" $res1.SupportTargetCsrfPresent "SupportCodeMatch:" $res1.SupportCodeMatch "TicketSubmitAttempted:" $res1.TicketSubmitAttempted "TicketSubmitResult:" $res1.TicketSubmitResult "TicketSubmitHttp:" $res1.TicketSubmitHttp "SkipReason:" $res1.SkipReason
 Write-Host "RegisteredEmail   -> WrongCredsDetected:" $res2.WrongCredsDetected "LockoutDetected:" $res2.LockoutDetected "Seconds:" $res2.LockoutSeconds "SupportCodeDetected:" $res2.SupportCodeDetected "SupportCode:" $res2.SupportCodeValue "SupportFlow:" $res2.SupportFlowResult "SupportLinkFound:" $res2.SupportLinkFound "SupportTargetPathOk:" $res2.SupportTargetPathOk "SupportTargetCsrfPresent:" $res2.SupportTargetCsrfPresent "SupportCodeMatch:" $res2.SupportCodeMatch "TicketSubmitAttempted:" $res2.TicketSubmitAttempted "TicketSubmitResult:" $res2.TicketSubmitResult "TicketSubmitHttp:" $res2.TicketSubmitHttp "SkipReason:" $res2.SkipReason
@@ -1229,8 +1262,19 @@ if ($CheckAbuseSimulation -and $null -ne $abuseSimulationResult) {
     Write-AbuseSimulationSummary -SimulationResult $abuseSimulationResult
 }
 
+if (@($sessionSecurityChecks).Count -gt 0) {
+    Write-SessionSecurityChecksSummary -Checks $sessionSecurityChecks
+}
+
 if ($AdminValidationEnabled -and $null -ne $abuseAdminValidationResult) {
     Write-Section "ABUSE ADMIN VALIDATION EXPORTS"
     Write-Host "ChecksTxt:" $abuseAdminValidationResult.ChecksTxtPath
     Write-Host "ChecksJson:" $abuseAdminValidationResult.ChecksJsonPath
+}
+
+if ($null -ne $sessionSecurityExports) {
+    Write-Section "SESSION SECURITY EXPORTS"
+    Write-Host "ChecksTxt:" $sessionSecurityExports.TxtPath
+    Write-Host "ChecksJson:" $sessionSecurityExports.JsonPath
+    Write-Host "ChecksCsv:" $sessionSecurityExports.CsvPath
 }

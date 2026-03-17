@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\landing.blade.php
 // Purpose: Public landing page with maintenance mode indicator + legal links
-// Changed: 28-02-2026 01:56 (Europe/Berlin)
-// Version: 1.5
+// Changed: 16-03-2026 21:14 (Europe/Berlin)
+// Version: 1.6
 // ============================================================================
 ?>
 <!doctype html>
@@ -139,9 +139,7 @@
             <small class="text-red-700">Hinweis: Im Wartungsmodus ist der Zugang für deine Rolle aktuell nicht freigeschaltet.</small>
         <?php endif; ?>
 
-        
-
-        <form method="POST" action="/logout" class="inline">
+        <form method="POST" action="<?= e(route('logout')) ?>" class="inline">
             <input type="hidden" name="_token" value="<?= e(csrf_token()) ?>">
             <button type="submit" class="underline text-sky-600">Logout</button>
         </form>

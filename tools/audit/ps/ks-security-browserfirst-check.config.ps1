@@ -10,9 +10,9 @@
 # BASE
 # -----------------------------------------------------------------------------
 $script:BaseUrl               = "http://kiezsingles.test"
-$script:RegisteredEmail       = "admin@web.de"
+$script:RegisteredEmail       = "audit_admin@web.de"
 $script:UnregisteredEmail     = "audit-test1@kiezsingles.local"
-$script:IdentityBanEmail      = "banned-mail@web.de"
+$script:IdentityBanEmail      = "audit_banned@web.de"
 $script:WrongPassword         = "falschespasswort"
 $script:LockoutAttempts       = 7
 
@@ -60,11 +60,11 @@ $script:DeviceHeaderValue     = ""
 # -----------------------------------------------------------------------------
 # SUPPORT FLOW
 # -----------------------------------------------------------------------------
-$script:CheckSupportContactFlow    = $false
+$script:CheckSupportContactFlow    = $true
 $script:ExpectedTicketCreatePath   = "/support/security"
 $script:SupportContactTextPattern  = '(?is)\bsupport\s+kontaktieren\b'
 
-$script:SubmitSupportTicketTest    = $false
+$script:SubmitSupportTicketTest    = $true
 $script:SupportTicketGuestName     = "PS Supportcode Test"
 $script:SupportTicketGuestEmail    = "audit-supportcode@kiezsingles.local"
 $script:SupportTicketSubjectPrefix = "[PS Supportcode Test]"
@@ -114,13 +114,19 @@ $script:AbuseAdminValidationTopIpsLimit      = 10
 # ADMIN LOGIN FOR VALIDATION (ISOLATED ACCOUNT)
 # -----------------------------------------------------------------------------
 $script:AdminValidationEnabled               = $true
-$script:AdminValidationLoginEmail            = "testadmin@web.de"
+$script:AdminValidationLoginEmail            = "audit_superadmin@web.de"
 $script:AdminValidationLoginPassword         = 'HundKatzeMaus123$'
 $script:AdminValidationEventsPath            = "/admin/security/events"
 $script:AdminValidationMaxSamplesPerCheck    = 5
 $script:AdminValidationDeviceCookieId        = "ks-admin-validation-device-001"
 $script:AdminValidationTestIp                = "198.51.100.210"
 $script:AdminValidationClientIpHeaderMode    = "standard"
+
+# -----------------------------------------------------------------------------
+# SESSION REUSE TEST LOGIN
+# -----------------------------------------------------------------------------
+$script:SessionTestLoginEmail    = "audit_session@web.de"
+$script:SessionTestLoginPassword = "DeinPasswortHier"
 
 # -----------------------------------------------------------------------------
 # EXPORT / EVIDENCE

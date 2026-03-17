@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
 // Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
 //          + supports login via email OR username (entered in the same "email" field)
-// Changed: 10-03-2026 22:33 (Europe/Berlin)
-// Version: 0.3
+// Changed: 16-03-2026 23:27 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -96,7 +96,9 @@ class AuthenticatedSessionController extends Controller
                     ],
                 );
 
-                abort(403, 'This identity is banned.');
+                throw ValidationException::withMessages([
+                    'email' => trans('auth.failed'),
+                ]);
             }
         }
 
@@ -119,7 +121,9 @@ class AuthenticatedSessionController extends Controller
                 ],
             );
 
-            abort(403, 'This account is frozen.');
+            throw ValidationException::withMessages([
+                'email' => trans('auth.failed'),
+            ]);
         }
 
         // Kein Captcha beim Login (Throttle reicht)
@@ -150,12 +154,9 @@ class AuthenticatedSessionController extends Controller
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
 
-                return back()
-                    ->withErrors([
-                        'email' => 'Login ist aktuell nicht erlaubt.',
-                    ])
-                    ->with('maintenance_login_blocked', true)
-                    ->withInput(['email' => $originalLogin]);
+                throw ValidationException::withMessages([
+                    'email' => trans('auth.failed'),
+                ]);
             }
         }
 
@@ -163,26 +164,18 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         if ($user && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
-            // Auto-Resend: nur nachdem Credentials korrekt waren (keine Enumeration)
-            if (method_exists($user, 'sendEmailVerificationNotification')) {
-                $user->sendEmailVerificationNotification();
-            }
-
             Auth::guard('web')->logout();
 
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return back()
-                ->withErrors([
-                    'email' => __('auth.login.email_not_verified_error'),
-                ])
-                ->with('status', __('auth.login.email_not_verified_status'))
-                ->with('email_not_verified', true)
-                ->withInput(['email' => $originalLogin]);
+            throw ValidationException::withMessages([
+                'email' => trans('auth.failed'),
+            ]);
         }
 
         $request->session()->regenerate();
+        $request->session()->put('session_login_ip', (string) ($request->ip() ?? ''));
 
         return redirect()->intended(route('dashboard', absolute: false));
     }

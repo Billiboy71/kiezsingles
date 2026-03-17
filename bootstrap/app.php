@@ -2,14 +2,15 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\bootstrap\app.php
 // Purpose: Application bootstrap & middleware registration
-// Changed: 12-03-2026 00:49 (Europe/Berlin)
-// Version: 2.3
+// Changed: 16-03-2026 23:09 (Europe/Berlin)
+// Version: 2.4
 // ============================================================================
 
 use App\Http\Middleware\MaintenanceMode;
 use App\Http\Middleware\SetSessionLifetimeByRole;
 use App\Http\Middleware\EnsureDeviceCookie;
 use App\Http\Middleware\EncryptCookies;
+use App\Http\Middleware\EnsureSessionIntegrity;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -37,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             MaintenanceMode::class,
             SetSessionLifetimeByRole::class,
+            EnsureSessionIntegrity::class,
         ]);
 
         // Local-only: trust proxy headers so PowerShell tests can simulate client IP via X-Forwarded-For.
