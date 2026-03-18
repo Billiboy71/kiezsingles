@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 17-03-2026 12:04 (Europe/Berlin)
-# Version: 6.6
+# Changed: 17-03-2026 23:44 (Europe/Berlin)
+# Version: 7.4
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -103,6 +103,47 @@ function Sync-AuditModuleRuntimeVariables {
 
         Set-AuditModuleRuntimeVariable -Name $variableName -Value $scriptVariable.Value
     }
+}
+
+function Get-AuditRunRequestHeaders {
+    $headers = @{}
+    $auditRunId = ""
+
+    try { $auditRunId = ("" + $script:AuditRunId).Trim() } catch { $auditRunId = "" }
+
+    if (-not [string]::IsNullOrWhiteSpace($auditRunId)) {
+        $headers["X-Audit-Run-Id"] = $auditRunId
+    }
+
+    return $headers
+}
+
+function Merge-AuditRequestHeaders {
+    param(
+        [Parameter(Mandatory=$false)]$Headers = @{}
+    )
+
+    $resolvedHeaders = Convert-ToLocalHashtable -InputObject $Headers
+    $auditHeaders = Get-AuditRunRequestHeaders
+
+    foreach ($key in $auditHeaders.Keys) {
+        $resolvedHeaders[$key] = $auditHeaders[$key]
+    }
+
+    return $resolvedHeaders
+}
+
+function Global:Get-DeviceHeaders {
+    $headers = @{}
+
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($script:DeviceHeaderName) -and -not [string]::IsNullOrWhiteSpace($script:DeviceHeaderValue)) {
+            $headers[$script:DeviceHeaderName] = $script:DeviceHeaderValue
+        }
+    } catch {
+    }
+
+    return (Merge-AuditRequestHeaders -Headers $headers)
 }
 
 # -----------------------------------------------------------------------------
@@ -271,6 +312,11 @@ $IpRotationMode = $script:IpRotationMode
 $CheckAbuseSimulation = [bool]$script:CheckAbuseSimulation
 $AbuseSimulationAttemptsPerStep = [int]$script:AbuseSimulationAttemptsPerStep
 $AbuseSimulationSkipSupportFlow = [bool]$script:AbuseSimulationSkipSupportFlow
+
+if ($CheckAbuseSimulation -and $AbuseSimulationAttemptsPerStep -ne 1) {
+    $AbuseSimulationAttemptsPerStep = 1
+    $script:AbuseSimulationAttemptsPerStep = 1
+}
 
 $AbuseScenarioDeviceReuseEnabled = [bool]$script:AbuseScenarioDeviceReuseEnabled
 $AbuseScenarioAccountSharingEnabled = [bool]$script:AbuseScenarioAccountSharingEnabled
@@ -518,7 +564,7 @@ function Get-EnabledAbuseScenarioStepCounts {
     }
 
     if ($AbuseScenarioBotPatternEnabled) {
-        $counts["abuse_bot_pattern"] = 50
+        $counts["abuse_bot_pattern"] = 10
     }
 
     if ($AbuseScenarioDeviceClusterEnabled) {
@@ -650,7 +696,9 @@ try {
 # -----------------------------------------------------------------------------
 # RUN IDENT / EXPORT SEQUENCE (keeps all files grouped per run, avoids "duplicate" names)
 # -----------------------------------------------------------------------------
-$script:RunId = (Get-Date).ToString("ddMMyyyy-HHmmss")
+$script:RunId = ("{0}-{1}" -f (Get-Date).ToString("ddMMyyyy-HHmmss"), ([System.Guid]::NewGuid().ToString("N").Substring(0, 8)))
+$script:AuditRunId = $script:RunId
+$script:AuditWindowStartSql = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
 $script:ExportSeq = 0
 $script:ExportRunDir = ""
 
@@ -1029,7 +1077,7 @@ function Run-Scenario {
         [Parameter(Mandatory=$false)]$SkipSupportFlow = $false
     )
 
-    $resolvedHeaders = Convert-ToScenarioHeaders -Value $ExtraHeaders
+    $resolvedHeaders = Merge-AuditRequestHeaders -Headers (Convert-ToScenarioHeaders -Value $ExtraHeaders)
     $requestedDeviceCookieId = Convert-ToScenarioString -Value $DeviceCookieId
     $requestedForcedAttemptIp = Convert-ToScenarioString -Value $ForcedAttemptIp
     $resolvedSkipSupportFlow = Convert-ToScenarioBool -Value $SkipSupportFlow -Default $false
@@ -1305,6 +1353,10 @@ function Run-Scenario {
             TicketSubmitUrl          = $supportFlow.TicketSubmitUrl
             TicketSubmitFinalUrl     = $supportFlow.TicketSubmitFinalUrl
             TicketSubmitHttp         = $supportFlow.TicketSubmitHttp
+            TicketSupportCode        = $supportFlow.TicketSupportCode
+            MailSupportCode          = $supportFlow.MailSupportCode
+            MailResult               = $supportFlow.MailResult
+            SecE2EResult             = $supportFlow.SecE2EResult
             SkipReason               = ""
         }
     } catch {
@@ -1389,6 +1441,10 @@ function New-SkippedScenarioResult {
         TicketSubmitUrl          = ""
         TicketSubmitFinalUrl     = ""
         TicketSubmitHttp         = ""
+        TicketSupportCode        = ""
+        MailSupportCode          = ""
+        MailResult               = "INFO_NOT_RUN"
+        SecE2EResult             = "FAIL"
         SkipReason               = $SkipReason
     }
 }
@@ -1449,6 +1505,22 @@ function Get-AbuseIpPool {
     return @(Convert-ToLocalStringArray -InputObject (Build-DefaultTestIpPool | Select-Object -First $AbuseIpPoolCount))
 }
 
+function Get-AbuseScopedDeviceId {
+    param(
+        [Parameter(Mandatory=$true)][string]$BaseDeviceId,
+        [Parameter(Mandatory=$true)][string]$ScenarioName
+    )
+
+    $safeScenarioName = ("" + $ScenarioName).Trim()
+    $safeRunId = ("" + $script:RunId).Trim()
+
+    if ([string]::IsNullOrWhiteSpace($safeScenarioName) -or [string]::IsNullOrWhiteSpace($safeRunId)) {
+        return $BaseDeviceId
+    }
+
+    return ("{0}-{1}-{2}" -f $BaseDeviceId, $safeScenarioName, $safeRunId)
+}
+
 function Build-AbuseScenarioSteps {
     param(
         [Parameter(Mandatory=$true)]$DevicePool,
@@ -1464,12 +1536,13 @@ function Build-AbuseScenarioSteps {
 
     if ($AbuseScenarioDeviceReuseEnabled) {
         $scenarioName = "abuse_device_reuse"
+        $deviceId = Get-AbuseScopedDeviceId -BaseDeviceId (Select-PoolValue -Pool $resolvedDevicePool -Index 0) -ScenarioName $scenarioName
         for ($i = 0; $i -lt 10; $i++) {
             [void]$steps.Add((New-AbuseStep `
                 -ScenarioName $scenarioName `
                 -StepNumber ($steps.Count + 1) `
                 -Email (Select-PoolValue -Pool $resolvedEmailPool -Index $i) `
-                -DeviceCookieId (Select-PoolValue -Pool $resolvedDevicePool -Index 0) `
+                -DeviceCookieId $deviceId `
                 -AttemptIp (Select-PoolValue -Pool $resolvedIpPool -Index $i)))
         }
     }
@@ -1477,52 +1550,44 @@ function Build-AbuseScenarioSteps {
     if ($AbuseScenarioAccountSharingEnabled) {
         $scenarioName = "abuse_account_sharing"
         for ($i = 0; $i -lt 5; $i++) {
+            $deviceId = Get-AbuseScopedDeviceId -BaseDeviceId (Select-PoolValue -Pool $resolvedDevicePool -Index ($i + 1)) -ScenarioName $scenarioName
             [void]$steps.Add((New-AbuseStep `
                 -ScenarioName $scenarioName `
                 -StepNumber ($steps.Count + 1) `
-                -Email (Select-PoolValue -Pool $resolvedEmailPool -Index 10) `
-                -DeviceCookieId (Select-PoolValue -Pool $resolvedDevicePool -Index ($i + 1)) `
-                -AttemptIp (Select-PoolValue -Pool $resolvedIpPool -Index ($i + 10))))
+                -Email (Select-PoolValue -Pool $resolvedEmailPool -Index 0) `
+                -DeviceCookieId $deviceId `
+                -AttemptIp (Select-PoolValue -Pool $resolvedIpPool -Index $i)))
         }
     }
 
     if ($AbuseScenarioBotPatternEnabled) {
         $scenarioName = "abuse_bot_pattern"
-        for ($i = 0; $i -lt 50; $i++) {
+        $deviceId = Get-AbuseScopedDeviceId -BaseDeviceId (Select-PoolValue -Pool $resolvedDevicePool -Index 0) -ScenarioName $scenarioName
+        for ($i = 0; $i -lt 10; $i++) {
             [void]$steps.Add((New-AbuseStep `
                 -ScenarioName $scenarioName `
                 -StepNumber ($steps.Count + 1) `
-                -Email (Select-PoolValue -Pool $resolvedEmailPool -Index (20 + ($i % 10))) `
-                -DeviceCookieId (Select-PoolValue -Pool $resolvedDevicePool -Index 0) `
+                -Email (Select-PoolValue -Pool $resolvedEmailPool -Index $i) `
+                -DeviceCookieId $deviceId `
                 -AttemptIp (Select-PoolValue -Pool $resolvedIpPool -Index $i)))
         }
     }
 
     if ($AbuseScenarioDeviceClusterEnabled) {
         $clusterDeviceStart = 5
-        $clusterEmailStart  = 0
-        $clusterIpStart     = 0
+        $clusterEmailIndices = @(0, 1, 2, 3)
 
         for ($cluster = 0; $cluster -lt 5; $cluster++) {
             $scenarioName = ("abuse_device_cluster_{0}" -f ($cluster + 1))
-            $deviceId = Select-PoolValue -Pool $resolvedDevicePool -Index ($clusterDeviceStart + $cluster)
+            $deviceId = Get-AbuseScopedDeviceId -BaseDeviceId (Select-PoolValue -Pool $resolvedDevicePool -Index ($clusterDeviceStart + $cluster)) -ScenarioName $scenarioName
 
-            for ($offset = 0; $offset -lt 4; $offset++) {
+            for ($offset = 0; $offset -lt 10; $offset++) {
                 [void]$steps.Add((New-AbuseStep `
                     -ScenarioName $scenarioName `
                     -StepNumber ($steps.Count + 1) `
-                    -Email (Select-PoolValue -Pool $resolvedEmailPool -Index ($clusterEmailStart + ($cluster * 4) + $offset)) `
+                    -Email (Select-PoolValue -Pool $resolvedEmailPool -Index $clusterEmailIndices[($offset % $clusterEmailIndices.Count)]) `
                     -DeviceCookieId $deviceId `
-                    -AttemptIp (Select-PoolValue -Pool $resolvedIpPool -Index ($clusterIpStart + ($cluster * 10) + $offset))))
-            }
-
-            for ($offset = 4; $offset -lt 10; $offset++) {
-                [void]$steps.Add((New-AbuseStep `
-                    -ScenarioName $scenarioName `
-                    -StepNumber ($steps.Count + 1) `
-                    -Email (Select-PoolValue -Pool $resolvedEmailPool -Index ($clusterEmailStart + ($cluster * 4) + ($offset % 4))) `
-                    -DeviceCookieId $deviceId `
-                    -AttemptIp (Select-PoolValue -Pool $resolvedIpPool -Index ($clusterIpStart + ($cluster * 10) + $offset))))
+                    -AttemptIp (Select-PoolValue -Pool $resolvedIpPool -Index $offset)))
             }
         }
     }
@@ -2026,7 +2091,7 @@ Write-Host "AbuseAdminValidationTopIpsLimit:" $script:AbuseAdminValidationTopIps
 $banResults = @()
 
 if ($CheckIpBan) {
-    $banResults += Run-BanCheck -BanName "ip" -Email $UnregisteredEmail -WrongPassword $WrongPassword -BanPattern $IpBanPattern -DeviceCookieId $scenarioDeviceBanIp -ForcedAttemptIp $scenarioIpBanIp
+    $banResults += Run-BanCheck -BanName "ip" -Email $UnregisteredEmail -WrongPassword $WrongPassword -BanPattern $IpBanPattern -ExtraHeaders (Get-AuditRunRequestHeaders) -DeviceCookieId $scenarioDeviceBanIp -ForcedAttemptIp $scenarioIpBanIp
     $lastBanResult = $banResults[-1]
     Write-Host "BanResult:" (Get-BanResultLabel -BanTextFound $lastBanResult.BanTextFound -SecFound $lastBanResult.SecFound -SecValue $lastBanResult.SecValue -RedirectToLogin $lastBanResult.RedirectedToLogin -SupportCodeOnTarget $lastBanResult.SupportCodeOnTarget)
     Write-Host "SupportResult:" (Get-SupportResultLabel -SupportLinkFound $lastBanResult.SupportLinkFound -SupportTargetPathOk $lastBanResult.SupportTargetPathOk -SupportTargetCsrfPresent $lastBanResult.SupportTargetCsrfPresent -TicketSubmitResult $lastBanResult.TicketSubmitResult)
@@ -2066,7 +2131,7 @@ if ($CheckIdentityBan) {
             TicketSubmitHttp         = ""
         }
     } else {
-        $banResults += Run-BanCheck -BanName "identity" -Email $identityBanEmailResolved -WrongPassword $WrongPassword -BanPattern $IdentityBanPattern -DeviceCookieId $scenarioDeviceBanIdentity -ForcedAttemptIp $scenarioIpBanIdentity
+        $banResults += Run-BanCheck -BanName "identity" -Email $identityBanEmailResolved -WrongPassword $WrongPassword -BanPattern $IdentityBanPattern -ExtraHeaders (Get-AuditRunRequestHeaders) -DeviceCookieId $scenarioDeviceBanIdentity -ForcedAttemptIp $scenarioIpBanIdentity
         $lastBanResult = $banResults[-1]
         Write-Host "BanResult:" (Get-BanResultLabel -BanTextFound $lastBanResult.BanTextFound -SecFound $lastBanResult.SecFound -SecValue $lastBanResult.SecValue -RedirectToLogin $lastBanResult.RedirectedToLogin -SupportCodeOnTarget $lastBanResult.SupportCodeOnTarget)
         Write-Host "SupportResult:" (Get-SupportResultLabel -SupportLinkFound $lastBanResult.SupportLinkFound -SupportTargetPathOk $lastBanResult.SupportTargetPathOk -SupportTargetCsrfPresent $lastBanResult.SupportTargetCsrfPresent -TicketSubmitResult $lastBanResult.TicketSubmitResult)
@@ -2074,7 +2139,7 @@ if ($CheckIdentityBan) {
 }
 
 if ($CheckDeviceBan) {
-    $deviceHeaders = Get-DeviceHeaders
+    $deviceHeaders = Merge-AuditRequestHeaders -Headers (Get-DeviceHeaders)
     $banResults += Run-BanCheck -BanName "device" -Email $RegisteredEmail -WrongPassword $WrongPassword -BanPattern $DeviceBanPattern -ExtraHeaders $deviceHeaders -DeviceCookieId $scenarioDeviceBanDevice -ForcedAttemptIp $scenarioIpBanDevice
     $lastBanResult = $banResults[-1]
     Write-Host "BanResult:" (Get-BanResultLabel -BanTextFound $lastBanResult.BanTextFound -SecFound $lastBanResult.SecFound -SecValue $lastBanResult.SecValue -RedirectToLogin $lastBanResult.RedirectedToLogin -SupportCodeOnTarget $lastBanResult.SupportCodeOnTarget)
@@ -2143,9 +2208,17 @@ Write-Section "RESULT SUMMARY"
 Write-Host "UnregisteredEmail -> WrongCredsDetected:" $res1.WrongCredsDetected "LockoutDetected:" $res1.LockoutDetected "Seconds:" $res1.LockoutSeconds "SupportCodeDetected:" $res1.SupportCodeDetected "SupportCode:" $res1.SupportCodeValue "Result:" (Get-LoginAttemptResultLabel -WrongCredsFound $res1.WrongCredsDetected -LockoutFound $res1.LockoutDetected -SecFound $res1.SupportCodeDetected -LockoutSeconds $res1.LockoutSeconds -SecValue $res1.SupportCodeValue) "SupportFlow:" $res1.SupportFlowResult "SupportLinkFound:" $res1.SupportLinkFound "SupportTargetPathOk:" $res1.SupportTargetPathOk "SupportTargetCsrfPresent:" $res1.SupportTargetCsrfPresent "SupportCodeMatch:" $res1.SupportCodeMatch "TicketSubmitAttempted:" $res1.TicketSubmitAttempted "TicketSubmitResult:" $res1.TicketSubmitResult "TicketSubmitHttp:" $res1.TicketSubmitHttp "SkipReason:" $res1.SkipReason
 Write-Host "ResultSummary:" (Get-LoginAttemptResultLabel -WrongCredsFound $res1.WrongCredsDetected -LockoutFound $res1.LockoutDetected -SecFound $res1.SupportCodeDetected -LockoutSeconds $res1.LockoutSeconds -SecValue $res1.SupportCodeValue)
 Write-Host "SupportResult:" (Get-SupportResultLabel -SupportLinkFound $res1.SupportLinkFound -SupportTargetPathOk $res1.SupportTargetPathOk -SupportTargetCsrfPresent $res1.SupportTargetCsrfPresent -TicketSubmitResult $res1.TicketSubmitResult)
+Write-Host "SEC_E2E ->" $res1.SecE2EResult
+Write-Host "Login:" $res1.SupportCodeValue
+Write-Host "Ticket:" $res1.TicketSupportCode
+Write-Host "Mail:" $(if ([string]::IsNullOrWhiteSpace($res1.MailSupportCode)) { $res1.MailResult } else { $res1.MailSupportCode })
 Write-Host "RegisteredEmail   -> WrongCredsDetected:" $res2.WrongCredsDetected "LockoutDetected:" $res2.LockoutDetected "Seconds:" $res2.LockoutSeconds "SupportCodeDetected:" $res2.SupportCodeDetected "SupportCode:" $res2.SupportCodeValue "Result:" (Get-LoginAttemptResultLabel -WrongCredsFound $res2.WrongCredsDetected -LockoutFound $res2.LockoutDetected -SecFound $res2.SupportCodeDetected -LockoutSeconds $res2.LockoutSeconds -SecValue $res2.SupportCodeValue) "SupportFlow:" $res2.SupportFlowResult "SupportLinkFound:" $res2.SupportLinkFound "SupportTargetPathOk:" $res2.SupportTargetPathOk "SupportTargetCsrfPresent:" $res2.SupportTargetCsrfPresent "SupportCodeMatch:" $res2.SupportCodeMatch "TicketSubmitAttempted:" $res2.TicketSubmitAttempted "TicketSubmitResult:" $res2.TicketSubmitResult "TicketSubmitHttp:" $res2.TicketSubmitHttp "SkipReason:" $res2.SkipReason
 Write-Host "ResultSummary:" (Get-LoginAttemptResultLabel -WrongCredsFound $res2.WrongCredsDetected -LockoutFound $res2.LockoutDetected -SecFound $res2.SupportCodeDetected -LockoutSeconds $res2.LockoutSeconds -SecValue $res2.SupportCodeValue)
 Write-Host "SupportResult:" (Get-SupportResultLabel -SupportLinkFound $res2.SupportLinkFound -SupportTargetPathOk $res2.SupportTargetPathOk -SupportTargetCsrfPresent $res2.SupportTargetCsrfPresent -TicketSubmitResult $res2.TicketSubmitResult)
+Write-Host "SEC_E2E ->" $res2.SecE2EResult
+Write-Host "Login:" $res2.SupportCodeValue
+Write-Host "Ticket:" $res2.TicketSupportCode
+Write-Host "Mail:" $(if ([string]::IsNullOrWhiteSpace($res2.MailSupportCode)) { $res2.MailResult } else { $res2.MailSupportCode })
 
 if ($banResults.Count -gt 0) {
     Write-Section "BAN SUMMARY"

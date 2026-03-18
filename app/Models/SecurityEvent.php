@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Models\SecurityEvent.php
 // Purpose: Eloquent model for persisted security incidents.
-// Changed: 17-03-2026 12:26 (Europe/Berlin)
-// Version: 0.2
+// Changed: 17-03-2026 23:44 (Europe/Berlin)
+// Version: 0.3
 // ============================================================================
 
 namespace App\Models;
@@ -14,6 +14,7 @@ class SecurityEvent extends Model
 {
     protected $fillable = [
         'reference',
+        'run_id',
         'type',
         'ip',
         'user_id',

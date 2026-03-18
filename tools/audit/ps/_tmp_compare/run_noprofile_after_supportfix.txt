@@ -1,0 +1,2071 @@
+Loaded AbuseAdminValidation Version: 3.2
+
+======================================================================
+LARAVEL RESET
+======================================================================
+Running: php artisan optimize:clear
+
+   INFO  Clearing cached bootstrap files.  
+
+  config ................................................................................................. 2.22ms DONE
+  cache ................................................................................................ 775.03ms DONE
+  compiled ............................................................................................... 1.13ms DONE
+  events ................................................................................................. 0.96ms DONE
+  routes ................................................................................................. 0.83ms DONE
+  views .................................................................................................. 3.02ms DONE
+
+Running: php artisan cache:clear
+
+   INFO  Application cache cleared successfully.  
+
+Running: php artisan config:clear
+
+   INFO  Configuration cache cleared successfully.  
+
+Running: php artisan route:clear
+
+   INFO  Route cache cleared successfully.  
+
+RESET: DONE
+
+
+======================================================================
+CONFIG
+======================================================================
+ConfigFilePath: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.config.ps1
+BaseUrl: http://kiezsingles.test
+RegisteredEmail: audit_admin@web.de
+UnregisteredEmail: audit-test1@kiezsingles.local
+IdentityBanEmail: audit_banned@web.de
+LockoutAttempts: 7
+Invoke-WebRequest UseBasicParsing supported: True
+ExportHtmlEnabled: True
+ExportHtmlDir: C:\laragon\www\kiezsingles\tools\audit\ps\output
+ExportRunDir: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c
+FollowRedirectsEnabled: True
+MaxRedirects: 5
+CheckIpBan: True
+CheckIdentityBan: True
+CheckDeviceBan: True
+DeviceCookieName: ks_device_id
+TestDeviceCookieId: 
+PinnedDeviceCookieId: 5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4
+EffectiveDeviceCookieId: 5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4
+CheckSupportContactFlow: True
+SubmitSupportTicketTest: True
+ExpectedTicketCreatePath: /support/security
+SkipLockoutScenariosIfIpBanPass: True
+PinnedIpBanTestIp: 192.168.200.13
+PinnedLockoutTestIp: 198.51.100.10
+AutoSelectFreeLockoutTestIp: True
+ResolvedLockoutTestIp: 198.51.100.10
+LocalClientIPs: fe80::d41a:27a3:1712:c780%17, fe80::1a81:14c8:bcde:10aa%5, fe80::fef:f342:9069:6a23%11, fe80::d171:1354:ad0c:612d%16, fdbc:9f67:4ef0:0:9962:adbf:1130:5be0, fdbc:9f67:4ef0:0:f76:9766:d6e7:f0f5, 2a02:8109:b30d:2b00:9962:adbf:1130:5be0, 2a02:8109:b30d:2b00:c7a:75c3:d700:f914, ::1, 169.254.94.174, 169.254.58.194, 169.254.90.55, 192.168.0.235, 127.0.0.1
+SimulateClientIpEnabled: True
+ClientIpHeaderMode: standard
+IpRotationMode: fixed_per_scenario
+TestIpPoolCount: 60
+TestIpPoolPreview: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17
+BanOnlyMode: False
+CheckAbuseSimulation: True
+AbuseSimulationAttemptsPerStep: 1
+AbuseSimulationSkipSupportFlow: True
+AbuseScenarioDeviceReuseEnabled: True
+AbuseScenarioAccountSharingEnabled: True
+AbuseScenarioBotPatternEnabled: True
+AbuseScenarioDeviceClusterEnabled: True
+AdminValidationEnabled: True
+AdminValidationLoginEmail: audit_superadmin@web.de
+AdminValidationEventsPath: /admin/security/events
+AdminValidationMaxSamplesPerCheck: 5
+AdminValidationDeviceCookieId: ks-admin-validation-device-001
+AdminValidationTestIp: 198.51.100.210
+ScenarioIpMapKeys: ban_device, ban_identity, ban_ip, registered_email, security_event_lockout, unregistered_email
+ScenarioDeviceMapKeys: ban_device, ban_identity, ban_ip, registered_email, security_event_lockout, unregistered_email
+ScenarioIp[unregistered_email]: 198.51.100.10
+ScenarioIp[registered_email]: 198.51.100.11
+ScenarioIp[security_event_lockout]: 198.51.100.12
+ScenarioIp[ban_ip]: 192.168.200.13
+ScenarioIp[ban_identity]: 192.168.200.13
+ScenarioIp[ban_device]: 192.168.200.13
+ScenarioDevice[unregistered_email]: ks-audit-unregistered
+ScenarioDevice[registered_email]: ks-audit-registered
+ScenarioDevice[security_event_lockout]: ks-audit-security-event
+ScenarioDevice[ban_ip]: 5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4
+ScenarioDevice[ban_identity]: 5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4
+ScenarioDevice[ban_device]: 5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4
+AbuseAdminValidationExpectedSteps: 75
+AbuseAdminValidationTopDevicesLimit: 10
+AbuseAdminValidationTopEmailsLimit: 10
+AbuseAdminValidationTopIpsLimit: 10
+
+======================================================================
+BAN CHECK: ip
+======================================================================
+Email: audit-test1@kiezsingles.local
+ClientIp: 192.168.200.13
+GET /login Status: 200 Followed: False FinalUrl: http://kiezsingles.test/login BanTextFound: False SEC: True Lockout: False
+SEC snippet:
+    </div>
+            <div class="mt-1 text-center">
+                Referenz: SEC-KTYGEIDV
+            </div>
+            <div class="mt-1 text-center">
+     
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0001_ban_ip_get_login.html
+GET evidence is already sufficient; POST login attempt skipped.
+Evidence: SupportRef(GET)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0002_support_flow_ban_ip_ticket_target.html
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0003_support_submit_ban_ip_final_html.html
+SupportContactFlow: PASS LinkFound: True TargetPathOk: True TargetCsrfPresent: True SecMatch: True
+SupportTicketSubmit: PASS_REDIRECT Attempted: True HTTP: 302
+SupportContactLink: http://kiezsingles.test/support/security?support_access_token=ZJGOeGL29qJMMZ1h2ioUhSTVdA6GWIHDbCmdbUH9NfYNHcvsmKuoqoRfv61qSCF7&support_reference=SEC-KTYGEIDV&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-KTYGEIDV&source_context=security_login_block
+SupportContactTarget: http://kiezsingles.test/support/security?support_access_token=ZJGOeGL29qJMMZ1h2ioUhSTVdA6GWIHDbCmdbUH9NfYNHcvsmKuoqoRfv61qSCF7&support_reference=SEC-KTYGEIDV&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-KTYGEIDV&source_context=security_login_block
+TargetSupportRef: SEC-KTYGEIDV
+SupportTicketSubmitUrl: http://kiezsingles.test/support/security?support_access_token=ZJGOeGL29qJMMZ1h2ioUhSTVdA6GWIHDbCmdbUH9NfYNHcvsmKuoqoRfv61qSCF7&support_reference=SEC-KTYGEIDV&source_context=security_login_block
+SupportTicketSubmitTarget: http://kiezsingles.test/login
+BanResult: BAN_BLOCKED_WITH_SEC (SEC-KTYGEIDV)
+SupportResult: SUPPORT_SUBMIT_OK
+
+======================================================================
+BAN CHECK: identity
+======================================================================
+Email: audit_banned@web.de
+ClientIp: 192.168.200.13
+GET /login Status: 200 Followed: False FinalUrl: http://kiezsingles.test/login BanTextFound: False SEC: True Lockout: False
+SEC snippet:
+    </div>
+            <div class="mt-1 text-center">
+                Referenz: SEC-KTYGEIDV
+            </div>
+            <div class="mt-1 text-center">
+     
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0004_ban_identity_get_login.html
+GET evidence is already sufficient; POST login attempt skipped.
+Evidence: SupportRef(GET)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0005_support_flow_ban_identity_ticket_target.html
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0006_support_submit_ban_identity_final_html.html
+SupportContactFlow: PASS LinkFound: True TargetPathOk: True TargetCsrfPresent: True SecMatch: True
+SupportTicketSubmit: PASS_REDIRECT Attempted: True HTTP: 302
+SupportContactLink: http://kiezsingles.test/support/security?support_access_token=HgIvwJ8lnPi5scc9ME5rvjGGO37qXSYbIt1M1dON1X7p94UVYwZquXWnrCCGETQN&support_reference=SEC-KTYGEIDV&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-KTYGEIDV&source_context=security_login_block
+SupportContactTarget: http://kiezsingles.test/support/security?support_access_token=HgIvwJ8lnPi5scc9ME5rvjGGO37qXSYbIt1M1dON1X7p94UVYwZquXWnrCCGETQN&support_reference=SEC-KTYGEIDV&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-KTYGEIDV&source_context=security_login_block
+TargetSupportRef: SEC-KTYGEIDV
+SupportTicketSubmitUrl: http://kiezsingles.test/support/security?support_access_token=HgIvwJ8lnPi5scc9ME5rvjGGO37qXSYbIt1M1dON1X7p94UVYwZquXWnrCCGETQN&support_reference=SEC-KTYGEIDV&source_context=security_login_block
+SupportTicketSubmitTarget: http://kiezsingles.test/login
+BanResult: BAN_BLOCKED_WITH_SEC (SEC-KTYGEIDV)
+SupportResult: SUPPORT_SUBMIT_OK
+
+======================================================================
+BAN CHECK: device
+======================================================================
+Email: audit_admin@web.de
+ClientIp: 192.168.200.13
+DeviceCookieName: ks_device_id
+DeviceCookieId: 5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4
+DeviceCookieHash: 015c10aa3aab08a0c2851abc3c769be34fd43c398b862589941778b76923ba76
+GET /login Status: 200 Followed: False FinalUrl: http://kiezsingles.test/login BanTextFound: False SEC: True Lockout: False
+SEC snippet:
+    </div>
+            <div class="mt-1 text-center">
+                Referenz: SEC-KV7VH2OW
+            </div>
+            <div class="mt-1 text-center">
+     
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0007_ban_device_get_login.html
+GET evidence is already sufficient; POST login attempt skipped.
+Evidence: SupportRef(GET)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0008_support_flow_ban_device_ticket_target.html
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0009_support_submit_ban_device_final_html.html
+SupportContactFlow: PASS LinkFound: True TargetPathOk: True TargetCsrfPresent: True SecMatch: True
+SupportTicketSubmit: PASS_REDIRECT Attempted: True HTTP: 302
+SupportContactLink: http://kiezsingles.test/support/security?support_access_token=niLeLid0zYUjLxg7MUuU55yXVy2MPnel1l6hL2saK4k1yr7FgukMY4OJNQ9Yj1pt&support_reference=SEC-KV7VH2OW&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-KV7VH2OW&source_context=security_login_block
+SupportContactTarget: http://kiezsingles.test/support/security?support_access_token=niLeLid0zYUjLxg7MUuU55yXVy2MPnel1l6hL2saK4k1yr7FgukMY4OJNQ9Yj1pt&support_reference=SEC-KV7VH2OW&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-KV7VH2OW&source_context=security_login_block
+TargetSupportRef: SEC-KV7VH2OW
+SupportTicketSubmitUrl: http://kiezsingles.test/support/security?support_access_token=niLeLid0zYUjLxg7MUuU55yXVy2MPnel1l6hL2saK4k1yr7FgukMY4OJNQ9Yj1pt&support_reference=SEC-KV7VH2OW&source_context=security_login_block
+SupportTicketSubmitTarget: http://kiezsingles.test/login
+BanResult: BAN_BLOCKED_WITH_SEC (SEC-KV7VH2OW)
+SupportResult: SUPPORT_SUBMIT_OK
+
+======================================================================
+SCENARIO: unregistered_email
+======================================================================
+Email: audit-test1@kiezsingles.local
+Attempts: 7
+RequestedDeviceCookieId: ks-audit-unregistered
+RequestedForcedAttemptIp: 198.51.100.10
+EffectiveDeviceCookieId: ks-audit-unregistered
+EffectiveAttemptIp: 198.51.100.10
+GET /login Status: 200 CSRF present: True ClientIp: 198.51.100.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0010_scenario_unregistered_email_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.10 DeviceCookieId: ks-audit-unregistered
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0011_scenario_unregistered_email_attempt_1_final_html.html
+Attempt 2 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.10 DeviceCookieId: ks-audit-unregistered
+Attempt 2 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 2 -> Result: WRONG_CREDENTIALS
+Attempt 3 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.10 DeviceCookieId: ks-audit-unregistered
+Attempt 3 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 3 -> Result: WRONG_CREDENTIALS
+Attempt 4 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.10 DeviceCookieId: ks-audit-unregistered
+Attempt 4 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 4 -> Result: LOCKOUT_ACTIVE (600 s)
+Lockout detected
+Lockout seconds: 600
+Lockout snippet:
+ <li>Benutzername/E-Mail oder Passwort ist falsch.</li>
+                    <li>Zu viele Loginversuche. Versuchen Sie es bitte in 600 Sekunden nochmal.</li>
+   
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0012_scenario_unregistered_email_lockout_attempt_4_final_html.html
+SupportRef: SEC-OZUVWQBE
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0013_support_flow_scenario_unregistered_email_ticket_target.html
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0014_support_submit_scenario_unregistered_email_final_html.html
+SupportContactFlow: PASS LinkFound: True TargetPathOk: True TargetCsrfPresent: True SecMatch: True
+SupportTicketSubmit: PASS_REDIRECT Attempted: True HTTP: 302
+SupportContactLink: http://kiezsingles.test/support/security?support_access_token=911qnlw5rl3CiTB9ZkI3rY51TREYDI9e7JJefVnkucmkZUhbH99aWeZOgbylSFu0&support_reference=SEC-OZUVWQBE&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-OZUVWQBE&source_context=security_login_block&contact_email=audit-test1%40kiezsingles.local
+SupportContactTarget: http://kiezsingles.test/support/security?support_access_token=911qnlw5rl3CiTB9ZkI3rY51TREYDI9e7JJefVnkucmkZUhbH99aWeZOgbylSFu0&support_reference=SEC-OZUVWQBE&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-OZUVWQBE&source_context=security_login_block&contact_email=audit-test1%40kiezsingles.local
+TargetSupportRef: SEC-OZUVWQBE
+SupportTicketSubmitUrl: http://kiezsingles.test/support/security?support_access_token=911qnlw5rl3CiTB9ZkI3rY51TREYDI9e7JJefVnkucmkZUhbH99aWeZOgbylSFu0&support_reference=SEC-OZUVWQBE&source_context=security_login_block
+SupportTicketSubmitTarget: http://kiezsingles.test/login
+SupportResult: SUPPORT_SUBMIT_OK
+
+======================================================================
+SCENARIO: registered_email
+======================================================================
+Email: audit_admin@web.de
+Attempts: 7
+RequestedDeviceCookieId: ks-audit-registered
+RequestedForcedAttemptIp: 198.51.100.11
+EffectiveDeviceCookieId: ks-audit-registered
+EffectiveAttemptIp: 198.51.100.11
+GET /login Status: 200 CSRF present: True ClientIp: 198.51.100.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0015_scenario_registered_email_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.11 DeviceCookieId: ks-audit-registered
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0016_scenario_registered_email_attempt_1_final_html.html
+Attempt 2 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.11 DeviceCookieId: ks-audit-registered
+Attempt 2 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 2 -> Result: WRONG_CREDENTIALS
+Attempt 3 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.11 DeviceCookieId: ks-audit-registered
+Attempt 3 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 3 -> Result: WRONG_CREDENTIALS
+Attempt 4 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.11 DeviceCookieId: ks-audit-registered
+Attempt 4 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 4 -> Result: WRONG_CREDENTIALS
+Attempt 5 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.11 DeviceCookieId: ks-audit-registered
+Attempt 5 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 5 -> Result: LOCKOUT_ACTIVE (600 s)
+Lockout detected
+Lockout seconds: 600
+Lockout snippet:
+ <li>Benutzername/E-Mail oder Passwort ist falsch.</li>
+                    <li>Zu viele Loginversuche. Versuchen Sie es bitte in 600 Sekunden nochmal.</li>
+   
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0017_scenario_registered_email_lockout_attempt_5_final_html.html
+SupportRef: SEC-S0RRAA0B
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0018_support_flow_scenario_registered_email_ticket_target.html
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0019_support_submit_scenario_registered_email_final_html.html
+SupportContactFlow: PASS LinkFound: True TargetPathOk: True TargetCsrfPresent: True SecMatch: True
+SupportTicketSubmit: PASS_REDIRECT Attempted: True HTTP: 302
+SupportContactLink: http://kiezsingles.test/support/security?support_access_token=Z23eSX8JChwNcsXvnfAjbtyrOhtKEq8sIrAUqHncVu2u4zPmSaREUDIRPkmijFuc&support_reference=SEC-S0RRAA0B&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-S0RRAA0B&source_context=security_login_block&contact_email=audit_admin%40web.de
+SupportContactTarget: http://kiezsingles.test/support/security?support_access_token=Z23eSX8JChwNcsXvnfAjbtyrOhtKEq8sIrAUqHncVu2u4zPmSaREUDIRPkmijFuc&support_reference=SEC-S0RRAA0B&subject=Anmeldung+blockiert&message=Ich+kann+mich+nicht+anmelden.+Referenz%3A+SEC-S0RRAA0B&source_context=security_login_block&contact_email=audit_admin%40web.de
+TargetSupportRef: SEC-S0RRAA0B
+SupportTicketSubmitUrl: http://kiezsingles.test/support/security?support_access_token=Z23eSX8JChwNcsXvnfAjbtyrOhtKEq8sIrAUqHncVu2u4zPmSaREUDIRPkmijFuc&support_reference=SEC-S0RRAA0B&source_context=security_login_block
+SupportTicketSubmitTarget: http://kiezsingles.test/login
+SupportResult: SUPPORT_SUBMIT_OK
+
+======================================================================
+ABUSE SIMULATION
+======================================================================
+Enabled: True
+StepCount: 75
+DevicePoolCount: 12
+EmailPoolCount: 10
+IpPoolCount: 10
+[abuse_device_reuse] Step 1 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_1
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0020_scenario_abuse_device_reuse_step_1_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0021_scenario_abuse_device_reuse_step_1_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0022_scenario_abuse_device_reuse_step_1_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 2 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_2
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0023_scenario_abuse_device_reuse_step_2_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0024_scenario_abuse_device_reuse_step_2_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0025_scenario_abuse_device_reuse_step_2_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 3 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_3
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0026_scenario_abuse_device_reuse_step_3_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0027_scenario_abuse_device_reuse_step_3_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0028_scenario_abuse_device_reuse_step_3_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 4 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_4
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0029_scenario_abuse_device_reuse_step_4_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0030_scenario_abuse_device_reuse_step_4_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0031_scenario_abuse_device_reuse_step_4_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 5 -> Email:audit-abuse-005@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_5
+======================================================================
+Email: audit-abuse-005@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0032_scenario_abuse_device_reuse_step_5_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0033_scenario_abuse_device_reuse_step_5_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0034_scenario_abuse_device_reuse_step_5_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 6 -> Email:audit-abuse-006@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.15
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_6
+======================================================================
+Email: audit-abuse-006@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.15
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.15
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.15
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0035_scenario_abuse_device_reuse_step_6_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.15 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0036_scenario_abuse_device_reuse_step_6_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0037_scenario_abuse_device_reuse_step_6_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 7 -> Email:audit-abuse-007@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.16
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_7
+======================================================================
+Email: audit-abuse-007@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.16
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.16
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.16
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0038_scenario_abuse_device_reuse_step_7_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.16 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0039_scenario_abuse_device_reuse_step_7_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0040_scenario_abuse_device_reuse_step_7_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 8 -> Email:audit-abuse-008@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.17
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_8
+======================================================================
+Email: audit-abuse-008@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.17
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.17
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.17
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0041_scenario_abuse_device_reuse_step_8_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.17 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0042_scenario_abuse_device_reuse_step_8_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0043_scenario_abuse_device_reuse_step_8_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 9 -> Email:audit-abuse-009@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.18
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_9
+======================================================================
+Email: audit-abuse-009@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.18
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.18
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.18
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0044_scenario_abuse_device_reuse_step_9_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.18 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0045_scenario_abuse_device_reuse_step_9_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0046_scenario_abuse_device_reuse_step_9_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_reuse] Step 10 -> Email:audit-abuse-010@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c AttemptIp:203.0.113.19
+
+======================================================================
+SCENARIO: abuse_device_reuse_step_10
+======================================================================
+Email: audit-abuse-010@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.19
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.19
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.19
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0047_scenario_abuse_device_reuse_step_10_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.19 DeviceCookieId: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0048_scenario_abuse_device_reuse_step_10_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0049_scenario_abuse_device_reuse_step_10_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_account_sharing] Step 11 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-002-abuse_account_sharing-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_account_sharing_step_11
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-002-abuse_account_sharing-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-002-abuse_account_sharing-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0050_scenario_abuse_account_sharing_step_11_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-002-abuse_account_sharing-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0051_scenario_abuse_account_sharing_step_11_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0052_scenario_abuse_account_sharing_step_11_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_account_sharing] Step 12 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-003-abuse_account_sharing-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_account_sharing_step_12
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-003-abuse_account_sharing-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-003-abuse_account_sharing-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0053_scenario_abuse_account_sharing_step_12_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-003-abuse_account_sharing-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0054_scenario_abuse_account_sharing_step_12_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0055_scenario_abuse_account_sharing_step_12_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_account_sharing] Step 13 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-004-abuse_account_sharing-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_account_sharing_step_13
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-004-abuse_account_sharing-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-004-abuse_account_sharing-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0056_scenario_abuse_account_sharing_step_13_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-004-abuse_account_sharing-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0057_scenario_abuse_account_sharing_step_13_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0058_scenario_abuse_account_sharing_step_13_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_account_sharing] Step 14 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-005-abuse_account_sharing-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_account_sharing_step_14
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-005-abuse_account_sharing-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-005-abuse_account_sharing-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0059_scenario_abuse_account_sharing_step_14_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-005-abuse_account_sharing-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0060_scenario_abuse_account_sharing_step_14_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0061_scenario_abuse_account_sharing_step_14_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_account_sharing] Step 15 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_account_sharing-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_account_sharing_step_15
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_account_sharing-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_account_sharing-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0062_scenario_abuse_account_sharing_step_15_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-006-abuse_account_sharing-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0063_scenario_abuse_account_sharing_step_15_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0064_scenario_abuse_account_sharing_step_15_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 16 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_16
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0065_scenario_abuse_bot_pattern_step_16_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0066_scenario_abuse_bot_pattern_step_16_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0067_scenario_abuse_bot_pattern_step_16_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 17 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_17
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0068_scenario_abuse_bot_pattern_step_17_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0069_scenario_abuse_bot_pattern_step_17_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0070_scenario_abuse_bot_pattern_step_17_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 18 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_18
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0071_scenario_abuse_bot_pattern_step_18_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0072_scenario_abuse_bot_pattern_step_18_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0073_scenario_abuse_bot_pattern_step_18_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 19 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_19
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0074_scenario_abuse_bot_pattern_step_19_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0075_scenario_abuse_bot_pattern_step_19_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0076_scenario_abuse_bot_pattern_step_19_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 20 -> Email:audit-abuse-005@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_20
+======================================================================
+Email: audit-abuse-005@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0077_scenario_abuse_bot_pattern_step_20_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0078_scenario_abuse_bot_pattern_step_20_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0079_scenario_abuse_bot_pattern_step_20_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 21 -> Email:audit-abuse-006@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.15
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_21
+======================================================================
+Email: audit-abuse-006@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.15
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.15
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.15
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0080_scenario_abuse_bot_pattern_step_21_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.15 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0081_scenario_abuse_bot_pattern_step_21_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0082_scenario_abuse_bot_pattern_step_21_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 22 -> Email:audit-abuse-007@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.16
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_22
+======================================================================
+Email: audit-abuse-007@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.16
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.16
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.16
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0083_scenario_abuse_bot_pattern_step_22_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.16 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0084_scenario_abuse_bot_pattern_step_22_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0085_scenario_abuse_bot_pattern_step_22_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 23 -> Email:audit-abuse-008@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.17
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_23
+======================================================================
+Email: audit-abuse-008@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.17
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.17
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.17
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0086_scenario_abuse_bot_pattern_step_23_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.17 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0087_scenario_abuse_bot_pattern_step_23_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0088_scenario_abuse_bot_pattern_step_23_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 24 -> Email:audit-abuse-009@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.18
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_24
+======================================================================
+Email: audit-abuse-009@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.18
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.18
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.18
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0089_scenario_abuse_bot_pattern_step_24_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.18 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0090_scenario_abuse_bot_pattern_step_24_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0091_scenario_abuse_bot_pattern_step_24_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_bot_pattern] Step 25 -> Email:audit-abuse-010@kiezsingles.local DeviceCookieId:ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c AttemptIp:203.0.113.19
+
+======================================================================
+SCENARIO: abuse_bot_pattern_step_25
+======================================================================
+Email: audit-abuse-010@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.19
+EffectiveDeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.19
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.19
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0092_scenario_abuse_bot_pattern_step_25_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.19 DeviceCookieId: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0093_scenario_abuse_bot_pattern_step_25_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0094_scenario_abuse_bot_pattern_step_25_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 26 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_26
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0095_scenario_abuse_device_cluster_1_step_26_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0096_scenario_abuse_device_cluster_1_step_26_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0097_scenario_abuse_device_cluster_1_step_26_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 27 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_27
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0098_scenario_abuse_device_cluster_1_step_27_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0099_scenario_abuse_device_cluster_1_step_27_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0100_scenario_abuse_device_cluster_1_step_27_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 28 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_28
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0101_scenario_abuse_device_cluster_1_step_28_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0102_scenario_abuse_device_cluster_1_step_28_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0103_scenario_abuse_device_cluster_1_step_28_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 29 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_29
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0104_scenario_abuse_device_cluster_1_step_29_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0105_scenario_abuse_device_cluster_1_step_29_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0106_scenario_abuse_device_cluster_1_step_29_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 30 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_30
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0107_scenario_abuse_device_cluster_1_step_30_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0108_scenario_abuse_device_cluster_1_step_30_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0109_scenario_abuse_device_cluster_1_step_30_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 31 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.15
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_31
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.15
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.15
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.15
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0110_scenario_abuse_device_cluster_1_step_31_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.15 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0111_scenario_abuse_device_cluster_1_step_31_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0112_scenario_abuse_device_cluster_1_step_31_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 32 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.16
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_32
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.16
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.16
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.16
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0113_scenario_abuse_device_cluster_1_step_32_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.16 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0114_scenario_abuse_device_cluster_1_step_32_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0115_scenario_abuse_device_cluster_1_step_32_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 33 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.17
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_33
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.17
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.17
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.17
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0116_scenario_abuse_device_cluster_1_step_33_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.17 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0117_scenario_abuse_device_cluster_1_step_33_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0118_scenario_abuse_device_cluster_1_step_33_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 34 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.18
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_34
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.18
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.18
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.18
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0119_scenario_abuse_device_cluster_1_step_34_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.18 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0120_scenario_abuse_device_cluster_1_step_34_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0121_scenario_abuse_device_cluster_1_step_34_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_1] Step 35 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c AttemptIp:203.0.113.19
+
+======================================================================
+SCENARIO: abuse_device_cluster_1_step_35
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.19
+EffectiveDeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.19
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.19
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0122_scenario_abuse_device_cluster_1_step_35_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.19 DeviceCookieId: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0123_scenario_abuse_device_cluster_1_step_35_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0124_scenario_abuse_device_cluster_1_step_35_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 36 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_36
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0125_scenario_abuse_device_cluster_2_step_36_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0126_scenario_abuse_device_cluster_2_step_36_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0127_scenario_abuse_device_cluster_2_step_36_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 37 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_37
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0128_scenario_abuse_device_cluster_2_step_37_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0129_scenario_abuse_device_cluster_2_step_37_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0130_scenario_abuse_device_cluster_2_step_37_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 38 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_38
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0131_scenario_abuse_device_cluster_2_step_38_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0132_scenario_abuse_device_cluster_2_step_38_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0133_scenario_abuse_device_cluster_2_step_38_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 39 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_39
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0134_scenario_abuse_device_cluster_2_step_39_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0135_scenario_abuse_device_cluster_2_step_39_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0136_scenario_abuse_device_cluster_2_step_39_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 40 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_40
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0137_scenario_abuse_device_cluster_2_step_40_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0138_scenario_abuse_device_cluster_2_step_40_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0139_scenario_abuse_device_cluster_2_step_40_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 41 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.15
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_41
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.15
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.15
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.15
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0140_scenario_abuse_device_cluster_2_step_41_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.15 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0141_scenario_abuse_device_cluster_2_step_41_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0142_scenario_abuse_device_cluster_2_step_41_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 42 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.16
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_42
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.16
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.16
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.16
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0143_scenario_abuse_device_cluster_2_step_42_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.16 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0144_scenario_abuse_device_cluster_2_step_42_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0145_scenario_abuse_device_cluster_2_step_42_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 43 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.17
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_43
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.17
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.17
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.17
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0146_scenario_abuse_device_cluster_2_step_43_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.17 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0147_scenario_abuse_device_cluster_2_step_43_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0148_scenario_abuse_device_cluster_2_step_43_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 44 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.18
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_44
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.18
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.18
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.18
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0149_scenario_abuse_device_cluster_2_step_44_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.18 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0150_scenario_abuse_device_cluster_2_step_44_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0151_scenario_abuse_device_cluster_2_step_44_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_2] Step 45 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c AttemptIp:203.0.113.19
+
+======================================================================
+SCENARIO: abuse_device_cluster_2_step_45
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.19
+EffectiveDeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.19
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.19
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0152_scenario_abuse_device_cluster_2_step_45_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.19 DeviceCookieId: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0153_scenario_abuse_device_cluster_2_step_45_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0154_scenario_abuse_device_cluster_2_step_45_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 46 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_46
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0155_scenario_abuse_device_cluster_3_step_46_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0156_scenario_abuse_device_cluster_3_step_46_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0157_scenario_abuse_device_cluster_3_step_46_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 47 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_47
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0158_scenario_abuse_device_cluster_3_step_47_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0159_scenario_abuse_device_cluster_3_step_47_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0160_scenario_abuse_device_cluster_3_step_47_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 48 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_48
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0161_scenario_abuse_device_cluster_3_step_48_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0162_scenario_abuse_device_cluster_3_step_48_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0163_scenario_abuse_device_cluster_3_step_48_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 49 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_49
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0164_scenario_abuse_device_cluster_3_step_49_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0165_scenario_abuse_device_cluster_3_step_49_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0166_scenario_abuse_device_cluster_3_step_49_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 50 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_50
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0167_scenario_abuse_device_cluster_3_step_50_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0168_scenario_abuse_device_cluster_3_step_50_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0169_scenario_abuse_device_cluster_3_step_50_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 51 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.15
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_51
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.15
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.15
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.15
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0170_scenario_abuse_device_cluster_3_step_51_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.15 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0171_scenario_abuse_device_cluster_3_step_51_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0172_scenario_abuse_device_cluster_3_step_51_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 52 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.16
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_52
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.16
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.16
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.16
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0173_scenario_abuse_device_cluster_3_step_52_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.16 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0174_scenario_abuse_device_cluster_3_step_52_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0175_scenario_abuse_device_cluster_3_step_52_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 53 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.17
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_53
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.17
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.17
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.17
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0176_scenario_abuse_device_cluster_3_step_53_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.17 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0177_scenario_abuse_device_cluster_3_step_53_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0178_scenario_abuse_device_cluster_3_step_53_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 54 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.18
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_54
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.18
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.18
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.18
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0179_scenario_abuse_device_cluster_3_step_54_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.18 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0180_scenario_abuse_device_cluster_3_step_54_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0181_scenario_abuse_device_cluster_3_step_54_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_3] Step 55 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c AttemptIp:203.0.113.19
+
+======================================================================
+SCENARIO: abuse_device_cluster_3_step_55
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.19
+EffectiveDeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.19
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.19
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0182_scenario_abuse_device_cluster_3_step_55_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.19 DeviceCookieId: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0183_scenario_abuse_device_cluster_3_step_55_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0184_scenario_abuse_device_cluster_3_step_55_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 56 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_56
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0185_scenario_abuse_device_cluster_4_step_56_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0186_scenario_abuse_device_cluster_4_step_56_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0187_scenario_abuse_device_cluster_4_step_56_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 57 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_57
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0188_scenario_abuse_device_cluster_4_step_57_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0189_scenario_abuse_device_cluster_4_step_57_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0190_scenario_abuse_device_cluster_4_step_57_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 58 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_58
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0191_scenario_abuse_device_cluster_4_step_58_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0192_scenario_abuse_device_cluster_4_step_58_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0193_scenario_abuse_device_cluster_4_step_58_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 59 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_59
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0194_scenario_abuse_device_cluster_4_step_59_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0195_scenario_abuse_device_cluster_4_step_59_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0196_scenario_abuse_device_cluster_4_step_59_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 60 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_60
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0197_scenario_abuse_device_cluster_4_step_60_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0198_scenario_abuse_device_cluster_4_step_60_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0199_scenario_abuse_device_cluster_4_step_60_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 61 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.15
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_61
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.15
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.15
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.15
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0200_scenario_abuse_device_cluster_4_step_61_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.15 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0201_scenario_abuse_device_cluster_4_step_61_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0202_scenario_abuse_device_cluster_4_step_61_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 62 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.16
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_62
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.16
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.16
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.16
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0203_scenario_abuse_device_cluster_4_step_62_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.16 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0204_scenario_abuse_device_cluster_4_step_62_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0205_scenario_abuse_device_cluster_4_step_62_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 63 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.17
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_63
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.17
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.17
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.17
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0206_scenario_abuse_device_cluster_4_step_63_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.17 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0207_scenario_abuse_device_cluster_4_step_63_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0208_scenario_abuse_device_cluster_4_step_63_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 64 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.18
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_64
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.18
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.18
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.18
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0209_scenario_abuse_device_cluster_4_step_64_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.18 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0210_scenario_abuse_device_cluster_4_step_64_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0211_scenario_abuse_device_cluster_4_step_64_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_4] Step 65 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c AttemptIp:203.0.113.19
+
+======================================================================
+SCENARIO: abuse_device_cluster_4_step_65
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.19
+EffectiveDeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.19
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.19
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0212_scenario_abuse_device_cluster_4_step_65_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.19 DeviceCookieId: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0213_scenario_abuse_device_cluster_4_step_65_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0214_scenario_abuse_device_cluster_4_step_65_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 66 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.10
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_66
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.10
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.10
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.10
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0215_scenario_abuse_device_cluster_5_step_66_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.10 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0216_scenario_abuse_device_cluster_5_step_66_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0217_scenario_abuse_device_cluster_5_step_66_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 67 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.11
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_67
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.11
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.11
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.11
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0218_scenario_abuse_device_cluster_5_step_67_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.11 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0219_scenario_abuse_device_cluster_5_step_67_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0220_scenario_abuse_device_cluster_5_step_67_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 68 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.12
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_68
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.12
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.12
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0221_scenario_abuse_device_cluster_5_step_68_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.12 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0222_scenario_abuse_device_cluster_5_step_68_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0223_scenario_abuse_device_cluster_5_step_68_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 69 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.13
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_69
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.13
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.13
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.13
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0224_scenario_abuse_device_cluster_5_step_69_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.13 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0225_scenario_abuse_device_cluster_5_step_69_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0226_scenario_abuse_device_cluster_5_step_69_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 70 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.14
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_70
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.14
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.14
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.14
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0227_scenario_abuse_device_cluster_5_step_70_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.14 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0228_scenario_abuse_device_cluster_5_step_70_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0229_scenario_abuse_device_cluster_5_step_70_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 71 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.15
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_71
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.15
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.15
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.15
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0230_scenario_abuse_device_cluster_5_step_71_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.15 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0231_scenario_abuse_device_cluster_5_step_71_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0232_scenario_abuse_device_cluster_5_step_71_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 72 -> Email:audit-abuse-003@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.16
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_72
+======================================================================
+Email: audit-abuse-003@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.16
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.16
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.16
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0233_scenario_abuse_device_cluster_5_step_72_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.16 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0234_scenario_abuse_device_cluster_5_step_72_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0235_scenario_abuse_device_cluster_5_step_72_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 73 -> Email:audit-abuse-004@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.17
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_73
+======================================================================
+Email: audit-abuse-004@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.17
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.17
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.17
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0236_scenario_abuse_device_cluster_5_step_73_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.17 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0237_scenario_abuse_device_cluster_5_step_73_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0238_scenario_abuse_device_cluster_5_step_73_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 74 -> Email:audit-abuse-001@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.18
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_74
+======================================================================
+Email: audit-abuse-001@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.18
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.18
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.18
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0239_scenario_abuse_device_cluster_5_step_74_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.18 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0240_scenario_abuse_device_cluster_5_step_74_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0241_scenario_abuse_device_cluster_5_step_74_lockout_not_detected_final_html_after_1_attempts.html
+[abuse_device_cluster_5] Step 75 -> Email:audit-abuse-002@kiezsingles.local DeviceCookieId:ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c AttemptIp:203.0.113.19
+
+======================================================================
+SCENARIO: abuse_device_cluster_5_step_75
+======================================================================
+Email: audit-abuse-002@kiezsingles.local
+Attempts: 1
+RequestedDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+RequestedForcedAttemptIp: 203.0.113.19
+EffectiveDeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+EffectiveAttemptIp: 203.0.113.19
+GET /login Status: 200 CSRF present: True ClientIp: 203.0.113.19
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0242_scenario_abuse_device_cluster_5_step_75_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 203.0.113.19 DeviceCookieId: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+Attempt 1 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 1 -> Result: LOCKOUT_ACTIVE (600 s)
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0243_scenario_abuse_device_cluster_5_step_75_attempt_1_final_html.html
+Lockout NOT detected
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0244_scenario_abuse_device_cluster_5_step_75_lockout_not_detected_final_html_after_1_attempts.html
+
+======================================================================
+ABUSE ADMIN VALIDATION
+======================================================================
+AdminLogin -> SKIP (DB validation mode)
+ConfirmPassword -> SKIP (DB validation mode)
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_device_reuse
+RowsCount: 10
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local, audit-abuse-002@kiezsingles.local, audit-abuse-003@kiezsingles.local, audit-abuse-004@kiezsingles.local, audit-abuse-005@kiezsingles.local, audit-abuse-006@kiezsingles.local, audit-abuse-007@kiezsingles.local, audit-abuse-008@kiezsingles.local, audit-abuse-009@kiezsingles.local, audit-abuse-010@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17, 203.0.113.18, 203.0.113.19
+DeviceIds: ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+DeviceHashes: 0a4cb24f4c964d916d86ae1b57fe6d04c81f5923f66f35245678577cdd5df396, 0A4CB24F4C964D916D86AE1B57FE6D04C81F5923F66F35245678577CDD5DF396, 30613463623234663463393634643931366438366165316235376665366430346338316635393233663636663335323435363738353737636464356466333936, ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_device_reuse Records=0
+DEBUG DB READ
+Scenario: abuse_device_reuse
+DBRecords: 0
+DBEmails: 
+DBIps: 
+DBDeviceHashes: 
+
+DEBUG COUNTS
+ExpectedEmails: 10
+ObservedEmails: 10
+ExpectedIps: 10
+ObservedIps: 10
+ExpectedDevices: 1
+ObservedDevices: 1
+
+abuse_device_reuse -> PASS
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_account_sharing
+RowsCount: 5
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14
+DeviceIds: ks-sim-device-audit-002-abuse_account_sharing-18032026-004813-f91e189c, ks-sim-device-audit-003-abuse_account_sharing-18032026-004813-f91e189c, ks-sim-device-audit-004-abuse_account_sharing-18032026-004813-f91e189c, ks-sim-device-audit-005-abuse_account_sharing-18032026-004813-f91e189c, ks-sim-device-audit-006-abuse_account_sharing-18032026-004813-f91e189c
+DeviceHashes: 
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_account_sharing Records=9
+DEBUG DB READ
+Scenario: abuse_account_sharing
+DBRecords: 9
+DBEmails: audit-abuse-001@kiezsingles.local
+DBIps: 203.0.113.18, 203.0.113.14, 203.0.113.10, 203.0.113.12, 203.0.113.11
+DBDeviceHashes: 36313230373363373538653763613632663236663038633731316362383833373734393464343365353165313261373932356133626364336437626131623331, 31633365383334633935303564663536653134373938656130643135356631343134636465616539336535613061633139383639323637336665343232626332, 35396236353339353664666237306466366265333539316433613233393762356635643733613262633136636636643331363634666161613362316632616566, 34346466316162663539383733653530343736333733333938323362613966383361653333346161306635373830613131336437343261326431386233636531, 39353566383366626237656138346538616262373466373832353732363734656236616637363836643738633365326166333962313935343662656662356233, 30623335633039633537643732643066346431613636306338303631366339386636623731656465653862306363636136383063316534313631663137346638, 62383932616165363562303464336239633937626363626262383163663363623666343462333833613333656366663062346435363362356461396439623437, 66336232336133363931653530396634343636386464353338613163303464313530393335643863323738343265333438376461326239383239383536613266, 37333736643333613164616432633730363366363839343463616639323735333736636534643235343434313237366563643163356665653863366266313534
+
+DEBUG COUNTS
+ExpectedEmails: 1
+ObservedEmails: 1
+ExpectedIps: 5
+ObservedIps: 5
+ExpectedDevices: 5
+ObservedDevices: 5
+
+abuse_account_sharing -> PASS
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_bot_pattern
+RowsCount: 10
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local, audit-abuse-002@kiezsingles.local, audit-abuse-003@kiezsingles.local, audit-abuse-004@kiezsingles.local, audit-abuse-005@kiezsingles.local, audit-abuse-006@kiezsingles.local, audit-abuse-007@kiezsingles.local, audit-abuse-008@kiezsingles.local, audit-abuse-009@kiezsingles.local, audit-abuse-010@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17, 203.0.113.18, 203.0.113.19
+DeviceIds: ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+DeviceHashes: a1de0d9ed3bef2f3d7e9859c82ece74df12dbd0e80c47468901b8e0dc671c044, A1DE0D9ED3BEF2F3D7E9859C82ECE74DF12DBD0E80C47468901B8E0DC671C044, 61316465306439656433626566326633643765393835396338326563653734646631326462643065383063343734363839303162386530646336373163303434, ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_bot_pattern Records=0
+DEBUG DB READ
+Scenario: abuse_bot_pattern
+DBRecords: 0
+DBEmails: 
+DBIps: 
+DBDeviceHashes: 
+
+DEBUG COUNTS
+ExpectedEmails: 10
+ObservedEmails: 10
+ExpectedIps: 10
+ObservedIps: 10
+ExpectedDevices: 1
+ObservedDevices: 1
+
+abuse_bot_pattern -> PASS
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_device_cluster_1
+RowsCount: 10
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local, audit-abuse-002@kiezsingles.local, audit-abuse-003@kiezsingles.local, audit-abuse-004@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17, 203.0.113.18, 203.0.113.19
+DeviceIds: ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+DeviceHashes: e231f629b666be6c8475dbf71ebf5fbfbc52808f3b4c59e9f1cfd5028183d247, E231F629B666BE6C8475DBF71EBF5FBFBC52808F3B4C59E9F1CFD5028183D247, 65323331663632396236363662653663383437356462663731656266356662666263353238303866336234633539653966316366643530323831383364323437, ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_device_cluster_1 Records=0
+DEBUG DB READ
+Scenario: abuse_device_cluster_1
+DBRecords: 0
+DBEmails: 
+DBIps: 
+DBDeviceHashes: 
+
+DEBUG COUNTS
+ExpectedEmails: 4
+ObservedEmails: 4
+ExpectedIps: 10
+ObservedIps: 10
+ExpectedDevices: 1
+ObservedDevices: 1
+
+abuse_device_cluster_1 -> PASS
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_device_cluster_2
+RowsCount: 10
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local, audit-abuse-002@kiezsingles.local, audit-abuse-003@kiezsingles.local, audit-abuse-004@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17, 203.0.113.18, 203.0.113.19
+DeviceIds: ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+DeviceHashes: 84579ffa3479b79f0ca9a9ef3260166aa03860ec062649f6fa2c2356efb3d403, 84579FFA3479B79F0CA9A9EF3260166AA03860EC062649F6FA2C2356EFB3D403, 38343537396666613334373962373966306361396139656633323630313636616130333836306563303632363439663666613263323335366566623364343033, ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_device_cluster_2 Records=0
+DEBUG DB READ
+Scenario: abuse_device_cluster_2
+DBRecords: 0
+DBEmails: 
+DBIps: 
+DBDeviceHashes: 
+
+DEBUG COUNTS
+ExpectedEmails: 4
+ObservedEmails: 4
+ExpectedIps: 10
+ObservedIps: 10
+ExpectedDevices: 1
+ObservedDevices: 1
+
+abuse_device_cluster_2 -> PASS
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_device_cluster_3
+RowsCount: 10
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local, audit-abuse-002@kiezsingles.local, audit-abuse-003@kiezsingles.local, audit-abuse-004@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17, 203.0.113.18, 203.0.113.19
+DeviceIds: ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+DeviceHashes: d07b93d0262002bf271cc81c9f6d52babab9ddecf89e4e74946bd76a919dad7f, D07B93D0262002BF271CC81C9F6D52BABAB9DDECF89E4E74946BD76A919DAD7F, 64303762393364303236323030326266323731636338316339663664353262616261623964646563663839653465373439343662643736613931396461643766, ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_device_cluster_3 Records=0
+DEBUG DB READ
+Scenario: abuse_device_cluster_3
+DBRecords: 0
+DBEmails: 
+DBIps: 
+DBDeviceHashes: 
+
+DEBUG COUNTS
+ExpectedEmails: 4
+ObservedEmails: 4
+ExpectedIps: 10
+ObservedIps: 10
+ExpectedDevices: 1
+ObservedDevices: 1
+
+abuse_device_cluster_3 -> PASS
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_device_cluster_4
+RowsCount: 10
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local, audit-abuse-002@kiezsingles.local, audit-abuse-003@kiezsingles.local, audit-abuse-004@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17, 203.0.113.18, 203.0.113.19
+DeviceIds: ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+DeviceHashes: 589436ed3d87be9398d4ecce4742bc986279ce691e9de3f1a32dc24fb3edccc3, 589436ED3D87BE9398D4ECCE4742BC986279CE691E9DE3F1A32DC24FB3EDCCC3, 35383934333665643364383762653933393864346563636534373432626339383632373963653639316539646533663161333264633234666233656463636333, ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_device_cluster_4 Records=0
+DEBUG DB READ
+Scenario: abuse_device_cluster_4
+DBRecords: 0
+DBEmails: 
+DBIps: 
+DBDeviceHashes: 
+
+DEBUG COUNTS
+ExpectedEmails: 4
+ObservedEmails: 4
+ExpectedIps: 10
+ObservedIps: 10
+ExpectedDevices: 1
+ObservedDevices: 1
+
+abuse_device_cluster_4 -> PASS
+DEBUG SCENARIO DEFINITION
+Scenario: abuse_device_cluster_5
+RowsCount: 10
+SampleRowsCount: 5
+Emails: audit-abuse-001@kiezsingles.local, audit-abuse-002@kiezsingles.local, audit-abuse-003@kiezsingles.local, audit-abuse-004@kiezsingles.local
+IPs: 203.0.113.10, 203.0.113.11, 203.0.113.12, 203.0.113.13, 203.0.113.14, 203.0.113.15, 203.0.113.16, 203.0.113.17, 203.0.113.18, 203.0.113.19
+DeviceIds: ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+DeviceHashes: 7fd2d2380a497028a0bccc479f70cb2af6daded7cd55a46482e0434abe3f7d4c, 7FD2D2380A497028A0BCCC479F70CB2AF6DADED7CD55A46482E0434ABE3F7D4C, 37666432643233383061343937303238613062636363343739663730636232616636646164656437636435356134363438326530343334616265336637643463, ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c
+
+DEBUG VALIDATION READ: RunId=18032026-004813-f91e189c Scenario=abuse_device_cluster_5 Records=0
+DEBUG DB READ
+Scenario: abuse_device_cluster_5
+DBRecords: 0
+DBEmails: 
+DBIps: 
+DBDeviceHashes: 
+
+DEBUG COUNTS
+ExpectedEmails: 4
+ObservedEmails: 4
+ExpectedIps: 10
+ObservedIps: 10
+ExpectedDevices: 1
+ObservedDevices: 1
+
+abuse_device_cluster_5 -> PASS
+
+PASS: 8  WARN: 0  FAIL: 0
+
+======================================================================
+SESSION CHECK: SessionReuseProtection
+======================================================================
+SessionReuseProtection -> PASS
+
+======================================================================
+SESSION CHECK: AccountEnumerationProtection
+======================================================================
+AccountEnumerationProtection -> PASS
+
+======================================================================
+SESSION CHECK: SecurityEventLogging
+======================================================================
+
+======================================================================
+SCENARIO: security_event_lockout
+======================================================================
+Email: audit-test1@kiezsingles.local
+Attempts: 7
+RequestedDeviceCookieId: ks-audit-security-event
+RequestedForcedAttemptIp: 198.51.100.12
+EffectiveDeviceCookieId: ks-audit-security-event
+EffectiveAttemptIp: 198.51.100.12
+GET /login Status: 200 CSRF present: True ClientIp: 198.51.100.12
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0245_scenario_security_event_lockout_get_login.html
+Attempt 1 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.12 DeviceCookieId: ks-audit-security-event
+Attempt 1 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 1 -> Result: WRONG_CREDENTIALS
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0246_scenario_security_event_lockout_attempt_1_final_html.html
+Attempt 2 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.12 DeviceCookieId: ks-audit-security-event
+Attempt 2 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 2 -> Result: WRONG_CREDENTIALS
+Attempt 3 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.12 DeviceCookieId: ks-audit-security-event
+Attempt 3 -> WrongCredsFound: True LockoutFound: False Seconds:  SEC: False
+Attempt 3 -> Result: WRONG_CREDENTIALS
+Attempt 4 Status: 302 Followed: True FinalUrl: http://kiezsingles.test/login ClientIp: 198.51.100.12 DeviceCookieId: ks-audit-security-event
+Attempt 4 -> WrongCredsFound: True LockoutFound: True Seconds: 600 SEC: True
+Attempt 4 -> Result: LOCKOUT_ACTIVE (600 s)
+Lockout detected
+Lockout seconds: 600
+Lockout snippet:
+ <li>Benutzername/E-Mail oder Passwort ist falsch.</li>
+                    <li>Zu viele Loginversuche. Versuchen Sie es bitte in 600 Sekunden nochmal.</li>
+   
+Exported HTML: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_0247_scenario_security_event_lockout_lockout_attempt_4_final_html.html
+SecurityEventLogging -> PASS
+
+======================================================================
+RESULT SUMMARY
+======================================================================
+UnregisteredEmail -> WrongCredsDetected: True LockoutDetected: True Seconds: 600 SupportCodeDetected: True SupportCode: SEC-OZUVWQBE Result: LOCKOUT_ACTIVE (600 s) SupportFlow: PASS SupportLinkFound: True SupportTargetPathOk: True SupportTargetCsrfPresent: True SupportCodeMatch: True TicketSubmitAttempted: True TicketSubmitResult: PASS_REDIRECT TicketSubmitHttp: 302 SkipReason: 
+ResultSummary: LOCKOUT_ACTIVE (600 s)
+SupportResult: SUPPORT_SUBMIT_OK
+SEC_E2E -> PASS
+Login: SEC-OZUVWQBE
+Ticket: SEC-OZUVWQBE
+Mail: INFO_NO_MAIL_SYSTEM
+RegisteredEmail   -> WrongCredsDetected: True LockoutDetected: True Seconds: 600 SupportCodeDetected: True SupportCode: SEC-S0RRAA0B Result: LOCKOUT_ACTIVE (600 s) SupportFlow: PASS SupportLinkFound: True SupportTargetPathOk: True SupportTargetCsrfPresent: True SupportCodeMatch: True TicketSubmitAttempted: True TicketSubmitResult: PASS_REDIRECT TicketSubmitHttp: 302 SkipReason: 
+ResultSummary: LOCKOUT_ACTIVE (600 s)
+SupportResult: SUPPORT_SUBMIT_OK
+SEC_E2E -> PASS
+Login: SEC-S0RRAA0B
+Ticket: SEC-S0RRAA0B
+Mail: INFO_NO_MAIL_SYSTEM
+
+======================================================================
+BAN SUMMARY
+======================================================================
+ip -> PASS (TestIp:192.168.200.13 DeviceCookieName:ks_device_id DeviceCookieId: DeviceCookieHash: SEC:True SecValue:SEC-KTYGEIDV BanText:False RedirectToLogin:False HTTP: SupportFlow:PASS SupportLinkFound:True SupportTargetPathOk:True SupportTargetCsrfPresent:True SupportCodeMatch:True TicketSubmitAttempted:True TicketSubmitResult:PASS_REDIRECT TicketSubmitHttp:302)
+BanSummaryResult: BAN_BLOCKED_WITH_SEC (SEC-KTYGEIDV)
+SupportResult: SUPPORT_SUBMIT_OK
+identity -> PASS (TestIp:192.168.200.13 DeviceCookieName:ks_device_id DeviceCookieId: DeviceCookieHash: SEC:True SecValue:SEC-KTYGEIDV BanText:False RedirectToLogin:False HTTP: SupportFlow:PASS SupportLinkFound:True SupportTargetPathOk:True SupportTargetCsrfPresent:True SupportCodeMatch:True TicketSubmitAttempted:True TicketSubmitResult:PASS_REDIRECT TicketSubmitHttp:302)
+BanSummaryResult: BAN_BLOCKED_WITH_SEC (SEC-KTYGEIDV)
+SupportResult: SUPPORT_SUBMIT_OK
+device -> PASS (TestIp:192.168.200.13 DeviceCookieName:ks_device_id DeviceCookieId:5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4 DeviceCookieHash:015c10aa3aab08a0c2851abc3c769be34fd43c398b862589941778b76923ba76 SEC:True SecValue:SEC-KV7VH2OW BanText:False RedirectToLogin:False HTTP: SupportFlow:PASS SupportLinkFound:True SupportTargetPathOk:True SupportTargetCsrfPresent:True SupportCodeMatch:True TicketSubmitAttempted:True TicketSubmitResult:PASS_REDIRECT TicketSubmitHttp:302)
+BanSummaryResult: BAN_BLOCKED_WITH_SEC (SEC-KV7VH2OW)
+SupportResult: SUPPORT_SUBMIT_OK
+
+======================================================================
+ABUSE SUMMARY
+======================================================================
+Device ks-sim-device-audit-001-abuse_device_reuse-18032026-004813-f91e189c -> EmailsSeen:10 IPsSeen:10 Requests:10 Scenarios:abuse_device_reuse
+Device ks-sim-device-audit-002-abuse_account_sharing-18032026-004813-f91e189c -> EmailsSeen:1 IPsSeen:1 Requests:1 Scenarios:abuse_account_sharing
+Device ks-sim-device-audit-003-abuse_account_sharing-18032026-004813-f91e189c -> EmailsSeen:1 IPsSeen:1 Requests:1 Scenarios:abuse_account_sharing
+Device ks-sim-device-audit-004-abuse_account_sharing-18032026-004813-f91e189c -> EmailsSeen:1 IPsSeen:1 Requests:1 Scenarios:abuse_account_sharing
+Device ks-sim-device-audit-005-abuse_account_sharing-18032026-004813-f91e189c -> EmailsSeen:1 IPsSeen:1 Requests:1 Scenarios:abuse_account_sharing
+Device ks-sim-device-audit-006-abuse_account_sharing-18032026-004813-f91e189c -> EmailsSeen:1 IPsSeen:1 Requests:1 Scenarios:abuse_account_sharing
+Device ks-sim-device-audit-001-abuse_bot_pattern-18032026-004813-f91e189c -> EmailsSeen:10 IPsSeen:10 Requests:10 Scenarios:abuse_bot_pattern
+Device ks-sim-device-audit-006-abuse_device_cluster_1-18032026-004813-f91e189c -> EmailsSeen:4 IPsSeen:10 Requests:10 Scenarios:abuse_device_cluster_1
+Device ks-sim-device-audit-007-abuse_device_cluster_2-18032026-004813-f91e189c -> EmailsSeen:4 IPsSeen:10 Requests:10 Scenarios:abuse_device_cluster_2
+Device ks-sim-device-audit-008-abuse_device_cluster_3-18032026-004813-f91e189c -> EmailsSeen:4 IPsSeen:10 Requests:10 Scenarios:abuse_device_cluster_3
+Device ks-sim-device-audit-009-abuse_device_cluster_4-18032026-004813-f91e189c -> EmailsSeen:4 IPsSeen:10 Requests:10 Scenarios:abuse_device_cluster_4
+Device ks-sim-device-audit-010-abuse_device_cluster_5-18032026-004813-f91e189c -> EmailsSeen:4 IPsSeen:10 Requests:10 Scenarios:abuse_device_cluster_5
+Email audit-abuse-001@kiezsingles.local -> DevicesSeen:12 IPsSeen:6 Requests:22
+Email audit-abuse-002@kiezsingles.local -> DevicesSeen:7 IPsSeen:3 Requests:17
+Email audit-abuse-003@kiezsingles.local -> DevicesSeen:7 IPsSeen:2 Requests:12
+Email audit-abuse-004@kiezsingles.local -> DevicesSeen:7 IPsSeen:2 Requests:12
+Email audit-abuse-005@kiezsingles.local -> DevicesSeen:2 IPsSeen:1 Requests:2
+Email audit-abuse-006@kiezsingles.local -> DevicesSeen:2 IPsSeen:1 Requests:2
+Email audit-abuse-007@kiezsingles.local -> DevicesSeen:2 IPsSeen:1 Requests:2
+Email audit-abuse-008@kiezsingles.local -> DevicesSeen:2 IPsSeen:1 Requests:2
+Email audit-abuse-009@kiezsingles.local -> DevicesSeen:2 IPsSeen:1 Requests:2
+Email audit-abuse-010@kiezsingles.local -> DevicesSeen:2 IPsSeen:1 Requests:2
+Scenario abuse_device_reuse -> Requests:10 Devices:1 Emails:10 IPs:10 Expected:1 Device -> viele Emails -> viele IPs
+Scenario abuse_account_sharing -> Requests:5 Devices:5 Emails:1 IPs:5 Expected:1 Email -> viele Devices -> viele IPs
+Scenario abuse_bot_pattern -> Requests:10 Devices:1 Emails:10 IPs:10 Expected:1 Device -> viele Emails -> sehr viele IPs
+Scenario abuse_device_cluster_1 -> Requests:10 Devices:1 Emails:4 IPs:10 Expected:1 Cluster-Device -> wenige Emails mehrfach -> fester IP-Bereich
+Scenario abuse_device_cluster_2 -> Requests:10 Devices:1 Emails:4 IPs:10 Expected:1 Cluster-Device -> wenige Emails mehrfach -> fester IP-Bereich
+Scenario abuse_device_cluster_3 -> Requests:10 Devices:1 Emails:4 IPs:10 Expected:1 Cluster-Device -> wenige Emails mehrfach -> fester IP-Bereich
+Scenario abuse_device_cluster_4 -> Requests:10 Devices:1 Emails:4 IPs:10 Expected:1 Cluster-Device -> wenige Emails mehrfach -> fester IP-Bereich
+Scenario abuse_device_cluster_5 -> Requests:10 Devices:1 Emails:4 IPs:10 Expected:1 Cluster-Device -> wenige Emails mehrfach -> fester IP-Bereich
+
+======================================================================
+ABUSE EXPORTS
+======================================================================
+StepsCsv: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_steps.csv
+ResultsCsv: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_results.csv
+DeviceSummaryCsv: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_device_summary.csv
+EmailSummaryCsv: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_email_summary.csv
+ScenarioSummaryCsv: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_scenario_summary.csv
+ValidationTxt: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_admin_validation.txt
+JsonReport: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_report.json
+
+======================================================================
+SESSION SECURITY CHECKS
+======================================================================
+SessionReuseProtection -> PASS
+SessionResult: SESSION_REUSE_OK
+AccountEnumerationProtection -> PASS
+SessionResult: ENUM_PROTECTION_OK
+SecurityEventLogging -> PASS
+SessionResult: SEC_EVENT_LOG_OK
+
+======================================================================
+ABUSE ADMIN VALIDATION EXPORTS
+======================================================================
+ChecksTxt: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_admin_checks.txt
+ChecksJson: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_abuse_admin_checks.json
+
+======================================================================
+SESSION SECURITY EXPORTS
+======================================================================
+ChecksTxt: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_session_security_checks.txt
+ChecksJson: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_session_security_checks.json
+ChecksCsv: C:\laragon\www\kiezsingles\tools\audit\ps\output\18032026-004813-f91e189c\18032026-004813-f91e189c_session_security_checks.csv

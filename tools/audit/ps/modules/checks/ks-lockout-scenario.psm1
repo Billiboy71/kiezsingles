@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\checks\ks-lockout-scenario.psm1
 # Purpose: Lockout / wrong-credentials scenario check for KiezSingles audit PowerShell scripts
 # Created: 06-03-2026 22:46 (Europe/Berlin)
-# Changed: 11-03-2026 22:17 (Europe/Berlin)
-# Version: 1.5
+# Changed: 17-03-2026 13:11 (Europe/Berlin)
+# Version: 1.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -182,6 +182,10 @@ function New-ScenarioDefaultResult {
         TicketSubmitUrl          = ""
         TicketSubmitFinalUrl     = ""
         TicketSubmitHttp         = ""
+        TicketSupportCode        = ""
+        MailSupportCode          = ""
+        MailResult               = "INFO_NOT_RUN"
+        SecE2EResult             = "FAIL"
         SkipReason               = $SkipReason
     }
 }
@@ -465,6 +469,10 @@ function Run-Scenario {
             TicketSubmitUrl          = $supportFlow.TicketSubmitUrl
             TicketSubmitFinalUrl     = $supportFlow.TicketSubmitFinalUrl
             TicketSubmitHttp         = $supportFlow.TicketSubmitHttp
+            TicketSupportCode        = $supportFlow.TicketSupportCode
+            MailSupportCode          = $supportFlow.MailSupportCode
+            MailResult               = $supportFlow.MailResult
+            SecE2EResult             = $supportFlow.SecE2EResult
             SkipReason               = ""
         }
     } catch {

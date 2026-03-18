@@ -3,7 +3,7 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Requests\Auth\LoginRequest.php
 // Purpose: Login request validation (rate limited, no user enumeration)
 // Changed: 17-03-2026 12:26 (Europe/Berlin)
-// Version: 1.2
+// Version: 1.3
 // ============================================================================
 
 namespace App\Http\Requests\Auth;
@@ -125,14 +125,8 @@ class LoginRequest extends FormRequest
         /** @var DeviceHashService $deviceHashService */
         $deviceHashService = app(DeviceHashService::class);
 
-        $email = mb_strtolower(trim((string) $this->input('email', '')));
         $deviceHash = $deviceHashService->forRequest($this);
-        $incidentKey = $this->buildSecurityIncidentKey(
-            path: $this->path(),
-            ip: $this->ip(),
-            email: $email !== '' ? $email : null,
-            deviceHash: $deviceHash,
-        );
+        $email = mb_strtolower(trim((string) $this->input('email', '')));
 
         $logger->log(
             type: 'login_lockout',
@@ -141,13 +135,16 @@ class LoginRequest extends FormRequest
             deviceHash: $deviceHash,
             meta: [
                 'reason' => 'lockout',
-                'incident_key' => $incidentKey,
                 'seconds' => $seconds,
                 'attempt_limit' => $attemptLimit,
             ],
         );
 
-        $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+        $supportRef = $this->resolveLatestSecurityReference(
+            ip: $this->ip(),
+            email: $email !== '' ? $email : null,
+            deviceHash: $deviceHash,
+        );
 
         $supportAccess = app(\App\Services\Security\SecuritySupportAccessTokenService::class)->issueForCase(
             caseKey: 'login_lockout:ip:'.trim((string) ($this->ip() ?? '')),
@@ -372,11 +369,37 @@ class LoginRequest extends FormRequest
         return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
     }
 
-    private function resolveLatestSecurityReference(string $incidentKey): string
+    private function resolveLatestSecurityReference(
+        ?string $ip,
+        ?string $email,
+        ?string $deviceHash,
+    ): string
     {
         $query = \App\Models\SecurityEvent::query()
-            ->where('meta->incident_key', $incidentKey)
+            ->where('created_at', '>=', now()->subMinutes(10))
             ->latest('id');
+
+        $ip = $ip !== null ? trim($ip) : null;
+        $email = $email !== null ? trim($email) : null;
+        $deviceHash = $deviceHash !== null ? trim($deviceHash) : null;
+
+        if ($ip === null || $ip === '') {
+            $query->whereNull('ip');
+        } else {
+            $query->where('ip', $ip);
+        }
+
+        if ($email === null || $email === '') {
+            $query->whereNull('email');
+        } else {
+            $query->where('email', $email);
+        }
+
+        if ($deviceHash === null || $deviceHash === '') {
+            $query->whereNull('device_hash');
+        } else {
+            $query->where('device_hash', $deviceHash);
+        }
 
         $event = $query->first(['reference']);
 
@@ -387,29 +410,6 @@ class LoginRequest extends FormRequest
         }
 
         return trim($event->reference);
-    }
-
-    private function buildSecurityIncidentKey(
-        string $path,
-        ?string $ip,
-        ?string $email,
-        ?string $deviceHash,
-    ): string {
-        $normalizedPath = trim($path, '/');
-        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
-        $normalizedIp = $ip !== null ? trim($ip) : '';
-        $normalizedEmail = $email !== null ? trim($email) : '';
-        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
-
-        if ($normalizedDeviceHash !== '') {
-            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
-        }
-
-        if ($normalizedEmail !== '') {
-            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
-        }
-
-        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 
     /**

@@ -3,7 +3,7 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureNotBannedDevice.php
 // Purpose: Block requests for active device bans and log blocking events
 // Changed: 17-03-2026 12:26 (Europe/Berlin)
-// Version: 1.4
+// Version: 1.5
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -46,16 +46,8 @@ class EnsureNotBannedDevice
         $banId = isset($banRow['id']) && $banRow['id'] !== null ? (int) $banRow['id'] : 0;
         $caseKey = 'device_ban:'.$banId.':device:'.$deviceHash;
 
-        $incidentKey = $this->buildSecurityIncidentKey(
-            path: $request->path(),
-            ip: $ip !== '' ? $ip : null,
-            email: $contactEmail,
-            deviceHash: $deviceHash,
-        );
-
         $meta = [
             'reason' => 'device_ban',
-            'incident_key' => $incidentKey,
             'path' => $request->path(),
             'device_hash' => $deviceHash,
             'device_correlation_key' => 'device:'.$deviceHash,
@@ -78,7 +70,7 @@ class EnsureNotBannedDevice
             meta: $meta,
         );
 
-        $supportRef = $this->resolveLatestSecurityReference($incidentKey);
+        $supportRef = $this->resolveLatestSecurityReference($ip !== '' ? $ip : null, $contactEmail, $deviceHash);
         $supportAccess = $this->securitySupportAccessTokenService->issueForCase(
             caseKey: $caseKey,
             securityEventType: 'device_blocked',
@@ -174,11 +166,33 @@ class EnsureNotBannedDevice
         return filter_var($value, FILTER_VALIDATE_EMAIL) !== false ? $value : null;
     }
 
-    private function resolveLatestSecurityReference(string $incidentKey): string
+    private function resolveLatestSecurityReference(?string $ip, ?string $email, ?string $deviceHash): string
     {
         $query = \App\Models\SecurityEvent::query()
-            ->where('meta->incident_key', $incidentKey)
+            ->where('created_at', '>=', now()->subMinutes(10))
             ->latest('id');
+
+        $ip = $ip !== null ? trim($ip) : null;
+        $email = $email !== null ? trim($email) : null;
+        $deviceHash = $deviceHash !== null ? trim($deviceHash) : null;
+
+        if ($ip === null || $ip === '') {
+            $query->whereNull('ip');
+        } else {
+            $query->where('ip', $ip);
+        }
+
+        if ($email === null || $email === '') {
+            $query->whereNull('email');
+        } else {
+            $query->where('email', $email);
+        }
+
+        if ($deviceHash === null || $deviceHash === '') {
+            $query->whereNull('device_hash');
+        } else {
+            $query->where('device_hash', $deviceHash);
+        }
 
         $event = $query->first(['reference']);
 
@@ -187,29 +201,6 @@ class EnsureNotBannedDevice
         }
 
         return trim($event->reference);
-    }
-
-    private function buildSecurityIncidentKey(
-        string $path,
-        ?string $ip,
-        ?string $email,
-        ?string $deviceHash,
-    ): string {
-        $normalizedPath = trim($path, '/');
-        $normalizedPath = $normalizedPath !== '' ? $normalizedPath : '/';
-        $normalizedIp = $ip !== null ? trim($ip) : '';
-        $normalizedEmail = $email !== null ? trim($email) : '';
-        $normalizedDeviceHash = $deviceHash !== null ? trim($deviceHash) : '';
-
-        if ($normalizedDeviceHash !== '') {
-            return 'security_login_block:path:'.$normalizedPath.':device:'.$normalizedDeviceHash;
-        }
-
-        if ($normalizedEmail !== '') {
-            return 'security_login_block:path:'.$normalizedPath.':email:'.$normalizedEmail;
-        }
-
-        return 'security_login_block:path:'.$normalizedPath.':ip:'.$normalizedIp;
     }
 
     private function normalizedDeviceHash(string $hash): ?string

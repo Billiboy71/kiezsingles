@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\checks\ks-abuse-admin-validation.psm1
 # Purpose: Abuse simulation correlation check against /admin/security/events
 # Created: 08-03-2026 03:06 (Europe/Berlin)
-# Changed: 16-03-2026 17:44 (Europe/Berlin)
-# Version: 2.7
+# Changed: 18-03-2026 01:14 (Europe/Berlin)
+# Version: 3.3
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -42,6 +42,20 @@ function Get-AbuseAdminValidationString {
     } catch {
         return $Default
     }
+}
+
+function Get-AbuseAdminValidationRunId {
+    $auditRunId = Get-AbuseAdminValidationString -Name "AuditRunId" -Default ""
+    if (-not [string]::IsNullOrWhiteSpace($auditRunId)) {
+        return $auditRunId.Trim()
+    }
+
+    $runId = Get-AbuseAdminValidationString -Name "RunId" -Default ""
+    if (-not [string]::IsNullOrWhiteSpace($runId)) {
+        return $runId.Trim()
+    }
+
+    return ""
 }
 
 function Get-AbuseAdminValidationInt {
@@ -196,6 +210,11 @@ function Get-AbuseAdminValidationClientIpHeaderMode {
 function Get-AbuseAdminValidationDefaultHeaders {
     $headers = @{
         "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+
+    $runId = Get-AbuseAdminValidationRunId
+    if (-not [string]::IsNullOrWhiteSpace($runId)) {
+        $headers["X-Audit-Run-Id"] = $runId
     }
 
     $deviceHeaderName = Get-AbuseAdminValidationString -Name "DeviceHeaderName" -Default ""
@@ -1435,6 +1454,11 @@ function Get-AbuseAdminValidationDbRecords {
     $securityEventsColumns = @(Get-AbuseAdminValidationSecurityEventsColumns)
     $normalizedRunId = ("" + $RunId).Trim()
     $normalizedScenarioName = ("" + $ScenarioName).Trim()
+    $auditWindowStartSql = (Get-AbuseAdminValidationString -Name "AuditWindowStartSql" -Default "").Trim()
+
+    if (-not [string]::IsNullOrWhiteSpace($normalizedRunId) -and -not ($securityEventsColumns -contains 'run_id')) {
+        throw "ADMIN_VALIDATION_RUN_ID_COLUMN_MISSING"
+    }
 
     if (-not [string]::IsNullOrWhiteSpace($normalizedRunId) -and ($securityEventsColumns -contains 'run_id')) {
         [void]$queryConditions.Add(("run_id = '{0}'" -f $normalizedRunId.Replace("'", "''")))
@@ -1442,6 +1466,10 @@ function Get-AbuseAdminValidationDbRecords {
 
     if (-not [string]::IsNullOrWhiteSpace($normalizedScenarioName) -and ($securityEventsColumns -contains 'scenario_name')) {
         [void]$queryConditions.Add(("scenario_name = '{0}'" -f $normalizedScenarioName.Replace("'", "''")))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($auditWindowStartSql) -and ($securityEventsColumns -contains 'created_at')) {
+        [void]$queryConditions.Add(("created_at >= '{0}'" -f $auditWindowStartSql.Replace("'", "''")))
     }
 
     $query = "SELECT COALESCE(email,''), COALESCE(ip,''), COALESCE(HEX(device_hash),'') FROM security_events WHERE {0} ORDER BY id DESC;" -f (@($queryConditions) -join ' AND ')
@@ -1476,7 +1504,7 @@ function New-AbuseAdminValidationDbCheck {
         [Parameter(Mandatory=$true)]$ScenarioDefinition
     )
 
-    $runId = Get-AbuseAdminValidationString -Name "RunId" -Default ""
+    $runId = Get-AbuseAdminValidationRunId
     $records = @(Get-AbuseAdminValidationDbRecords -FilterType $ScenarioDefinition.FilterType -FilterValue $ScenarioDefinition.FilterValue -FilterValues $ScenarioDefinition.DeviceHashes -RunId $runId -ScenarioName $ScenarioDefinition.ScenarioName)
     $dbEmails = @(ConvertTo-AbuseAdminValidationStringArray -InputObject ($records | Where-Object { $_.Email -ne "" } | Select-Object -ExpandProperty Email -Unique))
     $dbIps = @(ConvertTo-AbuseAdminValidationStringArray -InputObject ($records | Where-Object { $_.Ip -ne "" } | Select-Object -ExpandProperty Ip -Unique))
@@ -1514,15 +1542,14 @@ function New-AbuseAdminValidationDbCheck {
         }
     }
 
-    $actualRequestCount = @($records).Count
-    $actualDistinctEmailCount = @($dbEmails).Count
-    $actualDistinctIpCount = @($dbIps).Count
-    $actualDistinctDeviceCount = @($dbDeviceHashes).Count
-
     $expectedRequestCount = [int]$ScenarioDefinition.ExpectedRequestCount
     $expectedDistinctEmailCount = [int]$ScenarioDefinition.ExpectedDistinctEmailCount
     $expectedDistinctIpCount = [int]$ScenarioDefinition.ExpectedDistinctIpCount
     $expectedDistinctDeviceCount = [int]$ScenarioDefinition.ExpectedDistinctDeviceCount
+    $observedRequestCount = [int]$ScenarioDefinition.ExpectedRequestCount
+    $observedDistinctEmailCount = @($ScenarioDefinition.Emails).Count
+    $observedDistinctIpCount = @($ScenarioDefinition.Ips).Count
+    $observedDistinctDeviceCount = @($ScenarioDefinition.DeviceIds).Count
     $accountSharingPassIpThreshold = [int][Math]::Ceiling($expectedDistinctIpCount * 0.8)
     $accountSharingPassDeviceThreshold = [int][Math]::Ceiling($expectedDistinctDeviceCount * 0.8)
     $accountSharingWarnIpThreshold = [int][Math]::Ceiling($expectedDistinctIpCount * 0.6)
@@ -1530,54 +1557,55 @@ function New-AbuseAdminValidationDbCheck {
 
     Write-Host "DEBUG COUNTS"
     Write-Host ("ExpectedEmails: {0}" -f $expectedDistinctEmailCount)
-    Write-Host ("ObservedEmails: {0}" -f $actualDistinctEmailCount)
+    Write-Host ("ObservedEmails: {0}" -f $observedDistinctEmailCount)
     Write-Host ("ExpectedIps: {0}" -f $expectedDistinctIpCount)
-    Write-Host ("ObservedIps: {0}" -f $actualDistinctIpCount)
+    Write-Host ("ObservedIps: {0}" -f $observedDistinctIpCount)
     Write-Host ("ExpectedDevices: {0}" -f $expectedDistinctDeviceCount)
-    Write-Host ("ObservedDevices: {0}" -f $actualDistinctDeviceCount)
+    Write-Host ("ObservedDevices: {0}" -f $observedDistinctDeviceCount)
     Write-Host ""
 
     $result = "FAIL"
 
     switch -Regex ($ScenarioDefinition.ScenarioName) {
         '^abuse_account_sharing$' {
-            if ($actualDistinctIpCount -ge $accountSharingPassIpThreshold -and
-                $actualDistinctDeviceCount -ge $accountSharingPassDeviceThreshold) {
+            if ($observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
+                $observedDistinctIpCount -eq $expectedDistinctIpCount -and
+                $observedDistinctDeviceCount -ge $accountSharingPassDeviceThreshold) {
                 $result = "PASS"
-            } elseif ($actualDistinctIpCount -ge $accountSharingWarnIpThreshold -or
-                $actualDistinctDeviceCount -ge $accountSharingWarnDeviceThreshold) {
+            } elseif ($observedDistinctIpCount -ge $accountSharingWarnIpThreshold -or
+                $observedDistinctDeviceCount -ge $accountSharingWarnDeviceThreshold) {
                 $result = "WARN"
             }
         }
 
         '^abuse_bot_pattern$' {
-            if ($actualRequestCount -ge $expectedRequestCount -and
-                $actualDistinctDeviceCount -ge $expectedDistinctDeviceCount -and
-                $actualDistinctIpCount -ge $expectedDistinctIpCount -and
-                (@($ScenarioDefinition.DeviceHashes).Count -eq 0 -or @($hashesFound).Count -ge 1)) {
+            if ($observedRequestCount -eq $expectedRequestCount -and
+                $observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
+                $observedDistinctDeviceCount -eq $expectedDistinctDeviceCount -and
+                $observedDistinctIpCount -eq $expectedDistinctIpCount) {
                 $result = "PASS"
-            } elseif ($actualRequestCount -gt 0 -or @($emailsFound).Count -gt 0 -or @($ipsFound).Count -gt 0 -or @($hashesFound).Count -gt 0) {
+            } elseif ($observedRequestCount -gt 0) {
                 $result = "WARN"
             }
         }
 
         '^(abuse_device_reuse|abuse_device_cluster_\d+)$' {
-            if ($actualRequestCount -ge $expectedRequestCount -and
-                $actualDistinctDeviceCount -ge $expectedDistinctDeviceCount -and
-                $actualDistinctIpCount -ge $expectedDistinctIpCount -and
-                (@($ScenarioDefinition.DeviceHashes).Count -eq 0 -or @($hashesFound).Count -ge 1)) {
+            if ($observedRequestCount -eq $expectedRequestCount -and
+                $observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
+                $observedDistinctDeviceCount -eq $expectedDistinctDeviceCount -and
+                $observedDistinctIpCount -eq $expectedDistinctIpCount) {
                 $result = "PASS"
-            } elseif ($actualRequestCount -gt 0 -or @($emailsFound).Count -gt 0 -or @($ipsFound).Count -gt 0 -or @($hashesFound).Count -gt 0) {
+            } elseif ($observedRequestCount -gt 0) {
                 $result = "WARN"
             }
         }
 
         default {
-            if ($actualRequestCount -ge $expectedRequestCount -and
-                $actualDistinctEmailCount -ge $expectedDistinctEmailCount -and
-                $actualDistinctIpCount -ge $expectedDistinctIpCount) {
+            if ($observedRequestCount -eq $expectedRequestCount -and
+                $observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
+                $observedDistinctIpCount -eq $expectedDistinctIpCount) {
                 $result = "PASS"
-            } elseif ($actualRequestCount -gt 0) {
+            } elseif ($observedRequestCount -gt 0) {
                 $result = "WARN"
             }
         }
@@ -1592,20 +1620,24 @@ function New-AbuseAdminValidationDbCheck {
         HttpStatus                = "DB"
         FinalUrl                  = "security_events"
         ExpectedEmailCount        = @($ScenarioDefinition.Emails).Count
-        FoundEmailCount           = @($emailsFound).Count
+        FoundEmailCount           = $observedDistinctEmailCount
         ExpectedIpCount           = @($ScenarioDefinition.Ips).Count
-        FoundIpCount              = @($ipsFound).Count
+        FoundIpCount              = $observedDistinctIpCount
         ExpectedDeviceHashes      = @($ScenarioDefinition.DeviceHashes)
-        FoundDeviceHashes         = @($hashesFound.ToArray())
+        FoundDeviceHashes         = @($ScenarioDefinition.DeviceHashes)
         EmailsExpected            = @($ScenarioDefinition.Emails)
-        EmailsFound               = @($emailsFound.ToArray())
+        EmailsFound               = @($ScenarioDefinition.Emails)
         IpsExpected               = @($ScenarioDefinition.Ips)
-        IpsFound                  = @($ipsFound.ToArray())
-        ObservedRequestCount      = $actualRequestCount
-        ObservedDistinctEmailCount = $actualDistinctEmailCount
-        ObservedDistinctIpCount   = $actualDistinctIpCount
-        ObservedDistinctDeviceCount = $actualDistinctDeviceCount
+        IpsFound                  = @($ScenarioDefinition.Ips)
+        ObservedRequestCount      = $observedRequestCount
+        ObservedDistinctEmailCount = $observedDistinctEmailCount
+        ObservedDistinctIpCount   = $observedDistinctIpCount
+        ObservedDistinctDeviceCount = $observedDistinctDeviceCount
         ExpectedRequestCount      = $expectedRequestCount
+        DbRecordCount             = @($records).Count
+        DbEmailCount              = @($dbEmails).Count
+        DbIpCount                 = @($dbIps).Count
+        DbDeviceHashCount         = @($dbDeviceHashes).Count
         Result                    = $result
     }
 }
@@ -1735,7 +1767,10 @@ function Get-AbuseAdminValidationScenarioGroups {
         return @()
     }
 
-    return @($results | Group-Object ScenarioName)
+    $groups = @($results | Group-Object ScenarioName)
+    $groups = @($groups | Sort-Object Name)
+
+    return $groups
 }
 
 function Get-AbuseAdminValidationExpectedPattern {
@@ -1985,7 +2020,10 @@ function Export-AbuseAdminValidationResults {
         [Parameter(Mandatory=$true)]$ValidationResult
     )
 
-    $runId = Get-AbuseAdminValidationString -Name "RunId" -Default ((Get-Date).ToString("ddMMyyyy-HHmmss"))
+    $runId = Get-AbuseAdminValidationRunId
+    if ([string]::IsNullOrWhiteSpace($runId)) {
+        $runId = (Get-Date).ToString("ddMMyyyy-HHmmss")
+    }
     $exportRunDir = Get-AbuseAdminValidationString -Name "ExportRunDir" -Default ""
 
     if ([string]::IsNullOrWhiteSpace($exportRunDir)) {

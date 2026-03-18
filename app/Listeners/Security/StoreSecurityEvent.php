@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\StoreSecurityEvent.php
 // Purpose: Persist SecurityEventTriggered events into security_events (with minimal de-duplication)
-// Changed: 17-03-2026 12:26 (Europe/Berlin)
-// Version: 0.7
+// Changed: 17-03-2026 23:44 (Europe/Berlin)
+// Version: 0.9
 // ============================================================================
 
 namespace App\Listeners\Security;
@@ -20,7 +20,11 @@ class StoreSecurityEvent
     public function handle(SecurityEventTriggered $event): void
     {
         $meta = is_array($event->meta) ? $event->meta : [];
+        $runId = $this->resolveRunId($meta);
         $reason = $this->resolveReason($event, $meta);
+        $incidentKey = $this->shouldUseIncidentReuse($event->type)
+            ? $this->resolveIncidentKey($event)
+            : null;
 
         if ($event->deviceHash !== null && trim($event->deviceHash) !== '') {
             if (!array_key_exists('device_hash', $meta)) {
@@ -36,9 +40,13 @@ class StoreSecurityEvent
             $meta['path'] = $this->normalizeMetaPath($meta['path']);
         }
 
-        $dedupeKey = $this->buildDedupeKey($event, $meta);
+        if ($incidentKey !== null) {
+            $meta['incident_key'] = $incidentKey;
+        }
+
+        $dedupeKey = $this->buildDedupeKey($event, $meta, $runId);
         $dedupeTtlSeconds = $this->dedupeTtlSecondsFor($event->type);
-        $existingIncident = $this->findExistingIncident($meta, $dedupeTtlSeconds);
+        $existingIncident = $this->findExistingIncident($incidentKey, $dedupeTtlSeconds, $runId);
 
         if ($existingIncident !== null) {
             $this->updateExistingIncident($existingIncident, $meta, $reason);
@@ -64,6 +72,10 @@ class StoreSecurityEvent
             'meta' => $meta,
         ];
 
+        if (Schema::hasColumn('security_events', 'run_id')) {
+            $payload['run_id'] = $runId;
+        }
+
         if (Schema::hasColumn('security_events', 'reasons')) {
             $payload['reasons'] = $reason !== null ? [$reason] : [];
         }
@@ -74,10 +86,11 @@ class StoreSecurityEvent
     /**
      * @param array<string, mixed> $meta
      */
-    private function buildDedupeKey(SecurityEventTriggered $event, array $meta): string
+    private function buildDedupeKey(SecurityEventTriggered $event, array $meta, string $runId): string
     {
         $parts = [
             'security:event',
+            $this->normalizePart($runId),
             $this->normalizePart($event->type),
             $this->normalizePart($event->ip),
             $event->userId !== null ? (string) (int) $event->userId : '-',
@@ -95,7 +108,7 @@ class StoreSecurityEvent
     private function dedupeTtlSecondsFor(string $type): int
     {
         return match ($type) {
-            'ip_blocked', 'device_blocked', 'identity_blocked', 'login_lockout' => 60,
+            'ip_blocked', 'email_blocked', 'device_blocked', 'identity_blocked', 'login_lockout' => 600,
             'login_failed' => 2,
             default => 5,
         };
@@ -160,18 +173,50 @@ class StoreSecurityEvent
         };
     }
 
-    private function findExistingIncident(array $meta, int $dedupeTtlSeconds): ?SecurityEvent
+    private function shouldUseIncidentReuse(string $type): bool
     {
-        $incidentKey = $this->metaString($meta, 'incident_key');
+        return in_array($type, [
+            'ip_blocked',
+            'email_blocked',
+            'identity_blocked',
+            'device_blocked',
+            'login_lockout',
+        ], true);
+    }
+
+    private function resolveIncidentKey(SecurityEventTriggered $event): ?string
+    {
+        $email = $event->email !== null ? mb_strtolower(trim($event->email)) : '';
+        $ip = $event->ip !== null ? trim($event->ip) : '';
+        $deviceHash = $event->deviceHash !== null ? trim($event->deviceHash) : '';
+
+        if ($email === '' && $ip === '' && $deviceHash === '') {
+            return null;
+        }
+
+        return hash('sha256', implode('|', [
+            $email,
+            $ip,
+            $deviceHash,
+        ]));
+    }
+
+    private function findExistingIncident(?string $incidentKey, int $dedupeTtlSeconds, string $runId): ?SecurityEvent
+    {
         if ($incidentKey === null || $incidentKey === '') {
             return null;
         }
 
-        return SecurityEvent::query()
+        $query = SecurityEvent::query()
             ->where('meta->incident_key', $incidentKey)
             ->where('created_at', '>=', now()->subSeconds($dedupeTtlSeconds))
-            ->latest('id')
-            ->first();
+            ->latest('id');
+
+        if (Schema::hasColumn('security_events', 'run_id')) {
+            $query->where('run_id', $runId);
+        }
+
+        return $query->first();
     }
 
     private function updateExistingIncident(SecurityEvent $existingIncident, array $meta, ?string $reason): void
@@ -233,5 +278,35 @@ class StoreSecurityEvent
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function resolveRunId(array $meta): string
+    {
+        $requestedRunId = $this->metaString($meta, 'run_id');
+        if ($requestedRunId !== null && $requestedRunId !== '') {
+            return $requestedRunId;
+        }
+
+        try {
+            if (app()->bound('request')) {
+                $request = request();
+                $headerRunId = trim((string) $request->header('X-Audit-Run-Id', ''));
+                if ($headerRunId !== '') {
+                    return $headerRunId;
+                }
+
+                $queryRunId = trim((string) $request->query('audit_run_id', $request->query('run_id', '')));
+                if ($queryRunId !== '') {
+                    return $queryRunId;
+                }
+            }
+        } catch (\Throwable) {
+            // no request context
+        }
+
+        return '';
     }
 }

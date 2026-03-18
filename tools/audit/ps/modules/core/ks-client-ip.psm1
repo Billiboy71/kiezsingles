@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\core\ks-client-ip.psm1
 # Purpose: Shared client IP simulation and rotation helpers for KiezSingles audit PowerShell scripts
 # Created: 06-03-2026 22:24 (Europe/Berlin)
-# Changed: 11-03-2026 23:04 (Europe/Berlin)
-# Version: 1.5
+# Changed: 17-03-2026 12:26 (Europe/Berlin)
+# Version: 1.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -202,7 +202,7 @@ function Get-StepIp {
         return ("" + $script:ForcedClientIp)
     }
 
-    if ($script:IpRotationMode -eq "per_step") {
+    if ($script:IpRotationMode -in @("per_step", "fixed_per_scenario")) {
         if ([string]::IsNullOrWhiteSpace($script:ClientIpStepIp)) {
             $script:ClientIpStepIp = Next-TestIp
         }
@@ -217,7 +217,7 @@ function Begin-StepIp {
     if (-not $script:SimulateClientIpEnabled) { return }
     if (-not [string]::IsNullOrWhiteSpace($script:ForcedClientIp)) { return }
 
-    if ($script:IpRotationMode -eq "per_step") {
+    if ($script:IpRotationMode -in @("per_step", "fixed_per_scenario")) {
         $script:ClientIpStepIp = Next-TestIp
     }
 }
@@ -226,7 +226,7 @@ function End-StepIp {
     if (-not $script:SimulateClientIpEnabled) { return }
     if (-not [string]::IsNullOrWhiteSpace($script:ForcedClientIp)) { return }
 
-    if ($script:IpRotationMode -eq "per_step") {
+    if ($script:IpRotationMode -in @("per_step", "fixed_per_scenario")) {
         $script:ClientIpStepIp = ""
     }
 }

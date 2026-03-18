@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\checks\ks-ban-check.psm1
 # Purpose: Ban check scenario (IP / Identity / Device) for KiezSingles audit PowerShell scripts
 # Created: 06-03-2026 22:38 (Europe/Berlin)
-# Changed: 11-03-2026 22:17 (Europe/Berlin)
-# Version: 1.5
+# Changed: 18-03-2026 10:09 (Europe/Berlin)
+# Version: 1.8
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -247,12 +247,11 @@ function Run-BanCheck {
     $secAny = ($getAn.SecFound)
     $status = "FAIL_NO_EVIDENCE"
 
-    if ($getBan.Found -or $getAn.SecFound) {
+    if ($getAn.SecFound) {
         $supportSourceHtml = $getHtml
         $supportSourceUrl = $getFinalUrl
 
         $evidence = @()
-        if ($getBan.Found) { $evidence += "BanText(GET)" }
         if ($getAn.SecFound) { $evidence += "SupportRef(GET)" }
 
         Write-Host "GET evidence is already sufficient; POST login attempt skipped."
@@ -300,7 +299,6 @@ function Run-BanCheck {
         $secAny = ($getAn.SecFound -or $an.SecFound)
 
         $evidence = @()
-        if ($banTextAny) { $evidence += "BanText" }
         if ($secAny) { $evidence += "SupportRef" }
         if ($redirectedToLogin) { $evidence += "RedirectToLogin" }
 
@@ -383,10 +381,10 @@ function Run-BanCheck {
 
         $status = "FAIL_NO_EVIDENCE"
 
-        if ($banTextAny -or $secAny) {
+        if ($secAny) {
             $status = "PASS"
         } elseif ($redirectedToLogin) {
-            $status = "FAIL_REDIRECT_NO_BAN_UI"
+            $status = "FAIL_REDIRECT_WITHOUT_SEC"
         }
 
         if ($an.SecFound) {
@@ -428,6 +426,8 @@ function Run-BanCheck {
 
     if ($getAn.SecFound) {
         $secValueOut = $getAn.SecValue
+    } elseif ($null -ne $post -and $secAny -and $an.SecFound) {
+        $secValueOut = $an.SecValue
     }
 
     if (-not [string]::IsNullOrWhiteSpace($supportSourceHtml) -and (-not $SkipSupportFlow)) {

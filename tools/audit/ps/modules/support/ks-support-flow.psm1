@@ -2,11 +2,94 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\support\ks-support-flow.psm1
 # Purpose: Shared security support flow helpers for KiezSingles audit PowerShell scripts
 # Created: 06-03-2026 22:30 (Europe/Berlin)
-# Changed: 11-03-2026 22:17 (Europe/Berlin)
-# Version: 1.1
+# Changed: 18-03-2026 00:47 (Europe/Berlin)
+# Version: 1.5
 # =============================================================================
 
 Set-StrictMode -Version Latest
+
+function Get-StrictSupportCodeEvidence {
+    param(
+        [Parameter(Mandatory=$true)][string]$Html,
+        [Parameter(Mandatory=$true)][string]$Url
+    )
+
+    $values = New-Object System.Collections.ArrayList
+
+    foreach ($fieldName in @('support_reference', 'support_ref', 'reference')) {
+        $value = Get-HiddenFieldValueFromHtml -html $Html -name $fieldName
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            [void]$values.Add(($value.Trim()))
+        }
+    }
+
+    try {
+        $uri = [System.Uri]$Url
+        $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
+        foreach ($key in @('support_reference', 'support_ref', 'reference')) {
+            $value = "" + $query[$key]
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                [void]$values.Add(($value.Trim()))
+            }
+        }
+    } catch {
+    }
+
+    $distinctValues = @($values | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    $resolvedValue = ""
+    if ($distinctValues.Count -eq 1) {
+        $resolvedValue = "" + $distinctValues[0]
+    }
+
+    return [PSCustomObject]@{
+        Values        = $distinctValues
+        Value         = $resolvedValue
+        Found         = ($distinctValues.Count -ge 1)
+        MultipleFound = ($distinctValues.Count -gt 1)
+    }
+}
+
+function Get-SupportTicketReferenceFromDb {
+    param(
+        [Parameter(Mandatory=$true)][string]$SupportCode
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SupportCode)) {
+        return ""
+    }
+
+    $escapedSupportCode = $SupportCode.Replace("'", "''")
+    $projectRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..\..')
+    $artisanPath = Join-Path $projectRoot 'artisan'
+    $command = @'
+$ticket = \Illuminate\Support\Facades\DB::table('tickets')
+    ->where('support_reference', '__SUPPORT_CODE__')
+    ->first(['support_reference']);
+if ($ticket) { echo (string) ($ticket->support_reference ?? ''); }
+'@.Replace('__SUPPORT_CODE__', $escapedSupportCode)
+
+    try {
+        $output = & php $artisanPath tinker --execute=$command 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            return ""
+        }
+
+        return (("" + ($output | Out-String)).Trim())
+    } catch {
+        return ""
+    }
+}
+
+function Get-SupportMailReferenceEvidence {
+    param(
+        [Parameter(Mandatory=$true)][string]$SupportCode
+    )
+
+    return [PSCustomObject]@{
+        Status = "INFO_NO_MAIL_SYSTEM"
+        Value  = ""
+    }
+}
 
 function Get-CommonFormData {
     param(
@@ -207,6 +290,13 @@ function Invoke-SupportTicketSubmit {
         $result = ("FAIL_HTTP_{0}" -f $sc)
     }
 
+    $ticketSupportCode = ""
+    if (($result -like 'PASS_*' -or $result -eq 'PASS_REDIRECT') -and -not [string]::IsNullOrWhiteSpace($SupportCode)) {
+        $ticketSupportCode = Get-SupportTicketReferenceFromDb -SupportCode $SupportCode
+    }
+
+    $mailEvidence = Get-SupportMailReferenceEvidence -SupportCode $SupportCode
+
     return [PSCustomObject]@{
         Attempted         = $true
         Result            = $result
@@ -216,6 +306,9 @@ function Invoke-SupportTicketSubmit {
         FinalHtml         = $finalHtml
         CsrfPresent       = $true
         ValidationVisible = $validationVisible
+        TicketSupportCode = $ticketSupportCode
+        MailSupportCode   = $mailEvidence.Value
+        MailResult        = $mailEvidence.Status
     }
 }
 
@@ -330,7 +423,8 @@ function Invoke-SupportContactFlowCheck {
     $exportTarget = Export-LoginHtml -label ("support_flow_{0}_ticket_target" -f $FlowName) -html $targetHtml
     if ($exportTarget -ne "") { Write-Host "Exported HTML:" $exportTarget }
 
-    $targetCode = Extract-SupportCodeFromHtmlOrUrl -html $targetHtml -url $targetUrl
+    $targetCodeEvidence = Get-StrictSupportCodeEvidence -Html $targetHtml -Url $targetUrl
+    $targetCode = $targetCodeEvidence.Value
 
     $submitState = [PSCustomObject]@{
         Attempted         = $false
@@ -360,6 +454,34 @@ function Invoke-SupportContactFlowCheck {
             TicketSubmitUrl       = ""
             TicketSubmitFinalUrl  = ""
             TicketSubmitHttp      = ""
+            TicketSupportCode     = ""
+            MailSupportCode       = ""
+            MailResult            = "INFO_NOT_RUN"
+            SecE2EResult          = "FAIL"
+        }
+    }
+
+    if ($targetCodeEvidence.MultipleFound) {
+        return [PSCustomObject]@{
+            Checked               = $true
+            Result                = "FAIL_MULTIPLE_TARGET_SUPPORT_REF"
+            SupportLinkFound      = $true
+            SupportLinkUrl        = $supportUrl
+            FinalUrl              = $targetUrl
+            TargetPathOk          = $true
+            TargetCsrfPresent     = (-not [string]::IsNullOrWhiteSpace($targetCsrf))
+            SourceSupportCode     = $sourceCode
+            TargetSupportCode     = ""
+            SupportCodeMatch      = $false
+            TicketSubmitAttempted = $false
+            TicketSubmitResult    = "SKIP_MULTIPLE_TARGET_SUPPORT_REF"
+            TicketSubmitUrl       = ""
+            TicketSubmitFinalUrl  = ""
+            TicketSubmitHttp      = ""
+            TicketSupportCode     = ""
+            MailSupportCode       = ""
+            MailResult            = "INFO_NOT_RUN"
+            SecE2EResult          = "FAIL"
         }
     }
 
@@ -380,6 +502,10 @@ function Invoke-SupportContactFlowCheck {
             TicketSubmitUrl       = ""
             TicketSubmitFinalUrl  = ""
             TicketSubmitHttp      = ""
+            TicketSupportCode     = ""
+            MailSupportCode       = ""
+            MailResult            = "INFO_NOT_RUN"
+            SecE2EResult          = "FAIL"
         }
     }
 
@@ -400,10 +526,23 @@ function Invoke-SupportContactFlowCheck {
             TicketSubmitUrl       = ""
             TicketSubmitFinalUrl  = ""
             TicketSubmitHttp      = ""
+            TicketSupportCode     = ""
+            MailSupportCode       = ""
+            MailResult            = "INFO_NOT_RUN"
+            SecE2EResult          = "FAIL"
         }
     }
 
     $submitState = Invoke-SupportTicketSubmit -FlowName $FlowName -BaseUrl $BaseUrl -Session $Session -TargetUrl $targetUrl -TargetHtml $targetHtml -SupportCode $targetCode -Headers $Headers
+    $secE2EResult = "FAIL"
+
+    if ($submitState.Attempted -and
+        ($submitState.Result -like 'PASS_*' -or $submitState.Result -eq 'PASS_REDIRECT') -and
+        $targetCode -eq $sourceCode -and
+        -not [string]::IsNullOrWhiteSpace($submitState.TicketSupportCode) -and
+        $submitState.TicketSupportCode -eq $sourceCode) {
+        $secE2EResult = "PASS"
+    }
 
     return [PSCustomObject]@{
         Checked               = $true
@@ -421,6 +560,10 @@ function Invoke-SupportContactFlowCheck {
         TicketSubmitUrl       = $submitState.SubmitUrl
         TicketSubmitFinalUrl  = $submitState.FinalUrl
         TicketSubmitHttp      = $submitState.PostStatus
+        TicketSupportCode     = $submitState.TicketSupportCode
+        MailSupportCode       = $submitState.MailSupportCode
+        MailResult            = $submitState.MailResult
+        SecE2EResult          = $secE2EResult
     }
 }
 
@@ -441,6 +584,10 @@ function New-DefaultSupportFlowResult {
         TicketSubmitUrl       = ""
         TicketSubmitFinalUrl  = ""
         TicketSubmitHttp      = ""
+        TicketSupportCode     = ""
+        MailSupportCode       = ""
+        MailResult            = "INFO_NOT_RUN"
+        SecE2EResult          = "FAIL"
     }
 }
 

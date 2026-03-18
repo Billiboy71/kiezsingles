@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.config.ps1
 # Purpose: Central config for browser-first Security Login/Ban/Abuse audit checks
 # Created: 08-03-2026 00:12 (Europe/Berlin)
-# Changed: 17-03-2026 14:00 (Europe/Berlin)
-# Version: 2.0
+# Changed: 17-03-2026 12:26 (Europe/Berlin)
+# Version: 2.1
 # =============================================================================
 
 $script:BanTestData = @{
@@ -112,7 +112,7 @@ $script:SupportTicketSourceContext = "security_browserfirst_check_ps"
 $script:SimulateClientIpEnabled = $true
 $script:ClientIpHeaderMode      = "standard"
 $script:TestIpPool              = @()
-$script:IpRotationMode          = "per_step"
+$script:IpRotationMode          = "fixed_per_scenario"
 
 # -----------------------------------------------------------------------------
 # ABUSE SCENARIOS
@@ -124,16 +124,38 @@ $script:AbuseScenarioDeviceClusterEnabled  = $true
 
 # automatische Pools (Rotation)
 $script:AbuseFixedDevicePool = @()
-$script:AbuseFixedEmailPool  = @()
-$script:AbuseFixedIpPool     = @()
+$script:AbuseFixedEmailPool  = @(
+    "audit-abuse-001@kiezsingles.local",
+    "audit-abuse-002@kiezsingles.local",
+    "audit-abuse-003@kiezsingles.local",
+    "audit-abuse-004@kiezsingles.local",
+    "audit-abuse-005@kiezsingles.local",
+    "audit-abuse-006@kiezsingles.local",
+    "audit-abuse-007@kiezsingles.local",
+    "audit-abuse-008@kiezsingles.local",
+    "audit-abuse-009@kiezsingles.local",
+    "audit-abuse-010@kiezsingles.local"
+)
+$script:AbuseFixedIpPool     = @(
+    "203.0.113.10",
+    "203.0.113.11",
+    "203.0.113.12",
+    "203.0.113.13",
+    "203.0.113.14",
+    "203.0.113.15",
+    "203.0.113.16",
+    "203.0.113.17",
+    "203.0.113.18",
+    "203.0.113.19"
+)
 
 $script:AbuseDevicePoolPrefix = "ks-sim-device-audit-"
 $script:AbuseEmailPoolPrefix  = "audit-abuse-"
 $script:AbuseEmailDomain      = "kiezsingles.local"
 
 $script:AbuseDevicePoolCount = 12
-$script:AbuseEmailPoolCount  = 40
-$script:AbuseIpPoolCount     = 50
+$script:AbuseEmailPoolCount  = 10
+$script:AbuseIpPoolCount     = 10
 
 # -----------------------------------------------------------------------------
 # ABUSE ADMIN VALIDATION
