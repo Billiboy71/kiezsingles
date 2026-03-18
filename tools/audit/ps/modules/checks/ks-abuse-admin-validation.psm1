@@ -2,11 +2,42 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\checks\ks-abuse-admin-validation.psm1
 # Purpose: Abuse simulation correlation check against /admin/security/events
 # Created: 08-03-2026 03:06 (Europe/Berlin)
-# Changed: 18-03-2026 01:14 (Europe/Berlin)
-# Version: 3.3
+# Changed: 18-03-2026 10:32 (Europe/Berlin)
+# Version: 3.4
 # =============================================================================
 
 Set-StrictMode -Version Latest
+
+function Get-AbuseAdminValidationScenarioOrder {
+    return @(
+        'abuse_device_reuse',
+        'abuse_account_sharing',
+        'abuse_bot_pattern',
+        'abuse_device_cluster_1',
+        'abuse_device_cluster_2',
+        'abuse_device_cluster_3',
+        'abuse_device_cluster_4',
+        'abuse_device_cluster_5'
+    )
+}
+
+function Get-AbuseAdminValidationScenarioSortIndex {
+    param(
+        [Parameter(Mandatory=$false)][string]$ScenarioName
+    )
+
+    $resolvedScenarioName = ""
+    try { $resolvedScenarioName = ("" + $ScenarioName).Trim() } catch { $resolvedScenarioName = "" }
+
+    $scenarioOrder = @(Get-AbuseAdminValidationScenarioOrder)
+    for ($i = 0; $i -lt $scenarioOrder.Count; $i++) {
+        if ($scenarioOrder[$i] -eq $resolvedScenarioName) {
+            return $i
+        }
+    }
+
+    return ([int]$scenarioOrder.Count + 1000)
+}
 
 function Get-AbuseAdminValidationBoolean {
     param(
@@ -1512,6 +1543,7 @@ function New-AbuseAdminValidationDbCheck {
 
     Write-Host ("DEBUG VALIDATION READ: RunId={0} Scenario={1} Records={2}" -f $runId, $ScenarioDefinition.ScenarioName, @($records).Count)
 
+    Write-Host ("[SCENARIO: {0}]" -f $ScenarioDefinition.ScenarioName)
     Write-Host "DEBUG DB READ"
     Write-Host ("Scenario: {0}" -f $ScenarioDefinition.ScenarioName)
     Write-Host ("DBRecords: {0}" -f @($records).Count)
@@ -1555,6 +1587,7 @@ function New-AbuseAdminValidationDbCheck {
     $accountSharingWarnIpThreshold = [int][Math]::Ceiling($expectedDistinctIpCount * 0.6)
     $accountSharingWarnDeviceThreshold = [int][Math]::Ceiling($expectedDistinctDeviceCount * 0.6)
 
+    Write-Host ("[SCENARIO: {0}]" -f $ScenarioDefinition.ScenarioName)
     Write-Host "DEBUG COUNTS"
     Write-Host ("ExpectedEmails: {0}" -f $expectedDistinctEmailCount)
     Write-Host ("ObservedEmails: {0}" -f $observedDistinctEmailCount)
@@ -1712,6 +1745,7 @@ function New-AbuseAdminValidationCheck {
     $expectedIpCount = $expectedIpCount
 
     Write-Host ""
+    Write-Host ("[SCENARIO: {0}]" -f $ScenarioName)
     Write-Host "DEBUG SCENARIO VALIDATION"
     Write-Host ("Scenario: {0}" -f $ScenarioName)
     Write-Host ("DeviceCount: {0} / Expected: {1}" -f $deviceCount, $expectedDeviceCount)
@@ -1768,7 +1802,7 @@ function Get-AbuseAdminValidationScenarioGroups {
     }
 
     $groups = @($results | Group-Object ScenarioName)
-    $groups = @($groups | Sort-Object Name)
+    $groups = @($groups | Sort-Object @{ Expression = { Get-AbuseAdminValidationScenarioSortIndex -ScenarioName $_.Name } }, @{ Expression = { $_.Name } })
 
     return $groups
 }
@@ -1850,6 +1884,7 @@ function Get-AbuseAdminValidationScenarioCheckDefinition {
         }
     }
 
+    Write-Host ("[SCENARIO: {0}]" -f $scenarioName)
     Write-Host "DEBUG SCENARIO DEFINITION"
     Write-Host ("Scenario: {0}" -f $scenarioName)
     Write-Host ("RowsCount: {0}" -f @($rows).Count)

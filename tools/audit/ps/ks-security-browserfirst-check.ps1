@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 17-03-2026 23:44 (Europe/Berlin)
-# Version: 7.4
+# Changed: 18-03-2026 10:32 (Europe/Berlin)
+# Version: 7.5
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -585,6 +585,36 @@ function Get-EnabledAbuseScenarioTotalSteps {
     }
 
     return $total
+}
+
+function Get-AbuseScenarioOrder {
+    return @(
+        'abuse_device_reuse',
+        'abuse_account_sharing',
+        'abuse_bot_pattern',
+        'abuse_device_cluster_1',
+        'abuse_device_cluster_2',
+        'abuse_device_cluster_3',
+        'abuse_device_cluster_4',
+        'abuse_device_cluster_5'
+    )
+}
+
+function Get-AbuseScenarioSortIndex {
+    param(
+        [Parameter(Mandatory=$false)][string]$ScenarioName
+    )
+
+    $resolvedScenarioName = Convert-ToScenarioString -Value $ScenarioName
+    $scenarioOrder = @(Get-AbuseScenarioOrder)
+
+    for ($i = 0; $i -lt $scenarioOrder.Count; $i++) {
+        if ($scenarioOrder[$i] -eq $resolvedScenarioName) {
+            return $i
+        }
+    }
+
+    return ([int]$scenarioOrder.Count + 1000)
 }
 
 function Validate-BrowserFirstConfig {
@@ -1411,6 +1441,121 @@ function Write-SessionSecurityChecksSummary {
     }
 }
 
+function New-FinalAuditSummary {
+    $summary = [ordered]@{
+        Pass = 0
+        Warn = 0
+        Fail = 0
+    }
+
+    $scenarioSecE2E = @{}
+    $banSummary = @{}
+    $sessionSummary = @{}
+    $adminValidationSummary = $null
+
+    foreach ($scenario in @($res1, $res2)) {
+        if ($null -eq $scenario) {
+            continue
+        }
+
+        $scenarioName = Convert-ToScenarioString -Value $scenario.ScenarioName
+        $secE2EResult = Convert-ToScenarioString -Value $scenario.SecE2EResult
+        if ([string]::IsNullOrWhiteSpace($scenarioName) -or [string]::IsNullOrWhiteSpace($secE2EResult)) {
+            continue
+        }
+
+        $scenarioSecE2E[$scenarioName] = $secE2EResult
+
+        switch ($secE2EResult) {
+            'PASS' { $summary['Pass']++ }
+            'WARN' { $summary['Warn']++ }
+            'FAIL' { $summary['Fail']++ }
+        }
+    }
+
+    foreach ($banResult in @($banResults)) {
+        if ($null -eq $banResult) {
+            continue
+        }
+
+        $banName = Convert-ToScenarioString -Value $banResult.BanName
+        $banStatus = Convert-ToScenarioString -Value $banResult.BanResult
+        if ([string]::IsNullOrWhiteSpace($banName) -or [string]::IsNullOrWhiteSpace($banStatus)) {
+            continue
+        }
+
+        $banSummary[$banName] = $banStatus
+
+        if ($banStatus -eq 'PASS') {
+            $summary['Pass']++
+        }
+        elseif ($banStatus -like 'WARN*') {
+            $summary['Warn']++
+        }
+        elseif ($banStatus -like 'FAIL*') {
+            $summary['Fail']++
+        }
+    }
+
+    foreach ($check in @($sessionSecurityChecks)) {
+        if ($null -eq $check) {
+            continue
+        }
+
+        $checkName = Convert-ToScenarioString -Value $check.CheckName
+        $checkResult = Convert-ToScenarioString -Value $check.Result
+        if ([string]::IsNullOrWhiteSpace($checkName) -or [string]::IsNullOrWhiteSpace($checkResult)) {
+            continue
+        }
+
+        $sessionSummary[$checkName] = $checkResult
+
+        switch ($checkResult) {
+            'PASS' { $summary['Pass']++ }
+            'WARN' { $summary['Warn']++ }
+            'FAIL' { $summary['Fail']++ }
+        }
+    }
+
+    if ($null -ne $abuseAdminValidationResult -and $null -ne $abuseAdminValidationResult.Summary) {
+        $adminValidationSummary = [ordered]@{
+            Pass = [int]$abuseAdminValidationResult.Summary.Pass
+            Warn = [int]$abuseAdminValidationResult.Summary.Warn
+            Fail = [int]$abuseAdminValidationResult.Summary.Fail
+        }
+
+        $summary['Pass'] += $adminValidationSummary['Pass']
+        $summary['Warn'] += $adminValidationSummary['Warn']
+        $summary['Fail'] += $adminValidationSummary['Fail']
+    }
+
+    return [PSCustomObject]@{
+        Pass            = [int]$summary['Pass']
+        Warn            = [int]$summary['Warn']
+        Fail            = [int]$summary['Fail']
+        SecE2E          = [PSCustomObject]$scenarioSecE2E
+        Bans            = [PSCustomObject]$banSummary
+        SessionChecks   = [PSCustomObject]$sessionSummary
+        AdminValidation = $(if ($null -ne $adminValidationSummary) { [PSCustomObject]$adminValidationSummary } else { $null })
+    }
+}
+
+function Get-FinalAuditExitCode {
+    param(
+        [Parameter(Mandatory=$true)]$Summary
+    )
+
+    if ([int]$Summary.Fail -gt 0) {
+        return 2
+    }
+
+    if ([int]$Summary.Warn -gt 0) {
+        return 1
+    }
+
+    return 0
+}
+
 function New-SkippedScenarioResult {
     param(
         [Parameter(Mandatory=$true)][string]$ScenarioName,
@@ -1693,7 +1838,7 @@ function Export-AbuseSimulationArtifacts {
         }
     }
 
-    $scenarioSummary = foreach ($group in ($results | Group-Object ScenarioName)) {
+    $scenarioSummary = foreach ($group in (($results | Group-Object ScenarioName) | Sort-Object @{ Expression = { Get-AbuseScenarioSortIndex -ScenarioName $_.Name } }, @{ Expression = { $_.Name } })) {
         $devicesSeen = @($group.Group | Select-Object -ExpandProperty DeviceCookieId -Unique)
         $emailsSeen = @($group.Group | Select-Object -ExpandProperty Email -Unique)
         $ipsSeen = @($group.Group | Select-Object -ExpandProperty AttemptIp -Unique)
@@ -1717,7 +1862,7 @@ function Export-AbuseSimulationArtifacts {
     $validationLines.Add("Admin Validation Hints")
     $validationLines.Add("")
 
-    foreach ($group in ($results | Group-Object ScenarioName)) {
+    foreach ($group in (($results | Group-Object ScenarioName) | Sort-Object @{ Expression = { Get-AbuseScenarioSortIndex -ScenarioName $_.Name } }, @{ Expression = { $_.Name } })) {
         $sampleEmail = ""
         $sampleDevice = ""
         $sampleIp = ""
@@ -1885,7 +2030,7 @@ function Write-AbuseSimulationSummary {
         }
     }
 
-    $scenarioGroups = $results | Group-Object ScenarioName
+    $scenarioGroups = $results | Group-Object ScenarioName | Sort-Object @{ Expression = { Get-AbuseScenarioSortIndex -ScenarioName $_.Name } }, @{ Expression = { $_.Name } }
     foreach ($group in $scenarioGroups) {
         $devicesSeen = @($group.Group | Select-Object -ExpandProperty DeviceCookieId -Unique)
         $emailsSeen = @($group.Group | Select-Object -ExpandProperty Email -Unique)
@@ -1903,6 +2048,7 @@ function Write-AbuseSimulationSummary {
         Write-Host "ScenarioSummaryCsv:" $SimulationResult.Exports.ScenarioSummaryCsv
         Write-Host "ValidationTxt:" $SimulationResult.Exports.ValidationTxt
         Write-Host "JsonReport:" $SimulationResult.Exports.JsonReport
+        Write-Host "PrimaryOutputJson:" $SimulationResult.Exports.JsonReport
     }
 }
 
@@ -2259,3 +2405,28 @@ if ($null -ne $sessionSecurityExports) {
     Write-Host "ChecksJson:" $sessionSecurityExports.JsonPath
     Write-Host "ChecksCsv:" $sessionSecurityExports.CsvPath
 }
+
+$finalAuditSummary = New-FinalAuditSummary
+$finalExitCode = Get-FinalAuditExitCode -Summary $finalAuditSummary
+
+Write-Section "FINAL SUMMARY"
+Write-Host ("PASS: {0}" -f $finalAuditSummary.Pass)
+Write-Host ("WARN: {0}" -f $finalAuditSummary.Warn)
+Write-Host ("FAIL: {0}" -f $finalAuditSummary.Fail)
+
+if ($null -ne $finalAuditSummary.SecE2E) {
+    $secE2EProperties = @($finalAuditSummary.SecE2E.PSObject.Properties)
+    if ($secE2EProperties.Count -gt 0) {
+        Write-Host "SEC_E2E:"
+        foreach ($property in $secE2EProperties) {
+            Write-Host ("{0}: {1}" -f $property.Name, $property.Value)
+        }
+    }
+}
+
+if ($CheckAbuseSimulation -and $null -ne $abuseSimulationResult -and $null -ne $abuseSimulationResult.Exports) {
+    Write-Host "PrimaryOutputJson:" $abuseSimulationResult.Exports.JsonReport
+}
+
+Write-Host ("ExitCode: {0}" -f $finalExitCode)
+exit $finalExitCode
