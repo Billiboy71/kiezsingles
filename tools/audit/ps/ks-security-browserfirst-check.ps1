@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 19-03-2026 00:34 (Europe/Berlin)
-# Version: 8.1
+# Changed: 19-03-2026 10:34 (Europe/Berlin)
+# Version: 8.2
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -676,6 +676,18 @@ function Get-EnabledAbuseScenarioStepCounts {
         $counts["abuse_device_cluster_detection"] = 12
     }
 
+    if ($AbuseScenarioDeviceClusterEnabled) {
+        $counts["abuse_device_only_cluster_isolation"] = 18
+    }
+
+    if ($AbuseScenarioBotPatternEnabled) {
+        $counts["abuse_ip_only_bot_isolation"] = 120
+    }
+
+    if ($AbuseScenarioAccountSharingEnabled) {
+        $counts["abuse_email_only_sharing_isolation"] = 8
+    }
+
     return $counts
 }
 
@@ -702,7 +714,10 @@ function Get-AbuseScenarioOrder {
         'abuse_device_cluster_5',
         'abuse_credential_stuffing',
         'abuse_bot_pattern_detection',
-        'abuse_device_cluster_detection'
+        'abuse_device_cluster_detection',
+        'abuse_device_only_cluster_isolation',
+        'abuse_ip_only_bot_isolation',
+        'abuse_email_only_sharing_isolation'
     )
 }
 
@@ -1946,6 +1961,86 @@ function Build-AbuseScenarioSteps {
         }
     }
 
+    if ($AbuseScenarioDeviceClusterEnabled) {
+        $scenarioName = "abuse_device_only_cluster_isolation"
+        $primaryDeviceId = Get-AbuseScopedDeviceId -BaseDeviceId "ks-audit-doc-primary" -ScenarioName $scenarioName
+        $primaryEmails = @()
+        $primaryIps = @(
+            (Select-PoolValue -Pool $resolvedIpPool -Index 19),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 20),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 21),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 22),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 23)
+        )
+
+        for ($i = 0; $i -lt 10; $i++) {
+            $primaryEmails += (Select-PoolValue -Pool $resolvedEmailPool -Index (34 + $i))
+        }
+
+        for ($i = 0; $i -lt $primaryEmails.Count; $i++) {
+            [void]$steps.Add((New-AbuseStep `
+                -ScenarioName $scenarioName `
+                -StepNumber ($steps.Count + 1) `
+                -Email ("" + $primaryEmails[$i]) `
+                -DeviceCookieId $primaryDeviceId `
+                -AttemptIp ("" + $primaryIps[($i % $primaryIps.Count)])))
+        }
+
+        for ($i = 0; $i -lt 7; $i++) {
+            $bridgeDeviceId = Get-AbuseScopedDeviceId -BaseDeviceId ("ks-audit-doc-bridge-{0}" -f ($i + 1)) -ScenarioName $scenarioName
+            [void]$steps.Add((New-AbuseStep `
+                -ScenarioName $scenarioName `
+                -StepNumber ($steps.Count + 1) `
+                -Email ("" + $primaryEmails[($i % 4)]) `
+                -DeviceCookieId $bridgeDeviceId `
+                -AttemptIp ("" + $primaryIps[($i % 4)])))
+        }
+
+        [void]$steps.Add((New-AbuseStep `
+            -ScenarioName $scenarioName `
+            -StepNumber ($steps.Count + 1) `
+            -Email ("" + $primaryEmails[0]) `
+            -DeviceCookieId $primaryDeviceId `
+            -AttemptIp ("" + $primaryIps[4])))
+    }
+
+    if ($AbuseScenarioBotPatternEnabled) {
+        $scenarioName = "abuse_ip_only_bot_isolation"
+        $botIp = Select-PoolValue -Pool $resolvedIpPool -Index 24
+        $botEmail = Select-PoolValue -Pool $resolvedEmailPool -Index 20
+
+        for ($i = 0; $i -lt 120; $i++) {
+            $deviceId = Get-AbuseScopedDeviceId -BaseDeviceId ("ks-audit-ipbot-device-{0:D3}" -f ($i + 1)) -ScenarioName $scenarioName
+            [void]$steps.Add((New-AbuseStep `
+                -ScenarioName $scenarioName `
+                -StepNumber ($steps.Count + 1) `
+                -Email $botEmail `
+                -DeviceCookieId $deviceId `
+                -AttemptIp $botIp))
+        }
+    }
+
+    if ($AbuseScenarioAccountSharingEnabled) {
+        $scenarioName = "abuse_email_only_sharing_isolation"
+        $sharingEmail = Select-PoolValue -Pool $resolvedEmailPool -Index 21
+        $sharingIps = @(
+            (Select-PoolValue -Pool $resolvedIpPool -Index 25),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 26),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 27),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 28)
+        )
+
+        for ($i = 0; $i -lt 8; $i++) {
+            $deviceId = Get-AbuseScopedDeviceId -BaseDeviceId ("ks-audit-emailshare-device-{0}" -f ($i + 1)) -ScenarioName $scenarioName
+            [void]$steps.Add((New-AbuseStep `
+                -ScenarioName $scenarioName `
+                -StepNumber ($steps.Count + 1) `
+                -Email $sharingEmail `
+                -DeviceCookieId $deviceId `
+                -AttemptIp ("" + $sharingIps[($i % $sharingIps.Count)])))
+        }
+    }
+
     return @($steps.ToArray())
 }
 
@@ -1962,6 +2057,9 @@ function Get-AbuseScenarioExpectedPattern {
         '^abuse_credential_stuffing$' { return "1 Device -> viele Emails -> mehrere IPs" }
         '^abuse_bot_pattern_detection$' { return "gleiche Device/IP-Struktur -> viele Requests in kurzer Zeit" }
         '^abuse_device_cluster_detection$' { return "D1->E1,E2; D2->E2,E3; D3->E3,E4 mit gemischten IPs" }
+        '^abuse_device_only_cluster_isolation$' { return "1 Primär-Device -> viele Emails -> mehrere IPs mit verbundenen Bridge-Devices" }
+        '^abuse_ip_only_bot_isolation$' { return "1 IP -> sehr viele Requests -> rotierende Devices" }
+        '^abuse_email_only_sharing_isolation$' { return "1 Email -> viele Devices -> mehrere IPs" }
         default                      { return "" }
     }
 }
@@ -2645,6 +2743,17 @@ function Invoke-AbuseSimulation {
 
         Write-Host ("[{0}] Step {1} -> Email:{2} DeviceCookieId:{3} AttemptIp:{4}" -f $step.ScenarioName, $step.StepNumber, $step.Email, $step.DeviceCookieId, $step.AttemptIp)
 
+        $previousAuditRunId = $script:AuditRunId
+        $stepAuditRunId = $script:RunId
+
+        switch (("" + $step.ScenarioName).Trim()) {
+            "abuse_device_only_cluster_isolation" { $stepAuditRunId = ("{0}-device-only-cluster" -f $script:RunId) }
+            "abuse_ip_only_bot_isolation" { $stepAuditRunId = ("{0}-ip-only-bot" -f $script:RunId) }
+            "abuse_email_only_sharing_isolation" { $stepAuditRunId = ("{0}-email-only-sharing" -f $script:RunId) }
+        }
+
+        $script:AuditRunId = $stepAuditRunId
+
         $result = Run-Scenario `
             -ScenarioName ("{0}_step_{1}" -f $step.ScenarioName, $step.StepNumber) `
             -Email $step.Email `
@@ -2654,6 +2763,8 @@ function Invoke-AbuseSimulation {
             -DeviceCookieId $step.DeviceCookieId `
             -ForcedAttemptIp $step.AttemptIp `
             -SkipSupportFlow $AbuseSimulationSkipSupportFlow
+
+        $script:AuditRunId = $previousAuditRunId
 
         $resolvedResultEmail = ""
         $resolvedResultDeviceCookieId = ""
@@ -3179,6 +3290,68 @@ GROUP BY si.type;
     Write-Host ""
     Write-Host "Incident Breakdown:"
     & $mysql -u root $db -e $typeQuery
+
+    Write-Host ""
+    Write-Host "Isolation Scenario Checks:"
+
+    $scenarioIncidentChecks = @()
+
+    if ($AbuseScenarioDeviceClusterEnabled) {
+        $scenarioIncidentChecks += [PSCustomObject]@{
+            ScenarioName = "DEVICE_ONLY_CLUSTER"
+            RunId        = ("{0}-device-only-cluster" -f $script:RunId)
+            IncidentType = "device_cluster"
+        }
+    }
+
+    if ($AbuseScenarioBotPatternEnabled) {
+        $scenarioIncidentChecks += [PSCustomObject]@{
+            ScenarioName = "IP_ONLY_BOT"
+            RunId        = ("{0}-ip-only-bot" -f $script:RunId)
+            IncidentType = "bot_pattern"
+        }
+    }
+
+    if ($AbuseScenarioAccountSharingEnabled) {
+        $scenarioIncidentChecks += [PSCustomObject]@{
+            ScenarioName = "EMAIL_ONLY_SHARING"
+            RunId        = ("{0}-email-only-sharing" -f $script:RunId)
+            IncidentType = "account_sharing"
+        }
+    }
+
+    foreach ($scenarioCheck in $scenarioIncidentChecks) {
+        $scenarioRunId = ("" + $scenarioCheck.RunId).Trim()
+        $expectedIncidentType = ("" + $scenarioCheck.IncidentType).Trim()
+        $scenarioEventCountQuery = "SELECT COUNT(*) FROM security_events WHERE run_id = '$scenarioRunId';"
+        $scenarioEventCount = (& $mysql -u root $db -N -e $scenarioEventCountQuery | Select-Object -First 1)
+        if ($null -eq $scenarioEventCount) { $scenarioEventCount = "" } else { $scenarioEventCount = ("" + $scenarioEventCount).Trim() }
+
+        $scenarioIncidentCountQuery = @"
+SELECT COUNT(DISTINCT si.id)
+FROM security_incidents si
+JOIN security_incident_events sie ON sie.incident_id = si.id
+JOIN security_events se ON se.id = sie.security_event_id
+WHERE se.run_id = '$scenarioRunId'
+  AND si.type = '$expectedIncidentType';
+"@
+
+        $scenarioIncidentCount = (& $mysql -u root $db -N -e $scenarioIncidentCountQuery | Select-Object -First 1)
+        if ($null -eq $scenarioIncidentCount) { $scenarioIncidentCount = "" } else { $scenarioIncidentCount = ("" + $scenarioIncidentCount).Trim() }
+
+        $scenarioValidationOk = $false
+        try {
+            $scenarioValidationOk = ([int]$scenarioEventCount -gt 0 -and [int]$scenarioIncidentCount -gt 0)
+        } catch {
+            $scenarioValidationOk = $false
+        }
+
+        Write-Host ("{0} -> RunId:{1} Events:{2} Expected:{3} Incidents:{4} Result:{5}" -f $scenarioCheck.ScenarioName, $scenarioRunId, $scenarioEventCount, $expectedIncidentType, $scenarioIncidentCount, $(if ($scenarioValidationOk) { "OK" } else { "FAIL" }))
+
+        if (-not $scenarioValidationOk) {
+            $runIdIncidentValidationFailed = $true
+        }
+    }
 
     if ([int]$incidents -gt 0) {
         Write-Host ""

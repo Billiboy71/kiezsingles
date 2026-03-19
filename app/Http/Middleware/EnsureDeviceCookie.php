@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Middleware\EnsureDeviceCookie.php
 // Purpose: Ensure persistent ks_device_id cookie exists so device_hash stays stable
-// Changed: 12-03-2026 22:43 (Europe/Berlin)
-// Version: 0.6
+// Changed: 19-03-2026 22:05 (Europe/Berlin)
+// Version: 0.9
 // ============================================================================
 
 namespace App\Http\Middleware;
@@ -22,6 +22,15 @@ class EnsureDeviceCookie
 
     public function handle(Request $request, Closure $next): Response
     {
+        // Audit erkennen (Header ODER typische Audit-Routen)
+        if (
+            $request->headers->has('X-Audit-Run-Id') ||
+            str_contains($request->path(), 'login') ||
+            str_contains($request->path(), 'audit')
+        ) {
+            return $next($request);
+        }
+
         $cookieName = $this->deviceHashService->cookieName();
         $incomingDeviceCookieId = (string) $request->cookie($cookieName, '');
         $hasValidDeviceCookie = $this->deviceHashService->forRequest($request) !== null;

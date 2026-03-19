@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\StoreSecurityEvent.php
 // Purpose: Persist SecurityEventTriggered events into security_events (with minimal de-duplication)
-// Changed: 18-03-2026 22:18 (Europe/Berlin)
-// Version: 1.1
+// Changed: 19-03-2026 11:19 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 namespace App\Listeners\Security;
@@ -82,6 +82,8 @@ class StoreSecurityEvent
         }
 
         $securityEvent = SecurityEvent::query()->create($payload);
+
+        \Log::info('SECURITY EVENT STORED → DISPATCH');
 
         // EXISTING EVENT DISPATCH
         event(new SecurityEventStored($securityEvent));

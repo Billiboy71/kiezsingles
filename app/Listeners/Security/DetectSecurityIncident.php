@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\DetectSecurityIncident.php
 // Purpose: Passive pattern detection from security_events into security_incidents.
 // Created: 18-03-2026 12:18 (Europe/Berlin)
-// Changed: 19-03-2026 00:18 (Europe/Berlin)
-// Version: 0.5
+// Changed: 19-03-2026 12:02 (Europe/Berlin)
+// Version: 1.2
 // ============================================================================
 
 namespace App\Listeners\Security;
@@ -19,11 +19,15 @@ class DetectSecurityIncident
 {
     public function handle(SecurityEventStored $event): void
     {
+        \Log::info('DETECT SECURITY INCIDENT HANDLER START');
+
         if (!config('security_incidents.enabled', true)) {
+            \Log::info('SECURITY DETECTION BLOCKED: config_disabled');
             return;
         }
 
         if (!Schema::hasTable('security_incidents') || !Schema::hasTable('security_incident_events')) {
+            \Log::info('SECURITY DETECTION BLOCKED: table_missing');
             return;
         }
 
@@ -31,10 +35,12 @@ class DetectSecurityIncident
         $runId = $event->securityEvent->run_id ?? null;
 
         if (!$runId) {
+            \Log::info('SECURITY DETECTION BLOCKED: run_id_missing');
             return;
         }
 
         if (!($securityEvent->exists) || $securityEvent->getKey() === null) {
+            \Log::info('SECURITY DETECTION BLOCKED: event_missing');
             return;
         }
 
@@ -103,11 +109,16 @@ class DetectSecurityIncident
             ],
         ];
 
+        \Log::info('INCIDENT CREATE ATTEMPT', [
+            'type' => 'credential_stuffing'
+        ]);
+
         $this->storeIncident(
             SecurityIncidentType::CredentialStuffing,
             $deviceHash,
             null,
             null,
+            $runId,
             $score,
             $meta,
             $eventIds,
@@ -174,11 +185,16 @@ class DetectSecurityIncident
             ],
         ];
 
+        \Log::info('INCIDENT CREATE ATTEMPT', [
+            'type' => 'account_sharing'
+        ]);
+
         $this->storeIncident(
             SecurityIncidentType::AccountSharing,
             null,
             $contactEmail,
             null,
+            $runId,
             $score,
             $meta,
             $eventIds,
@@ -253,11 +269,16 @@ class DetectSecurityIncident
             ],
         ];
 
+        \Log::info('INCIDENT CREATE ATTEMPT', [
+            'type' => 'bot_pattern'
+        ]);
+
         $this->storeIncident(
             SecurityIncidentType::BotPattern,
             $deviceHash,
             null,
             $ip,
+            $runId,
             $score,
             $meta,
             $eventIds,
@@ -315,7 +336,7 @@ class DetectSecurityIncident
             || $stats['distinct_emails'] < $minDistinctEmails
             || $stats['distinct_ips'] < $minDistinctIps
             || $stats['total_events'] < $minEvents
-            || $eventsPerDevice < 3.0
+            || $eventsPerDevice < 1.8
         ) {
             return;
         }
@@ -340,7 +361,7 @@ class DetectSecurityIncident
                 'min_distinct_devices' => $minDistinctDevices,
                 'min_distinct_emails' => $minDistinctEmails,
                 'min_distinct_ips' => $minDistinctIps,
-                'min_events_per_device' => 3.0,
+                'min_events_per_device' => 1.8,
             ],
             'matched_on' => [
                 'device_hash' => $deviceHash,
@@ -361,11 +382,16 @@ class DetectSecurityIncident
             ],
         ];
 
+        \Log::info('INCIDENT CREATE ATTEMPT', [
+            'type' => 'device_cluster'
+        ]);
+
         $this->storeIncident(
             SecurityIncidentType::DeviceCluster,
             $deviceHash,
             $contactEmail,
             $ip,
+            $runId,
             $score,
             $meta,
             $eventIds,
@@ -484,6 +510,7 @@ class DetectSecurityIncident
         ?string $deviceHash,
         ?string $contactEmail,
         ?string $ip,
+        string $runId,
         int $score,
         array $meta,
         array $eventIds,
@@ -498,6 +525,7 @@ class DetectSecurityIncident
             $deviceHash,
             $contactEmail,
             $ip,
+            $runId,
             $cooldownMinutes
         );
 
@@ -507,15 +535,25 @@ class DetectSecurityIncident
             return;
         }
 
-        $incidentId = DB::table('security_incidents')->insertGetId([
-            'type' => $type->value,
-            'device_hash' => $deviceHash,
-            'contact_email' => $contactEmail,
-            'ip' => $ip,
-            'score' => $score,
-            'meta' => $this->encodeMeta($meta),
-            'created_at' => now(),
-        ]);
+        try {
+            $incidentId = DB::table('security_incidents')->insertGetId([
+                'type' => $type->value,
+                'device_hash' => $deviceHash,
+                'contact_email' => $contactEmail,
+                'ip' => $ip,
+                'score' => $score,
+                'meta' => $this->encodeMeta($meta),
+                'created_at' => now(),
+            ]);
+
+            \Log::info('INCIDENT INSERT OK', ['id' => $incidentId]);
+        } catch (\Throwable $e) {
+            \Log::error('INCIDENT INSERT FAILED', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
 
         $this->attachIncidentEvents((int) $incidentId, $eventIds);
     }
@@ -525,10 +563,12 @@ class DetectSecurityIncident
         ?string $deviceHash,
         ?string $contactEmail,
         ?string $ip,
+        string $runId,
         int $cooldownMinutes,
     ): ?int {
         $query = DB::table('security_incidents')
             ->where('type', $type->value)
+            ->where('run_id', $runId)
             ->where('created_at', '>=', now()->subMinutes(max(1, $cooldownMinutes)));
 
         if ($deviceHash === null) {
