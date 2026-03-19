@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Providers\EventServiceProvider.php
 // Purpose: Register event listeners (incl. optional IP logging)
-// Changed: 28-02-2026 14:49 (Europe/Berlin)
-// Version: 0.4
+// Changed: 18-03-2026 12:18 (Europe/Berlin)
+// Version: 0.5
 // ============================================================================
 
 namespace App\Providers;
@@ -31,6 +31,10 @@ class EventServiceProvider extends ServiceProvider
 
         \App\Events\Security\SecurityEventTriggered::class => [
             \App\Listeners\Security\StoreSecurityEvent::class,
+        ],
+
+        \App\Events\Security\SecurityEventStored::class => [
+            \App\Listeners\Security\DetectSecurityIncident::class,
         ],
 
         // =========================================================================

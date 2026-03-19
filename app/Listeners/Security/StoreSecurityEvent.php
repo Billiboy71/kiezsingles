@@ -2,13 +2,14 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\StoreSecurityEvent.php
 // Purpose: Persist SecurityEventTriggered events into security_events (with minimal de-duplication)
-// Changed: 17-03-2026 23:44 (Europe/Berlin)
-// Version: 0.9
+// Changed: 18-03-2026 22:18 (Europe/Berlin)
+// Version: 1.1
 // ============================================================================
 
 namespace App\Listeners\Security;
 
 use App\Events\Security\SecurityEventTriggered;
+use App\Events\Security\SecurityEventStored;
 use App\Models\SecurityEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -80,7 +81,14 @@ class StoreSecurityEvent
             $payload['reasons'] = $reason !== null ? [$reason] : [];
         }
 
-        SecurityEvent::query()->create($payload);
+        $securityEvent = SecurityEvent::query()->create($payload);
+
+        // EXISTING EVENT DISPATCH
+        event(new SecurityEventStored($securityEvent));
+
+        // NEW: DIRECT SYNC CALL (bypasses queue issues)
+        app(\App\Listeners\Security\DetectSecurityIncident::class)
+            ->handle(new SecurityEventStored($securityEvent));
     }
 
     /**

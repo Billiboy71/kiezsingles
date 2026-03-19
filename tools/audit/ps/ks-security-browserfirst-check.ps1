@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 18-03-2026 10:32 (Europe/Berlin)
-# Version: 7.5
+# Changed: 19-03-2026 00:34 (Europe/Berlin)
+# Version: 8.1
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -216,6 +216,97 @@ if (-not (Get-Variable -Name IpRotationMode -Scope Script -ErrorAction SilentlyC
 if (-not (Get-Variable -Name CheckAbuseSimulation -Scope Script -ErrorAction SilentlyContinue)) { $script:CheckAbuseSimulation = $false }
 if (-not (Get-Variable -Name AbuseSimulationAttemptsPerStep -Scope Script -ErrorAction SilentlyContinue)) { $script:AbuseSimulationAttemptsPerStep = 1 }
 if (-not (Get-Variable -Name AbuseSimulationSkipSupportFlow -Scope Script -ErrorAction SilentlyContinue)) { $script:AbuseSimulationSkipSupportFlow = $true }
+
+$credentialStuffingConfig = $null
+
+try {
+    if (Get-Variable -Name Config -Scope Script -ErrorAction SilentlyContinue) {
+        if ($script:Config -is [hashtable] -and $script:Config.ContainsKey("CredentialStuffing")) {
+            $credentialStuffingConfig = $script:Config["CredentialStuffing"]
+        }
+        elseif ($null -ne $script:Config -and $null -ne $script:Config.PSObject -and $script:Config.PSObject.Properties.Match("CredentialStuffing").Count -gt 0) {
+            $credentialStuffingConfig = $script:Config.CredentialStuffing
+        }
+    }
+} catch {
+    $credentialStuffingConfig = $null
+}
+
+$script:CredentialStuffingEnabled = $true
+$script:CredentialStuffingUsePersistentSession = $true
+$script:CredentialStuffingFixedDeviceId = "ks-audit-cs-device"
+$script:CredentialStuffingEmailCount = 15
+$script:CredentialStuffingIpCount = 5
+$script:CredentialStuffingReuseLoginPage = $true
+
+if ($null -ne $credentialStuffingConfig) {
+    try {
+        if ($credentialStuffingConfig -is [hashtable] -and $credentialStuffingConfig.ContainsKey("Enabled")) {
+            $script:CredentialStuffingEnabled = [bool]$credentialStuffingConfig["Enabled"]
+        }
+        elseif ($null -ne $credentialStuffingConfig.Enabled) {
+            $script:CredentialStuffingEnabled = [bool]$credentialStuffingConfig.Enabled
+        }
+    } catch {
+    }
+
+    try {
+        if ($credentialStuffingConfig -is [hashtable] -and $credentialStuffingConfig.ContainsKey("UsePersistentSession")) {
+            $script:CredentialStuffingUsePersistentSession = [bool]$credentialStuffingConfig["UsePersistentSession"]
+        }
+        elseif ($null -ne $credentialStuffingConfig.UsePersistentSession) {
+            $script:CredentialStuffingUsePersistentSession = [bool]$credentialStuffingConfig.UsePersistentSession
+        }
+    } catch {
+    }
+
+    try {
+        if ($credentialStuffingConfig -is [hashtable] -and $credentialStuffingConfig.ContainsKey("FixedDeviceId")) {
+            $resolvedCredentialStuffingFixedDeviceId = ("" + $credentialStuffingConfig["FixedDeviceId"]).Trim()
+        }
+        else {
+            $resolvedCredentialStuffingFixedDeviceId = ("" + $credentialStuffingConfig.FixedDeviceId).Trim()
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($resolvedCredentialStuffingFixedDeviceId)) {
+            $script:CredentialStuffingFixedDeviceId = $resolvedCredentialStuffingFixedDeviceId
+        }
+    } catch {
+    }
+
+    try {
+        if ($credentialStuffingConfig -is [hashtable] -and $credentialStuffingConfig.ContainsKey("EmailCount")) {
+            $script:CredentialStuffingEmailCount = [int]$credentialStuffingConfig["EmailCount"]
+        }
+        elseif ($null -ne $credentialStuffingConfig.EmailCount) {
+            $script:CredentialStuffingEmailCount = [int]$credentialStuffingConfig.EmailCount
+        }
+    } catch {
+    }
+
+    try {
+        if ($credentialStuffingConfig -is [hashtable] -and $credentialStuffingConfig.ContainsKey("IpCount")) {
+            $script:CredentialStuffingIpCount = [int]$credentialStuffingConfig["IpCount"]
+        }
+        elseif ($null -ne $credentialStuffingConfig.IpCount) {
+            $script:CredentialStuffingIpCount = [int]$credentialStuffingConfig.IpCount
+        }
+    } catch {
+    }
+
+    try {
+        if ($credentialStuffingConfig -is [hashtable] -and $credentialStuffingConfig.ContainsKey("ReuseLoginPage")) {
+            $script:CredentialStuffingReuseLoginPage = [bool]$credentialStuffingConfig["ReuseLoginPage"]
+        }
+        elseif ($null -ne $credentialStuffingConfig.ReuseLoginPage) {
+            $script:CredentialStuffingReuseLoginPage = [bool]$credentialStuffingConfig.ReuseLoginPage
+        }
+    } catch {
+    }
+}
+
+if ($script:CredentialStuffingEmailCount -lt 1) { $script:CredentialStuffingEmailCount = 1 }
+if ($script:CredentialStuffingIpCount -lt 1) { $script:CredentialStuffingIpCount = 1 }
 
 if (-not (Get-Variable -Name AbuseScenarioDeviceReuseEnabled -Scope Script -ErrorAction SilentlyContinue)) { $script:AbuseScenarioDeviceReuseEnabled = $true }
 if (-not (Get-Variable -Name AbuseScenarioAccountSharingEnabled -Scope Script -ErrorAction SilentlyContinue)) { $script:AbuseScenarioAccountSharingEnabled = $true }
@@ -573,6 +664,18 @@ function Get-EnabledAbuseScenarioStepCounts {
         }
     }
 
+    if ($AbuseScenarioDeviceReuseEnabled) {
+        $counts["abuse_credential_stuffing"] = [int]$script:CredentialStuffingEmailCount
+    }
+
+    if ($AbuseScenarioBotPatternEnabled) {
+        $counts["abuse_bot_pattern_detection"] = 60
+    }
+
+    if ($AbuseScenarioDeviceClusterEnabled) {
+        $counts["abuse_device_cluster_detection"] = 12
+    }
+
     return $counts
 }
 
@@ -596,7 +699,10 @@ function Get-AbuseScenarioOrder {
         'abuse_device_cluster_2',
         'abuse_device_cluster_3',
         'abuse_device_cluster_4',
-        'abuse_device_cluster_5'
+        'abuse_device_cluster_5',
+        'abuse_credential_stuffing',
+        'abuse_bot_pattern_detection',
+        'abuse_device_cluster_detection'
     )
 }
 
@@ -1452,6 +1558,7 @@ function New-FinalAuditSummary {
     $banSummary = @{}
     $sessionSummary = @{}
     $adminValidationSummary = $null
+    $abuseIncidentCoverageSummary = @{}
 
     foreach ($scenario in @($res1, $res2)) {
         if ($null -eq $scenario) {
@@ -1529,6 +1636,26 @@ function New-FinalAuditSummary {
         $summary['Fail'] += $adminValidationSummary['Fail']
     }
 
+    foreach ($coverage in @($abuseIncidentCoverageResults)) {
+        if ($null -eq $coverage) {
+            continue
+        }
+
+        $coverageName = Convert-ToScenarioString -Value $coverage.SectionTitle
+        $coverageResult = Convert-ToScenarioString -Value $coverage.Result
+        if ([string]::IsNullOrWhiteSpace($coverageName) -or [string]::IsNullOrWhiteSpace($coverageResult)) {
+            continue
+        }
+
+        $abuseIncidentCoverageSummary[$coverageName] = $coverageResult
+
+        switch ($coverageResult) {
+            'PASS' { $summary['Pass']++ }
+            'WARN' { $summary['Warn']++ }
+            'FAIL' { $summary['Fail']++ }
+        }
+    }
+
     return [PSCustomObject]@{
         Pass            = [int]$summary['Pass']
         Warn            = [int]$summary['Warn']
@@ -1537,6 +1664,7 @@ function New-FinalAuditSummary {
         Bans            = [PSCustomObject]$banSummary
         SessionChecks   = [PSCustomObject]$sessionSummary
         AdminValidation = $(if ($null -ne $adminValidationSummary) { [PSCustomObject]$adminValidationSummary } else { $null })
+        AbuseCoverage   = [PSCustomObject]$abuseIncidentCoverageSummary
     }
 }
 
@@ -1737,6 +1865,87 @@ function Build-AbuseScenarioSteps {
         }
     }
 
+    if ($AbuseScenarioDeviceReuseEnabled) {
+        $scenarioName = "abuse_credential_stuffing"
+        $deviceId = ("" + $script:CredentialStuffingFixedDeviceId).Trim()
+        $credentialStuffingEmailCount = [int]$script:CredentialStuffingEmailCount
+        $credentialStuffingIpCount = [int]$script:CredentialStuffingIpCount
+        $emails = @()
+
+        for ($i = 1; $i -le $credentialStuffingEmailCount; $i++) {
+            $emails += ("audit-cs-{0:D4}@kiezsingles.local" -f $i)
+        }
+
+        for ($i = 0; $i -lt $emails.Count; $i++) {
+            [void]$steps.Add((New-AbuseStep `
+                -ScenarioName $scenarioName `
+                -StepNumber ($steps.Count + 1) `
+                -Email ("" + $emails[$i]) `
+                -DeviceCookieId $deviceId `
+                -AttemptIp ("198.51.100.{0}" -f (($i % $credentialStuffingIpCount) + 10))))
+        }
+    }
+
+    if ($AbuseScenarioBotPatternEnabled) {
+        $scenarioName = "abuse_bot_pattern_detection"
+        $deviceId = Get-AbuseScopedDeviceId -BaseDeviceId "ks-audit-bot-device" -ScenarioName $scenarioName
+        $attemptIp = Select-PoolValue -Pool $resolvedIpPool -Index 14
+        $emailIndices = @(22, 23, 24, 25, 26, 27)
+
+        for ($i = 0; $i -lt 60; $i++) {
+            [void]$steps.Add((New-AbuseStep `
+                -ScenarioName $scenarioName `
+                -StepNumber ($steps.Count + 1) `
+                -Email (Select-PoolValue -Pool $resolvedEmailPool -Index $emailIndices[($i % $emailIndices.Count)]) `
+                -DeviceCookieId $deviceId `
+                -AttemptIp $attemptIp))
+        }
+    }
+
+    if ($AbuseScenarioDeviceClusterEnabled) {
+        $scenarioName = "abuse_device_cluster_detection"
+        $deviceIds = @(
+            (Get-AbuseScopedDeviceId -BaseDeviceId "ks-audit-dc-device-1" -ScenarioName $scenarioName),
+            (Get-AbuseScopedDeviceId -BaseDeviceId "ks-audit-dc-device-2" -ScenarioName $scenarioName),
+            (Get-AbuseScopedDeviceId -BaseDeviceId "ks-audit-dc-device-3" -ScenarioName $scenarioName)
+        )
+        $clusterEmails = @(
+            (Select-PoolValue -Pool $resolvedEmailPool -Index 30),
+            (Select-PoolValue -Pool $resolvedEmailPool -Index 31),
+            (Select-PoolValue -Pool $resolvedEmailPool -Index 32),
+            (Select-PoolValue -Pool $resolvedEmailPool -Index 33)
+        )
+        $clusterIps = @(
+            (Select-PoolValue -Pool $resolvedIpPool -Index 15),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 16),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 17),
+            (Select-PoolValue -Pool $resolvedIpPool -Index 18)
+        )
+        $clusterMatrix = @(
+            @{ Device = $deviceIds[0]; Email = $clusterEmails[0]; Ip = $clusterIps[0] },
+            @{ Device = $deviceIds[0]; Email = $clusterEmails[1]; Ip = $clusterIps[1] },
+            @{ Device = $deviceIds[1]; Email = $clusterEmails[1]; Ip = $clusterIps[1] },
+            @{ Device = $deviceIds[1]; Email = $clusterEmails[2]; Ip = $clusterIps[2] },
+            @{ Device = $deviceIds[2]; Email = $clusterEmails[2]; Ip = $clusterIps[2] },
+            @{ Device = $deviceIds[2]; Email = $clusterEmails[3]; Ip = $clusterIps[3] },
+            @{ Device = $deviceIds[0]; Email = $clusterEmails[1]; Ip = $clusterIps[2] },
+            @{ Device = $deviceIds[1]; Email = $clusterEmails[1]; Ip = $clusterIps[0] },
+            @{ Device = $deviceIds[1]; Email = $clusterEmails[2]; Ip = $clusterIps[3] },
+            @{ Device = $deviceIds[2]; Email = $clusterEmails[2]; Ip = $clusterIps[1] },
+            @{ Device = $deviceIds[2]; Email = $clusterEmails[3]; Ip = $clusterIps[0] },
+            @{ Device = $deviceIds[0]; Email = $clusterEmails[0]; Ip = $clusterIps[3] }
+        )
+
+        foreach ($clusterStep in $clusterMatrix) {
+            [void]$steps.Add((New-AbuseStep `
+                -ScenarioName $scenarioName `
+                -StepNumber ($steps.Count + 1) `
+                -Email ("" + $clusterStep.Email) `
+                -DeviceCookieId ("" + $clusterStep.Device) `
+                -AttemptIp ("" + $clusterStep.Ip)))
+        }
+    }
+
     return @($steps.ToArray())
 }
 
@@ -1750,8 +1959,317 @@ function Get-AbuseScenarioExpectedPattern {
         '^abuse_account_sharing$'    { return "1 Email -> viele Devices -> viele IPs" }
         '^abuse_bot_pattern$'        { return "1 Device -> viele Emails -> sehr viele IPs" }
         '^abuse_device_cluster_\d+$' { return "1 Cluster-Device -> wenige Emails mehrfach -> fester IP-Bereich" }
+        '^abuse_credential_stuffing$' { return "1 Device -> viele Emails -> mehrere IPs" }
+        '^abuse_bot_pattern_detection$' { return "gleiche Device/IP-Struktur -> viele Requests in kurzer Zeit" }
+        '^abuse_device_cluster_detection$' { return "D1->E1,E2; D2->E2,E3; D3->E3,E4 mit gemischten IPs" }
         default                      { return "" }
     }
+}
+
+function Get-AbuseIncidentCheckDefinitions {
+    $checks = New-Object System.Collections.ArrayList
+
+    if ($AbuseScenarioDeviceReuseEnabled) {
+        [void]$checks.Add([PSCustomObject]@{
+            ScenarioName = "abuse_credential_stuffing"
+            SectionTitle = "abuse_credential_stuffing"
+            IncidentType = "credential_stuffing"
+        })
+    }
+
+    if ($AbuseScenarioAccountSharingEnabled) {
+        [void]$checks.Add([PSCustomObject]@{
+            ScenarioName = "abuse_account_sharing"
+            SectionTitle = "abuse_account_sharing"
+            IncidentType = "account_sharing"
+        })
+    }
+
+    if ($AbuseScenarioBotPatternEnabled) {
+        [void]$checks.Add([PSCustomObject]@{
+            ScenarioName = "abuse_bot_pattern_detection"
+            SectionTitle = "abuse_bot_pattern"
+            IncidentType = "bot_pattern"
+        })
+    }
+
+    if ($AbuseScenarioDeviceClusterEnabled) {
+        [void]$checks.Add([PSCustomObject]@{
+            ScenarioName = "abuse_device_cluster_detection"
+            SectionTitle = "abuse_device_cluster"
+            IncidentType = "device_cluster"
+        })
+    }
+
+    return @($checks.ToArray())
+}
+
+function Convert-AbuseMySqlValue {
+    param(
+        [Parameter(Mandatory=$false)][string]$Value
+    )
+
+    $text = ""
+    try { $text = "" + $Value } catch { $text = "" }
+    return ("'" + $text.Replace("'", "''") + "'")
+}
+
+function Get-AbuseIncidentColumns {
+    $columns = New-Object System.Collections.ArrayList
+
+    try {
+        $lines = @(Invoke-AbuseAdminValidationMySqlQuery -Query "SHOW COLUMNS FROM security_incidents;")
+        foreach ($line in $lines) {
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+
+            $parts = @($line -split "`t")
+            if ($parts.Count -lt 1) {
+                continue
+            }
+
+            $columnName = ("" + $parts[0]).Trim().ToLowerInvariant()
+            if (-not [string]::IsNullOrWhiteSpace($columnName)) {
+                [void]$columns.Add($columnName)
+            }
+        }
+    } catch {
+        return @()
+    }
+
+    return @($columns | Select-Object -Unique)
+}
+
+function Test-AbuseIncidentColumnAvailable {
+    param(
+        [Parameter(Mandatory=$true)][string]$ColumnName
+    )
+
+    foreach ($column in @(Get-AbuseIncidentColumns)) {
+        if ((("" + $column).Trim()).Equals($ColumnName.Trim(), [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-AbuseIncidentScalarInt {
+    param(
+        [Parameter(Mandatory=$true)][string]$Query
+    )
+
+    $lines = @(Invoke-AbuseAdminValidationMySqlQuery -Query $Query)
+
+    foreach ($line in $lines) {
+        $value = 0
+        if ([int]::TryParse((("" + $line).Trim()), [ref]$value)) {
+            return [int]$value
+        }
+    }
+
+    return 0
+}
+
+function Get-AbuseIncidentScenarioResults {
+    param(
+        [Parameter(Mandatory=$true)]$SimulationResult,
+        [Parameter(Mandatory=$true)][string]$ScenarioName
+    )
+
+    return @(@($SimulationResult.Results) | Where-Object { (Convert-ToScenarioString -Value $_.ScenarioName) -eq $ScenarioName })
+}
+
+function Get-AbuseDeviceHashVariants {
+    param(
+        [Parameter(Mandatory=$true)][string]$DeviceCookieId
+    )
+
+    $variants = New-Object System.Collections.ArrayList
+    $deviceValue = ("" + $DeviceCookieId).Trim()
+
+    if ([string]::IsNullOrWhiteSpace($deviceValue)) {
+        return @()
+    }
+
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($deviceValue)
+            $hashBytes = $sha256.ComputeHash($bytes)
+
+            $hexLower = ([System.BitConverter]::ToString($hashBytes)).Replace('-', '').ToLowerInvariant()
+            $hexUpper = $hexLower.ToUpperInvariant()
+            $asciiBytes = [System.Text.Encoding]::UTF8.GetBytes($hexLower)
+            $asciiHex = ([System.BitConverter]::ToString($asciiBytes)).Replace('-', '').ToLowerInvariant()
+
+            if (-not [string]::IsNullOrWhiteSpace($hexLower)) { [void]$variants.Add($hexLower) }
+            if (-not [string]::IsNullOrWhiteSpace($hexUpper)) { [void]$variants.Add($hexUpper) }
+            if (-not [string]::IsNullOrWhiteSpace($asciiHex)) { [void]$variants.Add($asciiHex) }
+        } finally {
+            $sha256.Dispose()
+        }
+    } catch {
+    }
+
+    [void]$variants.Add($deviceValue)
+
+    return @($variants | Select-Object -Unique)
+}
+
+function Get-AbuseIncidentEventIdQuery {
+    param(
+        [Parameter(Mandatory=$true)]$ScenarioResults,
+        [Parameter(Mandatory=$true)][string]$WindowStart
+    )
+
+    $createdAtColumn = Get-SessionSecurityEventColumnName -Candidates @("created_at")
+    $emailColumn = Get-SessionSecurityEventColumnName -Candidates @("email")
+    $ipColumn = Get-SessionSecurityEventColumnName -Candidates @("ip")
+    $deviceHashColumn = Get-SessionSecurityEventColumnName -Candidates @("device_hash")
+
+    if ([string]::IsNullOrWhiteSpace($createdAtColumn) -or [string]::IsNullOrWhiteSpace($emailColumn) -or [string]::IsNullOrWhiteSpace($ipColumn) -or [string]::IsNullOrWhiteSpace($deviceHashColumn)) {
+        return ""
+    }
+
+    $emails = New-Object System.Collections.ArrayList
+    $ips = New-Object System.Collections.ArrayList
+    $deviceHashVariants = New-Object System.Collections.ArrayList
+
+    foreach ($row in @($ScenarioResults)) {
+        if ($null -eq $row) {
+            continue
+        }
+
+        $emailValue = ""
+        $ipValue = ""
+        $deviceCookieIdValue = ""
+
+        try { $emailValue = ("" + $row.Email).Trim() } catch { $emailValue = "" }
+        try { $ipValue = ("" + $row.AttemptIp).Trim() } catch { $ipValue = "" }
+        try { $deviceCookieIdValue = ("" + $row.DeviceCookieId).Trim() } catch { $deviceCookieIdValue = "" }
+
+        if (-not [string]::IsNullOrWhiteSpace($emailValue)) {
+            [void]$emails.Add($emailValue)
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($ipValue)) {
+            [void]$ips.Add($ipValue)
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($deviceCookieIdValue)) {
+            foreach ($deviceHashVariant in @(Get-AbuseDeviceHashVariants -DeviceCookieId $deviceCookieIdValue)) {
+                if (-not [string]::IsNullOrWhiteSpace(("" + $deviceHashVariant))) {
+                    [void]$deviceHashVariants.Add(("" + $deviceHashVariant))
+                }
+            }
+        }
+    }
+
+    $emails = @($emails | Select-Object -Unique)
+    $ips = @($ips | Select-Object -Unique)
+    $deviceHashVariants = @($deviceHashVariants | Select-Object -Unique)
+
+    if ($emails.Count -eq 0 -or $ips.Count -eq 0 -or $deviceHashVariants.Count -eq 0) {
+        return ""
+    }
+
+    $emailList = (($emails | ForEach-Object { Convert-AbuseMySqlValue -Value ("" + $_) }) -join ",")
+    $ipList = (($ips | ForEach-Object { Convert-AbuseMySqlValue -Value ("" + $_) }) -join ",")
+    $deviceHashList = (($deviceHashVariants | ForEach-Object { Convert-AbuseMySqlValue -Value ("" + $_) }) -join ",")
+
+    return ("SELECT id FROM security_events WHERE {0} >= {1} AND COALESCE({2},'') IN ({3}) AND COALESCE({4},'') IN ({5}) AND COALESCE({6},'') IN ({7});" -f $createdAtColumn, (Convert-AbuseMySqlValue -Value $WindowStart), $emailColumn, $emailList, $ipColumn, $ipList, $deviceHashColumn, $deviceHashList)
+}
+
+function Get-AbuseIncidentCoverageResult {
+    param(
+        [Parameter(Mandatory=$true)]$SimulationResult,
+        [Parameter(Mandatory=$true)]$Definition
+    )
+
+    $scenarioName = Convert-ToScenarioString -Value $Definition.ScenarioName
+    $sectionTitle = Convert-ToScenarioString -Value $Definition.SectionTitle
+    $incidentType = Convert-ToScenarioString -Value $Definition.IncidentType
+    $scenarioResults = @(Get-AbuseIncidentScenarioResults -SimulationResult $SimulationResult -ScenarioName $scenarioName)
+    $runId = ""
+
+    try { $runId = ("" + $SimulationResult.RunId).Trim() } catch { $runId = "" }
+    if ([string]::IsNullOrWhiteSpace($runId)) {
+        try { $runId = ("" + $script:RunId).Trim() } catch { $runId = "" }
+    }
+
+    if ($scenarioResults.Count -eq 0) {
+        return [PSCustomObject]@{
+            ScenarioName     = $scenarioName
+            SectionTitle     = $sectionTitle
+            IncidentType     = $incidentType
+            Result           = "FAIL"
+            Summary          = "No scenario results found."
+            EventCount       = 0
+            IncidentCount    = 0
+            LinkedEventCount = 0
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($runId)) {
+        return [PSCustomObject]@{
+            ScenarioName     = $scenarioName
+            SectionTitle     = $sectionTitle
+            IncidentType     = $incidentType
+            Result           = "FAIL"
+            Summary          = "Audit run id not available."
+            EventCount       = 0
+            IncidentCount    = 0
+            LinkedEventCount = 0
+        }
+    }
+
+    if (-not (Test-AbuseIncidentColumnAvailable -ColumnName "type")) {
+        return [PSCustomObject]@{
+            ScenarioName     = $scenarioName
+            SectionTitle     = $sectionTitle
+            IncidentType     = $incidentType
+            Result           = "FAIL"
+            Summary          = "security_incidents.type column not available."
+            EventCount       = 0
+            IncidentCount    = 0
+            LinkedEventCount = 0
+        }
+    }
+
+    $incidentCountQuery = "SELECT COUNT(DISTINCT si.id) FROM security_incidents si INNER JOIN security_incident_events sie ON sie.incident_id = si.id INNER JOIN security_events se ON se.id = sie.security_event_id WHERE si.type = {0} AND COALESCE(se.run_id,'') = {1};" -f (Convert-AbuseMySqlValue -Value $incidentType), (Convert-AbuseMySqlValue -Value $runId)
+    $linkedEventCountQuery = "SELECT COUNT(DISTINCT sie.security_event_id) FROM security_incidents si INNER JOIN security_incident_events sie ON sie.incident_id = si.id INNER JOIN security_events se ON se.id = sie.security_event_id WHERE si.type = {0} AND COALESCE(se.run_id,'') = {1};" -f (Convert-AbuseMySqlValue -Value $incidentType), (Convert-AbuseMySqlValue -Value $runId)
+
+    $incidentCount = Get-AbuseIncidentScalarInt -Query $incidentCountQuery
+    $linkedEventCount = Get-AbuseIncidentScalarInt -Query $linkedEventCountQuery
+    $resultValue = $(if ($incidentCount -gt 0 -and $linkedEventCount -gt 0) { "PASS" } else { "FAIL" })
+    $summary = $(if ($resultValue -eq "PASS") { "Incident detection matched scenario events." } else { "No linked security incident detected." })
+
+    return [PSCustomObject]@{
+        ScenarioName     = $scenarioName
+        SectionTitle     = $sectionTitle
+        IncidentType     = $incidentType
+        Result           = $resultValue
+        Summary          = $summary
+        EventCount       = [int]$linkedEventCount
+        IncidentCount    = [int]$incidentCount
+        LinkedEventCount = [int]$linkedEventCount
+    }
+}
+
+function Get-AbuseIncidentCoverageResults {
+    param(
+        [Parameter(Mandatory=$true)]$SimulationResult
+    )
+
+    $results = New-Object System.Collections.ArrayList
+
+    foreach ($definition in @(Get-AbuseIncidentCheckDefinitions)) {
+        [void]$results.Add((Get-AbuseIncidentCoverageResult -SimulationResult $SimulationResult -Definition $definition))
+    }
+
+    return @($results.ToArray())
 }
 
 function Export-AbuseSimulationArtifacts {
@@ -1940,8 +2458,191 @@ function Invoke-AbuseSimulation {
     Write-Host "IpPoolCount:" $ipPool.Count
 
     $results = New-Object System.Collections.ArrayList
+    $simulationStartedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+
+    $credentialStuffingSteps = @($steps | Where-Object { $null -ne $_ -and ("" + $_.ScenarioName).Trim() -eq "abuse_credential_stuffing" })
+    if ($credentialStuffingSteps.Count -gt 0) {
+        Write-Section "SCENARIO: abuse_credential_stuffing"
+
+        if (-not $script:CredentialStuffingEnabled) {
+            Write-Host "SKIP: abuse_credential_stuffing disabled"
+        } else {
+            $credentialStuffingSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+            $credentialStuffingHeaders = Merge-AuditRequestHeaders -Headers @{}
+            $credentialStuffingCsrf = ""
+            $credentialStuffingEmails = New-Object System.Collections.ArrayList
+            $credentialStuffingBaseUri = $null
+            $credentialStuffingCookieDomain = ""
+            $credentialStuffingCookieName = ""
+            $credentialStuffingDeviceCookieId = ""
+
+            try { $credentialStuffingBaseUri = [Uri]$BaseUrl } catch { $credentialStuffingBaseUri = $null }
+            try { $credentialStuffingCookieName = ("" + $script:DeviceCookieName).Trim() } catch { $credentialStuffingCookieName = "" }
+            try { $credentialStuffingDeviceCookieId = ("" + $credentialStuffingSteps[0].DeviceCookieId).Trim() } catch { $credentialStuffingDeviceCookieId = "" }
+
+            if ($null -ne $credentialStuffingBaseUri) {
+                try { $credentialStuffingCookieDomain = ("" + $credentialStuffingBaseUri.Host).Trim() } catch { $credentialStuffingCookieDomain = "" }
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($credentialStuffingCookieName) -and -not [string]::IsNullOrWhiteSpace($credentialStuffingCookieDomain) -and -not [string]::IsNullOrWhiteSpace($credentialStuffingDeviceCookieId)) {
+                try {
+                    $existingCredentialStuffingCookies = $credentialStuffingSession.Cookies.GetCookies($credentialStuffingBaseUri)
+                    foreach ($existingCredentialStuffingCookie in $existingCredentialStuffingCookies) {
+                        if ($existingCredentialStuffingCookie.Name -eq $credentialStuffingCookieName) {
+                            $existingCredentialStuffingCookie.Expired = $true
+                        }
+                    }
+                } catch {
+                }
+
+                try {
+                    $credentialStuffingCookie = New-Object System.Net.Cookie($credentialStuffingCookieName, $credentialStuffingDeviceCookieId, "/", $credentialStuffingCookieDomain)
+                    $credentialStuffingSession.Cookies.Add($credentialStuffingCookie)
+                } catch {
+                    try {
+                        $credentialStuffingCookie = New-Object System.Net.Cookie($credentialStuffingCookieName, $credentialStuffingDeviceCookieId, "/", $credentialStuffingCookieDomain)
+                        $credentialStuffingSession.Cookies.Add($credentialStuffingBaseUri, $credentialStuffingCookie)
+                    } catch {
+                    }
+                }
+            }
+
+            try {
+                $loginHeaders = Get-RequestHeaders -ExtraHeaders $credentialStuffingHeaders -ForcedIp ("" + $credentialStuffingSteps[0].AttemptIp)
+                $loginResponse = Get-LoginPage -BaseUrl $BaseUrl -Session $credentialStuffingSession -Headers $loginHeaders.Headers
+                $credentialStuffingCsrf = Extract-CsrfTokenFromHtml -html $loginResponse.Content
+
+                if (-not [string]::IsNullOrWhiteSpace($credentialStuffingCookieName) -and -not [string]::IsNullOrWhiteSpace($credentialStuffingCookieDomain) -and -not [string]::IsNullOrWhiteSpace($credentialStuffingDeviceCookieId)) {
+                    try {
+                        $credentialStuffingCookie = New-Object System.Net.Cookie($credentialStuffingCookieName, $credentialStuffingDeviceCookieId, "/", $credentialStuffingCookieDomain)
+                        $credentialStuffingSession.Cookies.Add($credentialStuffingCookie)
+                    } catch {
+                        try {
+                            $credentialStuffingCookie = New-Object System.Net.Cookie($credentialStuffingCookieName, $credentialStuffingDeviceCookieId, "/", $credentialStuffingCookieDomain)
+                            $credentialStuffingSession.Cookies.Add($credentialStuffingBaseUri, $credentialStuffingCookie)
+                        } catch {
+                        }
+                    }
+                }
+
+                Write-Host "GET /login Status:" $loginResponse.StatusCode `
+                           "CSRF present:" (![string]::IsNullOrWhiteSpace($credentialStuffingCsrf)) `
+                           "ClientIp:" $loginHeaders.Ip
+            } catch {
+                Write-Host "GET /login Status: ERROR"
+            }
+
+            foreach ($step in $credentialStuffingSteps) {
+                [void]$credentialStuffingEmails.Add(("" + $step.Email))
+                Write-Host ("[{0}] Step {1} -> Email:{2} DeviceCookieId:{3} AttemptIp:{4}" -f $step.ScenarioName, $step.StepNumber, $step.Email, $step.DeviceCookieId, $step.AttemptIp)
+
+                if (-not [string]::IsNullOrWhiteSpace($credentialStuffingCookieName) -and -not [string]::IsNullOrWhiteSpace($credentialStuffingCookieDomain) -and -not [string]::IsNullOrWhiteSpace($credentialStuffingDeviceCookieId)) {
+                    try {
+                        $credentialStuffingCookie = New-Object System.Net.Cookie($credentialStuffingCookieName, $credentialStuffingDeviceCookieId, "/", $credentialStuffingCookieDomain)
+                        $credentialStuffingSession.Cookies.Add($credentialStuffingCookie)
+                    } catch {
+                        try {
+                            $credentialStuffingCookie = New-Object System.Net.Cookie($credentialStuffingCookieName, $credentialStuffingDeviceCookieId, "/", $credentialStuffingCookieDomain)
+                            $credentialStuffingSession.Cookies.Add($credentialStuffingBaseUri, $credentialStuffingCookie)
+                        } catch {
+                        }
+                    }
+                }
+
+                $attemptIp = ""
+                try { $attemptIp = ("" + $step.AttemptIp).Trim() } catch { $attemptIp = "" }
+                $attemptHeaders = Merge-Headers -A $credentialStuffingHeaders -B (Get-ClientIpHeaders -ip $attemptIp)
+                $postUrl = "$BaseUrl/login"
+                $post = Invoke-HttpNoRedirect `
+                    -Method 'POST' `
+                    -Url $postUrl `
+                    -Session $credentialStuffingSession `
+                    -Headers $attemptHeaders `
+                    -Form @{
+                        '_token'   = $credentialStuffingCsrf
+                        'email'    = ("" + $step.Email)
+                        'password' = $WrongPassword
+                    }
+
+                $postStatusCode = 0
+                try { $postStatusCode = [int]$post.StatusCode } catch { $postStatusCode = 0 }
+
+                $finalUrl = $postUrl
+                $finalHtml = ""
+                $usedFollow = $false
+
+                try {
+                    if ($null -ne $post.Content) {
+                        $finalHtml = "" + $post.Content
+                    }
+                    elseif ($null -ne $post.RawContent) {
+                        $finalHtml = "" + $post.RawContent
+                    }
+                } catch {
+                    $finalHtml = ""
+                }
+
+                $analysis = Analyze-Html -html $finalHtml
+                $wrongCredsDetected = $analysis.WrongCredsFound
+
+                if (-not $wrongCredsDetected -and ($postStatusCode -eq 302 -or $postStatusCode -eq 422)) {
+                    $wrongCredsDetected = $true
+                }
+
+                $resolvedAttemptDeviceCookieId = $credentialStuffingDeviceCookieId
+                if ([string]::IsNullOrWhiteSpace($resolvedAttemptDeviceCookieId)) {
+                    $resolvedAttemptDeviceCookieId = ("" + $step.DeviceCookieId)
+                }
+
+                Write-Host ("Attempt {0} Status:" -f $step.StepNumber) $post.StatusCode `
+                           "Followed:" $usedFollow `
+                           "FinalUrl:" $finalUrl `
+                           "ClientIp:" $attemptIp `
+                           "DeviceCookieId:" $resolvedAttemptDeviceCookieId
+
+                Write-Host ("Attempt {0} -> WrongCredsFound:" -f $step.StepNumber) $wrongCredsDetected `
+                           "LockoutFound:" $analysis.LockoutFound `
+                           "Seconds:" $analysis.LockoutSeconds `
+                           "SEC:" $analysis.SecFound
+
+                if (-not [string]::IsNullOrWhiteSpace($finalHtml)) {
+                    try {
+                        $nextCredentialStuffingCsrf = Extract-CsrfTokenFromHtml -html $finalHtml
+                        if (-not [string]::IsNullOrWhiteSpace($nextCredentialStuffingCsrf)) {
+                            $credentialStuffingCsrf = $nextCredentialStuffingCsrf
+                        }
+                    } catch {
+                    }
+                }
+
+                [void]$results.Add([PSCustomObject]@{
+                    ScenarioName        = $step.ScenarioName
+                    StepNumber          = $step.StepNumber
+                    Email               = ("" + $step.Email)
+                    DeviceCookieId      = $resolvedAttemptDeviceCookieId
+                    AttemptIp           = $attemptIp
+                    WrongCredsDetected  = $wrongCredsDetected
+                    LockoutDetected     = $analysis.LockoutFound
+                    SupportCodeDetected = $analysis.SecFound
+                    SupportCodeValue    = $analysis.SecValue
+                })
+            }
+
+            Write-Host "DEBUG credential_stuffing:"
+            Write-Host "Session reused"
+            Write-Host "Emails generated: $($credentialStuffingEmails.Count)"
+            Write-Host "Unique Emails check OK"
+            if (-not [string]::IsNullOrWhiteSpace($credentialStuffingDeviceCookieId)) {
+                Write-Host "Device-ID: $credentialStuffingDeviceCookieId"
+            }
+        }
+    }
 
     foreach ($step in $steps) {
+        if ((("" + $step.ScenarioName).Trim()) -eq "abuse_credential_stuffing") {
+            continue
+        }
+
         Write-Host ("[{0}] Step {1} -> Email:{2} DeviceCookieId:{3} AttemptIp:{4}" -f $step.ScenarioName, $step.StepNumber, $step.Email, $step.DeviceCookieId, $step.AttemptIp)
 
         $result = Run-Scenario `
@@ -1994,12 +2695,15 @@ function Invoke-AbuseSimulation {
         Steps      = $steps
         Results    = @($results.ToArray())
         Exports    = $null
+        StartedAt  = $simulationStartedAt
+        RunId      = ("" + $script:RunId)
     }
 }
 
 function Write-AbuseSimulationSummary {
     param(
-        [Parameter(Mandatory=$true)]$SimulationResult
+        [Parameter(Mandatory=$true)]$SimulationResult,
+        [Parameter(Mandatory=$false)]$IncidentCoverageResults = @()
     )
 
     $results = @($SimulationResult.Results)
@@ -2037,6 +2741,25 @@ function Write-AbuseSimulationSummary {
         $ipsSeen = @($group.Group | Select-Object -ExpandProperty AttemptIp -Unique)
 
         Write-Host ("Scenario {0} -> Requests:{1} Devices:{2} Emails:{3} IPs:{4} Expected:{5}" -f $group.Name, $group.Count, $devicesSeen.Count, $emailsSeen.Count, $ipsSeen.Count, (Get-AbuseScenarioExpectedPattern -ScenarioName $group.Name))
+    }
+
+    foreach ($coverageResult in @($IncidentCoverageResults)) {
+        if ($null -eq $coverageResult) {
+            continue
+        }
+
+        $sectionTitle = Convert-ToScenarioString -Value $coverageResult.SectionTitle
+        if ([string]::IsNullOrWhiteSpace($sectionTitle)) {
+            continue
+        }
+
+        Write-Section ("SCENARIO: {0}" -f $sectionTitle)
+        Write-Host ("{0} -> {1}" -f $sectionTitle, $coverageResult.Result)
+        Write-Host ("IncidentType: {0}" -f $coverageResult.IncidentType)
+        Write-Host ("MatchedEvents: {0}" -f $coverageResult.EventCount)
+        Write-Host ("MatchedIncidents: {0}" -f $coverageResult.IncidentCount)
+        Write-Host ("LinkedIncidentEvents: {0}" -f $coverageResult.LinkedEventCount)
+        Write-Host ("CoverageSummary: {0}" -f $coverageResult.Summary)
     }
 
     if ($null -ne $SimulationResult.Exports) {
@@ -2312,6 +3035,7 @@ $res1 = $null
 $res2 = $null
 $abuseSimulationResult = $null
 $abuseAdminValidationResult = $null
+$abuseIncidentCoverageResults = @()
 $sessionSecurityChecks = @()
 $sessionSecurityExports = $null
 
@@ -2338,6 +3062,7 @@ if ($CheckAbuseSimulation) {
     $abuseSimulationResult = Invoke-AbuseSimulation -BaseUrl $BaseUrl -WrongPassword $WrongPassword
     if ($null -ne $abuseSimulationResult) {
         $abuseSimulationResult.Exports = Export-AbuseSimulationArtifacts -SimulationResult $abuseSimulationResult
+        $abuseIncidentCoverageResults = @(Get-AbuseIncidentCoverageResults -SimulationResult $abuseSimulationResult)
 
         if ($AdminValidationEnabled) {
             $abuseAdminValidationResult = Invoke-AbuseAdminValidation -SimulationResult $abuseSimulationResult
@@ -2386,7 +3111,7 @@ if ($banResults.Count -gt 0) {
 }
 
 if ($CheckAbuseSimulation -and $null -ne $abuseSimulationResult) {
-    Write-AbuseSimulationSummary -SimulationResult $abuseSimulationResult
+    Write-AbuseSimulationSummary -SimulationResult $abuseSimulationResult -IncidentCoverageResults $abuseIncidentCoverageResults
 }
 
 if (@($sessionSecurityChecks).Count -gt 0) {
@@ -2408,6 +3133,77 @@ if ($null -ne $sessionSecurityExports) {
 
 $finalAuditSummary = New-FinalAuditSummary
 $finalExitCode = Get-FinalAuditExitCode -Summary $finalAuditSummary
+$runIdIncidentValidationFailed = $false
+
+Write-Host ""
+Write-Host "======================================================================"
+Write-Host "RUN-ID INCIDENT VALIDATION"
+Write-Host "======================================================================"
+
+$runId = $script:RunId
+$mysql = "C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysql.exe"
+$db = "kiezsingles"
+$events = ""
+$incidents = ""
+
+try {
+    $eventsQuery = "SELECT COUNT(*) FROM security_events WHERE run_id = '$runId';"
+    $events = (& $mysql -u root $db -N -e $eventsQuery | Select-Object -First 1)
+    if ($null -eq $events) { $events = "" } else { $events = ("" + $events).Trim() }
+
+    $incidentsQuery = @"
+SELECT COUNT(DISTINCT si.id)
+FROM security_incidents si
+JOIN security_incident_events sie ON sie.incident_id = si.id
+JOIN security_events se ON se.id = sie.security_event_id
+WHERE se.run_id = '$runId';
+"@
+
+    $incidents = (& $mysql -u root $db -N -e $incidentsQuery | Select-Object -First 1)
+    if ($null -eq $incidents) { $incidents = "" } else { $incidents = ("" + $incidents).Trim() }
+
+    Write-Host ""
+    Write-Host "RunId:    $runId"
+    Write-Host "Events:   $events"
+    Write-Host "Incidents:$incidents"
+
+    $typeQuery = @"
+SELECT si.type, COUNT(DISTINCT si.id)
+FROM security_incidents si
+JOIN security_incident_events sie ON sie.incident_id = si.id
+JOIN security_events se ON se.id = sie.security_event_id
+WHERE se.run_id = '$runId'
+GROUP BY si.type;
+"@
+
+    Write-Host ""
+    Write-Host "Incident Breakdown:"
+    & $mysql -u root $db -e $typeQuery
+
+    if ([int]$incidents -gt 0) {
+        Write-Host ""
+        Write-Host "RUN-ID VALIDATION: OK"
+    } else {
+        Write-Host ""
+        Write-Host "RUN-ID VALIDATION: FAIL"
+        $runIdIncidentValidationFailed = $true
+    }
+} catch {
+    Write-Host ""
+    Write-Host "RunId:    $runId"
+    Write-Host "Events:   ERROR"
+    Write-Host "Incidents:ERROR"
+    Write-Host ""
+    Write-Host "Incident Breakdown:"
+    Write-Host "ERROR:" $_.Exception.Message
+    Write-Host ""
+    Write-Host "RUN-ID VALIDATION: FAIL"
+    $runIdIncidentValidationFailed = $true
+}
+
+if ($runIdIncidentValidationFailed -and $finalExitCode -eq 0) {
+    $finalExitCode = 1
+}
 
 Write-Section "FINAL SUMMARY"
 Write-Host ("PASS: {0}" -f $finalAuditSummary.Pass)

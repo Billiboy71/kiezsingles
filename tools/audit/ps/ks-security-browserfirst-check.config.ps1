@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.config.ps1
 # Purpose: Central config for browser-first Security Login/Ban/Abuse audit checks
 # Created: 08-03-2026 00:12 (Europe/Berlin)
-# Changed: 17-03-2026 12:26 (Europe/Berlin)
-# Version: 2.1
+# Changed: 18-03-2026 13:42 (Europe/Berlin)
+# Version: 2.2
 # =============================================================================
 
 $script:BanTestData = @{
@@ -197,3 +197,16 @@ $script:LockoutPattern         = '(?is)(zu viele|zu\s+viele|too many|throttle|lo
 
 $script:FollowRedirectsEnabled = $true
 $script:MaxRedirects           = 5
+
+if (-not (Get-Variable -Name Config -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:Config = @{}
+}
+
+$script:Config["CredentialStuffing"] = @{
+    Enabled              = $true
+    UsePersistentSession = $true
+    FixedDeviceId        = "ks-audit-cs-device"
+    EmailCount           = 15
+    IpCount              = 5
+    ReuseLoginPage       = $true
+}
