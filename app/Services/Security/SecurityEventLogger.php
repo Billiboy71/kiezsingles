@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\Security\SecurityEventLogger.php
 // Purpose: Dispatch security events with consistent context (ip/email/deviceHash) and device correlation meta when available
-// Changed: 17-03-2026 00:12 (Europe/Berlin)
-// Version: 0.6
+// Changed: 19-03-2026 22:06 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 namespace App\Services\Security;
@@ -95,6 +95,29 @@ class SecurityEventLogger
                 }
             }
         }
+
+        // ============================================================
+        // MINIMAL DEDUPE FIX (verhindert doppelte Dispatches pro Request)
+        // ============================================================
+
+        static $dispatched = [];
+
+        $dedupeKey = implode('|', [
+            $type,
+            $ipFinal ?? '-',
+            $userId ?? '-',
+            $emailFinal ?? '-',
+            $deviceHashFinal ?? '-',
+            $metaFinal['path'] ?? '-',
+        ]);
+
+        if (isset($dispatched[$dedupeKey])) {
+            return;
+        }
+
+        $dispatched[$dedupeKey] = true;
+
+        // ============================================================
 
         event(new SecurityEventTriggered(
             type: $type,

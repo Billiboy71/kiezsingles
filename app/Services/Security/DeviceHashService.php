@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Services\Security\DeviceHashService.php
 // Purpose: Build stable device hash strictly from persistent device cookie
-// Changed: 12-03-2026 03:32 (Europe/Berlin)
-// Version: 0.6
+// Changed: 19-03-2026 15:13 (Europe/Berlin)
+// Version: 0.7
 // ============================================================================
 
 namespace App\Services\Security;
@@ -66,7 +66,7 @@ class DeviceHashService
             return null;
         }
 
-        if (!preg_match('/^[A-Za-z0-9\-]{16,128}$/', $value)) {
+        if (!preg_match('/^[A-Za-z0-9\-_]{16,128}$/', $value)) {
             return null;
         }
 

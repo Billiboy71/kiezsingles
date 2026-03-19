@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.config.ps1
 # Purpose: Central config for browser-first Security Login/Ban/Abuse audit checks
 # Created: 08-03-2026 00:12 (Europe/Berlin)
-# Changed: 18-03-2026 13:42 (Europe/Berlin)
-# Version: 2.2
+# Changed: 19-03-2026 20:38 (Europe/Berlin)
+# Version: 2.3
 # =============================================================================
 
 $script:BanTestData = @{
@@ -29,6 +29,11 @@ $script:LockoutAttempts       = 7
 $script:CheckIpBan            = $true
 $script:CheckIdentityBan      = $true
 $script:CheckDeviceBan        = $true
+$script:AggregationEnabled    = $true
+$script:AggregationHeaderValue = if ($script:AggregationEnabled) { "1" } else { "0" }
+$script:GlobalAuditHeaders    = @{
+    "X-Audit-Aggregation" = $script:AggregationHeaderValue
+}
 
 # ✅ ABUSE TEST AKTIVIERT
 $script:CheckAbuseSimulation           = $true

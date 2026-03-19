@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\StoreSecurityEvent.php
 // Purpose: Persist SecurityEventTriggered events into security_events (with minimal de-duplication)
-// Changed: 19-03-2026 11:19 (Europe/Berlin)
-// Version: 1.2
+// Changed: 19-03-2026 22:15 (Europe/Berlin)
+// Version: 1.4
 // ============================================================================
 
 namespace App\Listeners\Security;
@@ -49,12 +49,13 @@ class StoreSecurityEvent
         $dedupeTtlSeconds = $this->dedupeTtlSecondsFor($event->type);
         $existingIncident = $this->findExistingIncident($incidentKey, $dedupeTtlSeconds, $runId);
 
+        // EXISTING → kein neuer Event / kein Dispatch
         if ($existingIncident !== null) {
             $this->updateExistingIncident($existingIncident, $meta, $reason);
-
             return;
         }
 
+        // RateLimit → kein neuer Event / kein Dispatch
         if (RateLimiter::tooManyAttempts($dedupeKey, 1)) {
             return;
         }
@@ -85,12 +86,8 @@ class StoreSecurityEvent
 
         \Log::info('SECURITY EVENT STORED → DISPATCH');
 
-        // EXISTING EVENT DISPATCH
+        // Dispatch NUR bei neuem Event
         event(new SecurityEventStored($securityEvent));
-
-        // NEW: DIRECT SYNC CALL (bypasses queue issues)
-        app(\App\Listeners\Security\DetectSecurityIncident::class)
-            ->handle(new SecurityEventStored($securityEvent));
     }
 
     /**
