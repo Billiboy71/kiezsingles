@@ -8,7 +8,7 @@
 
 $script:BanTestData = @{
     Ip     = "192.168.200.13"
-    Email  = "audit_banned@web.de"
+    Email  = "audit_banned@kiezsingles.test"
     Device = "5a8c7a71ef98416cb7b28a38b242bce10774242820aaf99b0d7308d4d52dc8f4"
 }
 
@@ -16,8 +16,8 @@ $script:BanTestData = @{
 # BASE
 # -----------------------------------------------------------------------------
 $script:BaseUrl               = "http://kiezsingles.test"
-$script:RegisteredEmail       = "audit_admin@web.de"
-$script:UnregisteredEmail     = "audit-test1@kiezsingles.local"
+$script:RegisteredEmail       = "audit_admin@kiezsingles.test"
+$script:UnregisteredEmail     = "audit-test1@kiezsingles.test"
 $script:IdentityBanEmail      = $script:BanTestData.Email
 $script:WrongPassword         = "falschespasswort"
 $script:LockoutAttempts       = 7
@@ -105,7 +105,7 @@ $script:SupportContactTextPattern  = '(?is)\bsupport\s+kontaktieren\b'
 
 $script:SubmitSupportTicketTest    = $true
 $script:SupportTicketGuestName     = "PS Supportcode Test"
-$script:SupportTicketGuestEmail    = "audit-supportcode@kiezsingles.local"
+$script:SupportTicketGuestEmail    = "audit-supportcode@kiezsingles.test"
 $script:SupportTicketSubjectPrefix = "[PS Supportcode Test]"
 $script:SupportTicketMessage       = "Automatischer Supportcode-Test aus ks-security-browserfirst-check.ps1"
 $script:SupportTicketSourceContext = "security_browserfirst_check_ps"
@@ -130,16 +130,16 @@ $script:AbuseScenarioDeviceClusterEnabled  = $true
 # automatische Pools (Rotation)
 $script:AbuseFixedDevicePool = @()
 $script:AbuseFixedEmailPool  = @(
-    "audit-abuse-001@kiezsingles.local",
-    "audit-abuse-002@kiezsingles.local",
-    "audit-abuse-003@kiezsingles.local",
-    "audit-abuse-004@kiezsingles.local",
-    "audit-abuse-005@kiezsingles.local",
-    "audit-abuse-006@kiezsingles.local",
-    "audit-abuse-007@kiezsingles.local",
-    "audit-abuse-008@kiezsingles.local",
-    "audit-abuse-009@kiezsingles.local",
-    "audit-abuse-010@kiezsingles.local"
+    "audit-abuse-001@kiezsingles.test",
+    "audit-abuse-002@kiezsingles.test",
+    "audit-abuse-003@kiezsingles.test",
+    "audit-abuse-004@kiezsingles.test",
+    "audit-abuse-005@kiezsingles.test",
+    "audit-abuse-006@kiezsingles.test",
+    "audit-abuse-007@kiezsingles.test",
+    "audit-abuse-008@kiezsingles.test",
+    "audit-abuse-009@kiezsingles.test",
+    "audit-abuse-010@kiezsingles.test"
 )
 $script:AbuseFixedIpPool     = @(
     "203.0.113.10",
@@ -156,7 +156,7 @@ $script:AbuseFixedIpPool     = @(
 
 $script:AbuseDevicePoolPrefix = "ks-sim-device-audit-"
 $script:AbuseEmailPoolPrefix  = "audit-abuse-"
-$script:AbuseEmailDomain      = "kiezsingles.local"
+$script:AbuseEmailDomain      = "kiezsingles.test"
 
 $script:AbuseDevicePoolCount = 12
 $script:AbuseEmailPoolCount  = 10
@@ -175,7 +175,7 @@ $script:AbuseAdminValidationTopIpsLimit      = 10
 # ADMIN LOGIN FOR VALIDATION (ISOLATED ACCOUNT)
 # -----------------------------------------------------------------------------
 $script:AdminValidationEnabled               = $true
-$script:AdminValidationLoginEmail            = "audit_superadmin@web.de"
+$script:AdminValidationLoginEmail            = "audit_superadmin@kiezsingles.test"
 $script:AdminValidationLoginPassword         = 'HundKatzeMaus123$'
 $script:AdminValidationEventsPath            = "/admin/security/events"
 $script:AdminValidationMaxSamplesPerCheck    = 5
@@ -186,7 +186,7 @@ $script:AdminValidationClientIpHeaderMode    = "standard"
 # -----------------------------------------------------------------------------
 # SESSION REUSE TEST LOGIN
 # -----------------------------------------------------------------------------
-$script:SessionTestLoginEmail    = "audit_session@web.de"
+$script:SessionTestLoginEmail    = "audit_session@kiezsingles.test"
 $script:SessionTestLoginPassword = "HundKatzeMaus123$"
 
 # -----------------------------------------------------------------------------

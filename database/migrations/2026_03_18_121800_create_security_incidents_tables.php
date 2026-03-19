@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\database\migrations\2026_03_18_121800_create_security_incidents_tables.php
 // Purpose: Create passive incident detection tables for security correlations.
 // Created: 18-03-2026 12:18 (Europe/Berlin)
-// Changed: 18-03-2026 12:18 (Europe/Berlin)
-// Version: 0.1
+// Changed: 19-03-2026 22:15 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 use App\Enums\SecurityIncidentType;
@@ -24,6 +24,13 @@ return new class extends Migration
                 $table->string('contact_email', 255)->nullable();
                 $table->string('ip', 45)->nullable();
                 $table->integer('score');
+
+                // --- Aggregation Metrics ---
+                $table->integer('event_count')->default(1);
+                $table->timestamp('first_seen_at')->nullable();
+                $table->timestamp('last_seen_at')->nullable();
+                // --------------------------
+
                 $table->json('meta')->nullable();
                 $table->timestamp('created_at')->nullable();
 

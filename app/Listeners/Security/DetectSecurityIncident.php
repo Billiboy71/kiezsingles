@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\DetectSecurityIncident.php
 // Purpose: Passive pattern detection from security_events into security_incidents.
 // Created: 18-03-2026 12:18 (Europe/Berlin)
-// Changed: 19-03-2026 20:15 (Europe/Berlin)
-// Version: 1.5
+// Changed: 19-03-2026 21:05 (Europe/Berlin)
+// Version: 1.6
 // ============================================================================
 
 namespace App\Listeners\Security;
@@ -649,6 +649,18 @@ class DetectSecurityIncident
                 $payload['run_id'] = $runId;
             } else {
                 $meta['run_id'] = $runId;
+            }
+
+            if (Schema::hasColumn('security_incidents', 'event_count')) {
+                $payload['event_count'] = 1;
+            }
+
+            if (Schema::hasColumn('security_incidents', 'first_seen_at')) {
+                $payload['first_seen_at'] = now();
+            }
+
+            if (Schema::hasColumn('security_incidents', 'last_seen_at')) {
+                $payload['last_seen_at'] = now();
             }
 
             $payload['meta'] = $this->encodeMeta($meta);

@@ -5,6 +5,8 @@
 //          public-facing URLs and references. Keeps users.id internal.
 // Notes:   Column is nullable for now to avoid breaking existing rows.
 //          Backfill + NOT NULL enforcement comes in the next step (next file).
+// Changed: 19-03-2026 22:30 (Europe/Berlin)
+// Version: 0.2
 // ============================================================================
 
 use Illuminate\Database\Migrations\Migration;
@@ -16,7 +18,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('public_id', 32)->nullable()->after('id');
+            $table->string('public_id', 36)->nullable()->after('id');
             $table->unique('public_id');
         });
     }
