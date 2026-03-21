@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\debug.php
 // Purpose: Admin Debug & Bugs (DB/SystemSettings toggles + diagnostics)
-// Changed: 27-02-2026 19:15 (Europe/Berlin)
-// Version: 2.2
+// Changed: 19-03-2026 23:31 (Europe/Berlin)
+// Version: 2.3
 // ============================================================================
 
 use App\Support\Admin\AdminSectionAccess;
@@ -92,7 +92,7 @@ Route::get('/debug', function (Request $request) use ($enforceMaintenanceCouplin
     $debugRegisterPayload = $getBool('debug.register_payload', false);
 
     // NEW: Toggle für gelbes LOCAL DEBUG Banner im Admin-Layout
-    $debugLocalBannerEnabled = $getBool('debug.local_banner_enabled', true);
+    $debugLocalBannerEnabled = $getBool('debug.local_banner_enabled', false);
 
     $logLines = (array) session('admin_debug_log_tail', []);
     session()->forget('admin_debug_log_tail');

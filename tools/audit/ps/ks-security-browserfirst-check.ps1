@@ -2,12 +2,16 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 19-03-2026 10:34 (Europe/Berlin)
-# Version: 8.2
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 8.3
 # =============================================================================
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+try { chcp 65001 | Out-Null } catch { }
+try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new() } catch { }
+try { [Console]::InputEncoding = [System.Text.UTF8Encoding]::new() } catch { }
 
 function Global:Write-Section([string]$t){
     Write-Host ""
@@ -38,7 +42,7 @@ Import-Module "$PSScriptRoot\modules\auth\ks-login-attempt.psm1" -Force -Disable
 try {
     $module = Get-Module -Name 'ks-abuse-admin-validation' -ErrorAction Stop | Select-Object -First 1
     if ($null -ne $module -and -not [string]::IsNullOrWhiteSpace($module.Path) -and (Test-Path -LiteralPath $module.Path)) {
-        $moduleHeader = Get-Content -Path $module.Path -TotalCount 8
+        $moduleHeader = Get-Content -Path $module.Path -Encoding UTF8 -TotalCount 8
         $versionLine = $moduleHeader | Where-Object { $_ -match '^# Version:\s*' } | Select-Object -First 1
         if ($null -ne $versionLine -and ("" + $versionLine) -match 'Version:\s*([0-9\.]+)') {
             Write-Host ("Loaded AbuseAdminValidation Version: {0}" -f $matches[1])

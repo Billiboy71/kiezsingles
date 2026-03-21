@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 15-03-2026 20:49 (Europe/Berlin)
-# Version: 5.6
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 5.7
 # =============================================================================
 
 [CmdletBinding()]
@@ -118,6 +118,10 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$IgnoredArgs
 )
+
+try { chcp 65001 | Out-Null } catch { }
+try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new() } catch { }
+try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new() } catch { }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -262,11 +266,6 @@ function Stop-Program([int]$Code) {
     if ($NoExit) { return $Code }
     exit $Code
 }
-
-# Ensure predictable UTF-8 output (no BOM)
-try { chcp 65001 | Out-Null } catch { }
-try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
-try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new($false) } catch { }
 
 # -----------------------------------------------------------------------------
 # Robust parameter recovery (deterministic)
@@ -1746,7 +1745,7 @@ function Get-ResultLogSlice {
     foreach ($scanPath in $scanPaths) {
         if (-not (Test-Path -LiteralPath $scanPath -PathType Leaf)) { continue }
         try {
-            $part = @(Get-Content -LiteralPath $scanPath -ErrorAction Stop)
+            $part = @(Get-Content -LiteralPath $scanPath -Encoding UTF8 -ErrorAction Stop)
             foreach ($line in $part) { $all.Add(("" + $line)) | Out-Null }
             $readOk = $true
         } catch {

@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\admin.blade.php
 Purpose: Admin root layout (separate from app layout; dedicated admin header + admin navigation + content)
-Changed: 28-02-2026 14:49 (Europe/Berlin)
-Version: 6.1
+Changed: 19-03-2026 23:31 (Europe/Berlin)
+Version: 6.2
 ============================================================================ --}}
 
 @php
@@ -57,8 +57,8 @@ Version: 6.1
 
     $isLocalEnv = app()->environment('local');
 
-    // NEW: DB-gesteuerter LOCAL-Banner-Schalter (Default: true)
-    $localBannerEnabled = true;
+    // NEW: DB-gesteuerter LOCAL-Banner-Schalter (Default: false)
+    $localBannerEnabled = false;
     try {
         if (\Illuminate\Support\Facades\Schema::hasTable('debug_settings')) {
             $row = \Illuminate\Support\Facades\DB::table('debug_settings')
@@ -72,7 +72,7 @@ Version: 6.1
             }
         }
     } catch (\Throwable $e) {
-        $localBannerEnabled = true;
+        $localBannerEnabled = false;
     }
 
     $backToAppUrl = \Illuminate\Support\Facades\Route::has('dashboard')

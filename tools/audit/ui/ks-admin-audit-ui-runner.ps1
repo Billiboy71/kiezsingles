@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-runner.ps1
 # Purpose: Runner/core bridge helpers for ks-admin-audit-ui
 # Created: 14-03-2026 03:09 (Europe/Berlin)
-# Changed: 15-03-2026 20:22 (Europe/Berlin)
-# Version: 0.6
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 0.7
 # =============================================================================
 
 function ConvertTo-NormalizedText([string]$s) {
@@ -229,9 +229,9 @@ function Start-LaravelTailWindow {
     $cmd += "if (-not (Test-Path -LiteralPath " + (ConvertTo-QuotedArg $logPath) + ")) { return }"
 
     if ($m -eq "history") {
-        $cmd += "Get-Content -LiteralPath " + (ConvertTo-QuotedArg $logPath) + " -Tail 200"
+        $cmd += "Get-Content -LiteralPath " + (ConvertTo-QuotedArg $logPath) + " -Encoding UTF8 -Tail 200"
     } else {
-        $cmd += "Get-Content -LiteralPath " + (ConvertTo-QuotedArg $logPath) + " -Tail 0 -Wait"
+        $cmd += "Get-Content -LiteralPath " + (ConvertTo-QuotedArg $logPath) + " -Encoding UTF8 -Tail 0 -Wait"
     }
 
     $tailArgs = New-Object System.Collections.Generic.List[string]

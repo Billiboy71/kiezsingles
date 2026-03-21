@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\05_tail_log.ps1
 # Purpose: Audit check - tail laravel.log (blocks; interactive)
 # Created: 21-02-2026 00:27 (Europe/Berlin)
-# Changed: 21-02-2026 13:38 (Europe/Berlin)
-# Version: 0.5
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 0.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -89,7 +89,7 @@ try {
 try { chcp 65001 | Out-Null } catch { }
 try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(`$false) } catch { }
 try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new(`$false) } catch { }
-Get-Content -LiteralPath '$escapedPath' -Tail $tailLines -Wait
+Get-Content -LiteralPath '$escapedPath' -Encoding UTF8 -Tail $tailLines -Wait
 "@
         }
 

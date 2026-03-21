@@ -5,8 +5,8 @@ $ErrorActionPreference = "Stop"
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\06_security_abuse_protection.ps1
 # Purpose: Audit check - security / abuse protection block (active probes + evidence)
 # Created: 01-03-2026 13:20 (Europe/Berlin)
-# Changed: 05-03-2026 00:20 (Europe/Berlin)
-# Version: 1.0
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 1.1
 # =============================================================================
 
 function Invoke-KsAuditCheck_SecurityAbuseProtection {
@@ -143,8 +143,8 @@ function Invoke-KsAuditCheck_SecurityAbuseProtection {
 
         $hdrText = ""
         $bodyText = ""
-        try { if (Test-Path $tmp.headers) { $hdrText = (Get-Content $tmp.headers -Raw) } } catch { $hdrText = "" }
-        try { if (Test-Path $tmp.body) { $bodyText = (Get-Content $tmp.body -Raw) } } catch { $bodyText = "" }
+        try { if (Test-Path $tmp.headers) { $hdrText = (Get-Content $tmp.headers -Raw -Encoding UTF8) } } catch { $hdrText = "" }
+        try { if (Test-Path $tmp.body) { $bodyText = (Get-Content $tmp.body -Raw -Encoding UTF8) } } catch { $bodyText = "" }
 
         $p = Parse-CurlHeaders $hdrText
 

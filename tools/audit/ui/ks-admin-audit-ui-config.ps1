@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ui\ks-admin-audit-ui-config.ps1
 # Purpose: Config and small GUI-near helpers for ks-admin-audit-ui
 # Created: 14-03-2026 02:06 (Europe/Berlin)
-# Changed: 14-03-2026 02:06 (Europe/Berlin)
-# Version: 0.1
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 0.2
 # =============================================================================
 
 function ConvertTo-QuotedArg([string]$s) {
@@ -49,7 +49,7 @@ function Get-KsAuditPathsConfig([string]$ConfigPath) {
     if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { return $null }
 
     try {
-        $raw = [string](Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction Stop)
+        $raw = [string](Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 -ErrorAction Stop)
         if ($raw.Trim() -eq "") { return $null }
         $cfg = $raw | ConvertFrom-Json -ErrorAction Stop
         return $cfg
@@ -79,7 +79,7 @@ function Get-KsAuditCredentialsConfig([string]$ConfigPath) {
     if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) { return $null }
 
     try {
-        $raw = [string](Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction Stop)
+        $raw = [string](Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 -ErrorAction Stop)
         if ($raw.Trim() -eq "") { return $null }
         return ($raw | ConvertFrom-Json -ErrorAction Stop)
     } catch {

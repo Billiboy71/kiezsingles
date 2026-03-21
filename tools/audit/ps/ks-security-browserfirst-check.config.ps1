@@ -187,7 +187,7 @@ $script:AdminValidationClientIpHeaderMode    = "standard"
 # SESSION REUSE TEST LOGIN
 # -----------------------------------------------------------------------------
 $script:SessionTestLoginEmail    = "audit_session@kiezsingles.test"
-$script:SessionTestLoginPassword = "HundKatzeMaus123$"
+$script:SessionTestLoginPassword = 'HundKatzeMaus123$'
 
 # -----------------------------------------------------------------------------
 # EXPORT / EVIDENCE

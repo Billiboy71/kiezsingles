@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\01_route_list_option_scan.ps1
 # Purpose: Audit check - scan project for route:list usage with --columns / --format
 # Created: 13-03-2026 02:35 (Europe/Berlin)
-# Changed: 15-03-2026 20:12 (Europe/Berlin)
-# Version: 0.7
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 0.8
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -259,7 +259,7 @@ function Invoke-KsAuditCheck_RouteListOptionScan {
 
             $contentLines = @()
             try {
-                $contentLines = @(Get-Content -LiteralPath $file -ErrorAction Stop)
+                $contentLines = @(Get-Content -LiteralPath $file -Encoding UTF8 -ErrorAction Stop)
             } catch {
                 continue
             }

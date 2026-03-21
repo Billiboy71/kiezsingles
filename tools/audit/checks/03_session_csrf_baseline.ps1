@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\03a_session_csrf_baseline.ps1
 # Purpose: Audit check - Session/CSRF baseline (read-only)
 # Created: 28-02-2026 (Europe/Berlin)
-# Changed: 01-03-2026 16:42 (Europe/Berlin)
-# Version: 0.3
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 0.4
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -29,7 +29,7 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
         $m = @{}
         if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $m }
         $lines = @()
-        try { $lines = @((Get-Content -LiteralPath $Path -ErrorAction Stop)) } catch { $lines = @() }
+        try { $lines = @((Get-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction Stop)) } catch { $lines = @() }
         foreach ($lineRaw in $lines) {
             $line = ("" + $lineRaw).Trim()
             if ($line -eq "" -or $line.StartsWith("#")) { continue }
@@ -323,7 +323,7 @@ function Invoke-KsAuditCheck_SessionCsrfBaseline {
 
     $envMap = Parse-EnvFile -Path $envPath
     $cfgText = ""
-    try { if (Test-Path -LiteralPath $cfgPath -PathType Leaf) { $cfgText = [string](Get-Content -LiteralPath $cfgPath -Raw -ErrorAction Stop) } } catch { $cfgText = "" }
+    try { if (Test-Path -LiteralPath $cfgPath -PathType Leaf) { $cfgText = [string](Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 -ErrorAction Stop) } } catch { $cfgText = "" }
 
     $appEnv = ""
     try { if ($envMap.ContainsKey("APP_ENV")) { $appEnv = ("" + $envMap["APP_ENV"]).Trim() } } catch { $appEnv = "" }

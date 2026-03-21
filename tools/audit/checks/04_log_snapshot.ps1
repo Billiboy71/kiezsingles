@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\04_log_snapshot.ps1
 # Purpose: Audit check - Laravel log snapshot (tail; informative)
 # Created: 21-02-2026 00:25 (Europe/Berlin)
-# Changed: 01-03-2026 13:49 (Europe/Berlin)
-# Version: 0.9
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 1.0
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -68,7 +68,7 @@ function Invoke-KsAuditCheck_LogSnapshot {
     }
 
     try {
-        $lines = Get-Content -LiteralPath $snapshotSource -Tail $tailLines -ErrorAction Stop
+        $lines = Get-Content -LiteralPath $snapshotSource -Encoding UTF8 -Tail $tailLines -ErrorAction Stop
 
         $errorCount = 0
         $newErrorCount = 0

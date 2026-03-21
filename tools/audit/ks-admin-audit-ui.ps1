@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit-ui.ps1
 # Purpose: Repeatable admin/backend audit (routes, duplicates, inline HTML/Blade, role checks, DB sanity, optional HTTP traces)
 # Created: 19-02-2026 17:25 (Europe/Berlin)
-# Changed: 15-03-2026 20:54 (Europe/Berlin)
-# Version: 8.4
+# Changed: 21-03-2026 15:16 (Europe/Berlin)
+# Version: 8.5
 # =============================================================================
 
 [CmdletBinding()]
@@ -112,6 +112,10 @@ param(
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$IgnoredArgs
 )
+
+try { chcp 65001 | Out-Null } catch { }
+try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new() } catch { }
+try { [Console]::InputEncoding = [System.Text.UTF8Encoding]::new() } catch { }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -235,11 +239,6 @@ if ($GuiEnabled -and $env:KS_AUDIT_GUI_HIDDEN_LAUNCH -ne "1") {
     } catch {
     }
 }
-
-# Ensure predictable UTF-8 output (console + child processes consuming stdout)
-try { chcp 65001 | Out-Null } catch { }
-try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
-try { [Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
 
 . (Join-Path $PSScriptRoot "ui\ks-admin-audit-ui-config.ps1")
 . (Join-Path $PSScriptRoot "ui\ks-admin-audit-ui-popups.ps1")

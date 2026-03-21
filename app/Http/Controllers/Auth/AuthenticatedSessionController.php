@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Auth\AuthenticatedSessionController.php
 // Purpose: Login controller (blocks login until email is verified; auto resend on unverified login)
 //          + supports login via email OR username (entered in the same "email" field)
-// Changed: 17-03-2026 12:26 (Europe/Berlin)
-// Version: 0.8
+// Changed: 20-03-2026 21:58 (Europe/Berlin)
+// Version: 1.0
 // ============================================================================
 
 namespace App\Http\Controllers\Auth;
@@ -173,14 +173,16 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         if ($user && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
-            Auth::guard('web')->logout();
+            Auth::logout();
 
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
+            return redirect()
+                ->route('login')
+                ->withInput(['email' => (string) $user->email])
+                ->with('email_not_verified', true)
+                ->with('status', 'Sie haben Ihre E-Mail-Adresse noch nicht bestätigt. Bitte bestätigen Sie diese.');
         }
 
         $request->session()->regenerate();

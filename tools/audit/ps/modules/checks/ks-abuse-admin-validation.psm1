@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\checks\ks-abuse-admin-validation.psm1
 # Purpose: Abuse simulation correlation check against /admin/security/events
 # Created: 08-03-2026 03:06 (Europe/Berlin)
-# Changed: 18-03-2026 10:32 (Europe/Berlin)
-# Version: 3.4
+# Changed: 20-03-2026 23:54 (Europe/Berlin)
+# Version: 3.5
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -1115,6 +1115,9 @@ function Get-AbuseAdminValidationLoginSession {
             email    = $loginEmail
             password = $loginPassword
         }
+
+        Write-Host ("LOGIN EMAIL USED: {0}" -f $loginEmail)
+        Write-Host ("CONFIG EMAIL: {0}" -f (Get-AbuseAdminValidationString -Name "AdminValidationLoginEmail" -Default ""))
 
         $loginPost = Invoke-AbuseAdminValidationRequest -Method "POST" -Url $loginUrl -Session $webSession -Headers $headers -Form $body
         $finalUrl = "" + $loginPost.FinalUrl
