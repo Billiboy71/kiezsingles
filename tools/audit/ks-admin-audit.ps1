@@ -2,12 +2,17 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ks-admin-audit.ps1
 # Purpose: Deterministic CLI core for KiezSingles Admin Audit (no GUI)
 # Created: 21-02-2026 00:29 (Europe/Berlin)
-# Changed: 21-03-2026 15:16 (Europe/Berlin)
-# Version: 5.7
+# Changed: 22-03-2026 19:02 (Europe/Berlin)
+# Version: 5.8
 # =============================================================================
 
 [CmdletBinding()]
 param(
+    [ValidateSet("full","core")]
+    [string]$Mode = "full",
+
+    [switch]$CoreOnly,
+
     # Base URL for optional HTTP checks
     [string]$BaseUrl = "http://kiezsingles.test",
 
@@ -125,6 +130,7 @@ try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new() } catch { }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:AuditOutputBuffer = New-Object System.Collections.Generic.List[string]
 
 function Get-SafeCount([object]$Value) {
     try {
@@ -262,6 +268,22 @@ function Write-Host {
     Microsoft.PowerShell.Utility\Write-Host @forward
 }
 
+function Write-AuditLog {
+    param(
+        [string]$Message,
+        [string]$Level = "INFO"
+    )
+
+    $timestamp = Get-Date -Format "HH:mm:ss"
+    $line = "[$timestamp][$Level] $Message"
+
+    Write-Host $line
+
+    if ($script:AuditOutputBuffer -ne $null) {
+        $script:AuditOutputBuffer.Add($line) | Out-Null
+    }
+}
+
 function Stop-Program([int]$Code) {
     if ($NoExit) { return $Code }
     exit $Code
@@ -293,6 +315,7 @@ function Get-ArgNameFromToken([string]$token) {
 
 function Test-KnownSwitch([string]$name) {
     switch ($name) {
+        "-CoreOnly" { return $true }
         "-HttpProbe" { return $true }
         "-TailLog" { return $true }
         "-RoutesVerbose" { return $true }
@@ -316,6 +339,7 @@ function Test-KnownSwitch([string]$name) {
 
 function Test-KnownValueParam([string]$name) {
     switch ($name) {
+        "-Mode" { return $true }
         "-BaseUrl" { return $true }
         "-PathsConfigFile" { return $true }
         "-ProbePaths" { return $true }
@@ -368,6 +392,8 @@ if (Test-RecoverArgsNeeded) {
 
     $recBaseUrl = ""
     $recBaseUrlSet = $false
+    $recMode = "full"
+    $recCoreOnly = $false
     $recProbePaths = New-Object System.Collections.Generic.List[string]
     $recHttpProbe = $false
     $recTailLog = $false
@@ -426,6 +452,23 @@ if (Test-RecoverArgsNeeded) {
             if (($i + 1) -lt $tokens.Count) {
                 $recBaseUrl = ("" + $tokens[$i + 1]).Trim()
                 $recBaseUrlSet = $true
+                $i += 2
+                continue
+            }
+
+            $i++
+            continue
+        }
+        if ($name -eq "-Mode") {
+            $inlineVal = Get-ArgValueFromToken $t
+            if ($null -ne $inlineVal -and (("" + $inlineVal).Trim() -ne "")) {
+                $recMode = ("" + $inlineVal).Trim()
+                $i++
+                continue
+            }
+
+            if (($i + 1) -lt $tokens.Count) {
+                $recMode = ("" + $tokens[$i + 1]).Trim()
                 $i += 2
                 continue
             }
@@ -730,6 +773,7 @@ if (Test-RecoverArgsNeeded) {
 
         if (Test-KnownSwitch $name) {
             switch ($name) {
+                "-CoreOnly" { $recCoreOnly = $true }
                 "-HttpProbe" { $recHttpProbe = $true }
                 "-TailLog" { $recTailLog = $true }
                 "-RoutesVerbose" { $recRoutesVerbose = $true }
@@ -780,6 +824,8 @@ if (Test-RecoverArgsNeeded) {
     if ($recBaseUrlSet -and $recBaseUrl -and ($recBaseUrl.Trim() -ne "") -and ($recBaseUrl.Trim() -notmatch '^-')) {
         $BaseUrl = $recBaseUrl
     }
+    if ($recMode -and ($recMode.Trim() -ne "")) { $Mode = ("" + $recMode).Trim() }
+    if ($recCoreOnly) { $CoreOnly = $true }
 
     if ($recProbePaths.Count -gt 0) {
         $ProbePaths = @($recProbePaths.ToArray())
@@ -916,6 +962,8 @@ try {
     if ($useBasicParsingSupported) {
         try { $PSDefaultParameterValues["Invoke-WebRequest:UseBasicParsing"] = $true } catch { }
     }
+    try { $PSDefaultParameterValues["Invoke-WebRequest:TimeoutSec"] = 10 } catch { }
+    try { $PSDefaultParameterValues["Invoke-RestMethod:TimeoutSec"] = 10 } catch { }
 } catch {
     # ignore
 }
@@ -1110,8 +1158,29 @@ if ($expFolderVals.Count -gt 0) {
 $autoOpenVals = @(Resolve-ParamValues "AutoOpenExportFolder")
 if ($autoOpenVals.Count -gt 0) { $AutoOpenExportFolder = ("" + $autoOpenVals[$autoOpenVals.Count - 1]).Trim() }
 
+$modeVals = @(Resolve-ParamValues "Mode")
+if ($modeVals.Count -gt 0) { $Mode = ("" + $modeVals[$modeVals.Count - 1]).Trim() }
+
 $effectiveLoginCsrfProbe = [bool]$LoginCsrfProbe
 $effectiveSessionCsrfBaseline = [bool]$SessionCsrfBaseline
+
+if ($CoreOnly) { $Mode = "core" }
+try { $Mode = ("" + $Mode).Trim().ToLowerInvariant() } catch { $Mode = "full" }
+if ($Mode -ne "core") { $Mode = "full" }
+$coreOnlyMode = ($Mode -eq "core")
+if ($coreOnlyMode) {
+    $HttpProbe = $false
+    $TailLog = $false
+    $RoutesVerbose = $false
+    $RouteListFindstrAdmin = $false
+    $SuperadminCount = $false
+    $LoginCsrfProbe = $false
+    $RoleSmokeTest = $false
+    $SessionCsrfBaseline = $false
+    $LogSnapshot = $false
+}
+Write-AuditLog ("AUDIT START (Mode: " + $Mode + ")")
+if ($coreOnlyMode) { Write-AuditLog "Running CORE checks only" }
 
 # --- Helpers (kept minimal; no GUI logic)
 function Write-Section([string]$Title) {
@@ -1923,7 +1992,8 @@ function Invoke-LaravelLogRotateIfExists([string]$Root, [string]$PhaseLabel) {
 }
 
 # Tail-only mode:
-$tailOnly = [bool]$TailLog `
+$tailOnly = (-not [bool]$coreOnlyMode) `
+    -and [bool]$TailLog `
     -and (-not [bool]$HttpProbe) `
     -and (-not [bool]$RoutesVerbose) `
     -and (-not [bool]$RouteListFindstrAdmin) `
@@ -2000,7 +2070,10 @@ $context = [pscustomobject]@{
     ModeratorEmail = $ModeratorEmail
     ModeratorPassword = $ModeratorPassword
     ExpectedUnauthedHttpCodes = @(302, 401, 403)
-    HttpTimeoutSec = 12
+    HttpTimeoutSec = 10
+    Mode = $Mode
+    CoreOnlyMode = [bool]$coreOnlyMode
+    MaxPollingSeconds = 10
     TailLogMode = $tailMode
     AuditStartedAt = $auditStartedAt
     LogSnapshotLines = [int]$effectiveLogSnapshotLines
@@ -2082,7 +2155,7 @@ if ($tailOnly) {
 $plan = New-Object System.Collections.Generic.List[scriptblock]
 
 $missingRequired = New-Object System.Collections.Generic.List[string]
-if (-not (Test-FunctionExists "Invoke-KsAuditCheck_CacheClear")) { $missingRequired.Add("Invoke-KsAuditCheck_CacheClear") | Out-Null }
+if ((-not $coreOnlyMode) -and (-not (Test-FunctionExists "Invoke-KsAuditCheck_CacheClear"))) { $missingRequired.Add("Invoke-KsAuditCheck_CacheClear") | Out-Null }
 
 if ($missingRequired.Count -gt 0) {
     Write-Section "KiezSingles Admin Audit (CLI Core)"
@@ -2112,6 +2185,7 @@ if ($missingRequired.Count -gt 0) {
 
     Write-Host ""
     $msg = "Required check function(s) missing: " + (($missingRequired | ForEach-Object { "" + $_ }) -join ", ")
+    Write-AuditLog ("CORE ERROR: " + $msg) "ERROR"
     Write-Host ("[CRITICAL] Core exception - " + $msg + " (0ms)")
 
     Write-Section "Audit result"
@@ -2120,7 +2194,9 @@ if ($missingRequired.Count -gt 0) {
     return (Stop-Program 30)
 }
 
-$plan.Add({ Invoke-KsAuditCheck_CacheClear -Context $context }) | Out-Null
+if (-not $coreOnlyMode) {
+    $plan.Add({ Invoke-KsAuditCheck_CacheClear -Context $context }) | Out-Null
+}
 
 if (Test-FunctionExists "Invoke-KsAuditCheck_Routes") {
     $plan.Add({ Invoke-KsAuditCheck_Routes -Context $context }) | Out-Null
@@ -2138,7 +2214,7 @@ if (Test-FunctionExists "Invoke-KsAuditCheck_RouteListOptionScan") {
     }) | Out-Null
 }
 
-if ($HttpProbe) {
+if (-not $coreOnlyMode -and $HttpProbe) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_HttpProbe") {
         $plan.Add({ Invoke-KsAuditCheck_HttpProbe -Context $context }) | Out-Null
     } else {
@@ -2148,7 +2224,7 @@ if ($HttpProbe) {
     }
 }
 
-if ($LoginCsrfProbe) {
+if (-not $coreOnlyMode -and $LoginCsrfProbe) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_LoginCsrfProbe") {
         $plan.Add({ Invoke-KsAuditCheck_LoginCsrfProbe -Context $context }) | Out-Null
     } else {
@@ -2158,7 +2234,7 @@ if ($LoginCsrfProbe) {
     }
 }
 
-if ($RoleSmokeTest) {
+if (-not $coreOnlyMode -and $RoleSmokeTest) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_RoleSmokeTest") {
         $plan.Add({ Invoke-KsAuditCheck_RoleSmokeTest -Context $context }) | Out-Null
     } else {
@@ -2168,7 +2244,7 @@ if ($RoleSmokeTest) {
     }
 }
 
-if ($SuperadminCount) {
+if (-not $coreOnlyMode -and $SuperadminCount) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_GovernanceSuperadmin") {
         $plan.Add({ Invoke-KsAuditCheck_GovernanceSuperadmin -Context $context }) | Out-Null
     } else {
@@ -2178,7 +2254,7 @@ if ($SuperadminCount) {
     }
 }
 
-if ($SessionCsrfBaseline) {
+if (-not $coreOnlyMode -and $SessionCsrfBaseline) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_SessionCsrfBaseline") {
         $plan.Add({ Invoke-KsAuditCheck_SessionCsrfBaseline -Context $context }) | Out-Null
     } else {
@@ -2188,7 +2264,7 @@ if ($SessionCsrfBaseline) {
     }
 }
 
-if ($RoutesVerbose) {
+if (-not $coreOnlyMode -and $RoutesVerbose) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_RoutesVerbose") {
         $plan.Add({ Invoke-KsAuditCheck_RoutesVerbose -Context $context }) | Out-Null
     } else {
@@ -2198,7 +2274,7 @@ if ($RoutesVerbose) {
     }
 }
 
-if ($RouteListFindstrAdmin) {
+if (-not $coreOnlyMode -and $RouteListFindstrAdmin) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_RouteListFindstrAdmin") {
         $plan.Add({ Invoke-KsAuditCheck_RouteListFindstrAdmin -Context $context }) | Out-Null
     } else {
@@ -2208,7 +2284,7 @@ if ($RouteListFindstrAdmin) {
     }
 }
 
-if ($LogSnapshot) {
+if (-not $coreOnlyMode -and $LogSnapshot) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_LogSnapshot") {
         $plan.Add({ Invoke-KsAuditCheck_LogSnapshot -Context $context }) | Out-Null
     } else {
@@ -2218,7 +2294,7 @@ if ($LogSnapshot) {
     }
 }
 
-if ($TailLog) {
+if (-not $coreOnlyMode -and $TailLog) {
     if (Test-FunctionExists "Invoke-KsAuditCheck_TailLog") {
         $plan.Add({ Invoke-KsAuditCheck_TailLog -Context $context }) | Out-Null
     } else {
@@ -2237,6 +2313,7 @@ if (Test-FunctionExists "Invoke-KsAuditCheck_SecurityAbuseProtection") {
 }
 
 Write-Section "KiezSingles Admin Audit (CLI Core)"
+Write-Host ("Mode: " + $Mode)
 Write-Host ("ProjectRoot: " + $projectRoot)
 Write-Host ("BaseUrl:     " + $BaseUrl)
 Write-Host ("HttpProbe:   " + [bool]$HttpProbe)
@@ -2293,6 +2370,7 @@ foreach ($step in $plan) {
     $stepDebugName = Get-PlanStepDebugName $step
     $stepDebugSource = ""
     try { $stepDebugSource = ("" + $step).Trim() } catch { $stepDebugSource = "" }
+    Write-AuditLog ("CHECK START: " + $stepDebugName)
     try {
         $res = & $step
     } catch {
@@ -2302,6 +2380,7 @@ foreach ($step in $plan) {
         try { $exceptionType = ("" + $_.Exception.GetType().FullName).Trim() } catch { $exceptionType = "unknown_exception_type" }
         $durationMs = 0
         try { $durationMs = [int]((Get-Date) - $checkStartedAt).TotalMilliseconds } catch { $durationMs = 0 }
+        Write-AuditLog ("CHECK ERROR: " + $stepDebugName + " - " + $exceptionMessage) "ERROR"
 
         $res = New-AuditResult `
             -Id "core_exception" `
@@ -2427,6 +2506,10 @@ foreach ($step in $plan) {
             $statusLine = ("{0,-10} Test {1} - {2}" -f $statusTag, $visibleTestIndex, $visibleTitle)
         }
         Write-Host $statusLine
+        $completedTitle = ""
+        try { $completedTitle = ("" + $visibleTitle).Trim() } catch { $completedTitle = "" }
+        if ($completedTitle -eq "") { $completedTitle = $stepDebugName }
+        Write-AuditLog ("CHECK END: " + $completedTitle + " [" + ("" + $res.status).Trim().ToUpperInvariant() + "]")
 
         $shouldPrintDetailsForThisCheck = ($detailsEnabledForThisCheck -or (("" + $res.status).Trim().ToUpperInvariant() -ne "OK"))
         if ($shouldPrintDetailsForThisCheck) {

@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\DetectSecurityIncident.php
 // Purpose: Passive pattern detection from security_events into security_incidents.
 // Created: 18-03-2026 12:18 (Europe/Berlin)
-// Changed: 19-03-2026 21:05 (Europe/Berlin)
-// Version: 1.6
+// Changed: 22-03-2026 14:12 (Europe/Berlin)
+// Version: 2.1
 // ============================================================================
 
 namespace App\Listeners\Security;
@@ -46,19 +46,28 @@ class DetectSecurityIncident
             return;
         }
 
-        $this->detectCredentialStuffing($securityEvent, $runId);
+        if ($this->detectDeviceCluster($securityEvent, $runId)) {
+            return;
+        }
+
+        if ($this->detectBotPattern($securityEvent, $runId)) {
+            return;
+        }
+
+        if ($this->detectCredentialStuffing($securityEvent, $runId)) {
+            return;
+        }
+
         $this->detectAccountSharing($securityEvent, $runId);
-        $this->detectBotPattern($securityEvent, $runId);
-        $this->detectDeviceCluster($securityEvent, $runId);
     }
 
-    private function detectCredentialStuffing(SecurityEvent $securityEvent, string $runId): void
+    private function detectCredentialStuffing(SecurityEvent $securityEvent, string $runId): bool
     {
         $config = config('security_incidents.types.credential_stuffing', []);
         $deviceHash = $this->normalizeNullableString($securityEvent->device_hash);
 
         if (!$this->isDetectionEnabled($config) || $deviceHash === null) {
-            return;
+            return false;
         }
 
         $query = SecurityEvent::query()
@@ -78,7 +87,7 @@ class DetectSecurityIncident
             $stats['distinct_emails'] < $minDistinctEmails
             || $stats['distinct_ips'] < $minDistinctIps
         ) {
-            return;
+            return false;
         }
 
         $eventIds = $this->eventIds($query, $this->intConfig($config, 'linked_events_limit'));
@@ -115,7 +124,7 @@ class DetectSecurityIncident
             'type' => 'credential_stuffing'
         ]);
 
-        $this->storeIncident(
+        return $this->storeIncident(
             SecurityIncidentType::CredentialStuffing,
             $deviceHash,
             null,
@@ -128,13 +137,13 @@ class DetectSecurityIncident
         );
     }
 
-    private function detectAccountSharing(SecurityEvent $securityEvent, string $runId): void
+    private function detectAccountSharing(SecurityEvent $securityEvent, string $runId): bool
     {
         $config = config('security_incidents.types.account_sharing', []);
         $contactEmail = $this->normalizeEmail($securityEvent->email);
 
         if (!$this->isDetectionEnabled($config) || $contactEmail === null) {
-            return;
+            return false;
         }
 
         $query = SecurityEvent::query()
@@ -154,7 +163,7 @@ class DetectSecurityIncident
             $stats['distinct_devices'] < $minDistinctDevices
             || $stats['distinct_ips'] < $minDistinctIps
         ) {
-            return;
+            return false;
         }
 
         $eventIds = $this->eventIds($query, $this->intConfig($config, 'linked_events_limit'));
@@ -191,7 +200,7 @@ class DetectSecurityIncident
             'type' => 'account_sharing'
         ]);
 
-        $this->storeIncident(
+        return $this->storeIncident(
             SecurityIncidentType::AccountSharing,
             null,
             $contactEmail,
@@ -204,14 +213,14 @@ class DetectSecurityIncident
         );
     }
 
-    private function detectBotPattern(SecurityEvent $securityEvent, string $runId): void
+    private function detectBotPattern(SecurityEvent $securityEvent, string $runId): bool
     {
         $config = config('security_incidents.types.bot_pattern', []);
         $deviceHash = $this->normalizeNullableString($securityEvent->device_hash);
         $ip = $this->normalizeNullableString($securityEvent->ip);
 
         if (!$this->isDetectionEnabled($config) || ($deviceHash === null && $ip === null)) {
-            return;
+            return false;
         }
 
         $minEvents = $this->intConfig($config, 'min_events');
@@ -266,7 +275,7 @@ class DetectSecurityIncident
         }
 
         if ($query === null) {
-            return;
+            return false;
         }
 
         $eventIds = $this->eventIds($query, $this->intConfig($config, 'linked_events_limit'));
@@ -299,7 +308,7 @@ class DetectSecurityIncident
             'type' => 'bot_pattern'
         ]);
 
-        $this->storeIncident(
+        return $this->storeIncident(
             SecurityIncidentType::BotPattern,
             $matchedDeviceHash,
             null,
@@ -312,7 +321,7 @@ class DetectSecurityIncident
         );
     }
 
-    private function detectDeviceCluster(SecurityEvent $securityEvent, string $runId): void
+    private function detectDeviceCluster(SecurityEvent $securityEvent, string $runId): bool
     {
         $config = config('security_incidents.types.device_cluster', []);
         $deviceHash = $this->normalizeNullableString($securityEvent->device_hash);
@@ -323,7 +332,7 @@ class DetectSecurityIncident
             !$this->isDetectionEnabled($config)
             || ($deviceHash === null && $contactEmail === null && $ip === null)
         ) {
-            return;
+            return false;
         }
 
         $windowStart = now()->subMinutes($this->intConfig($config, 'window_minutes'));
@@ -354,39 +363,29 @@ class DetectSecurityIncident
         $minDistinctEmails = $this->intConfig($config, 'min_distinct_emails');
         $minDistinctIps = $this->intConfig($config, 'min_distinct_ips');
         $minEvents = $this->intConfig($config, 'min_events');
-        $useRunScope = false;
+        $runScopedQuery = SecurityEvent::query()
+            ->where('run_id', $runId)
+            ->where('created_at', '>=', $windowStart);
+
+        $runScopedStats = $this->aggregateStats($runScopedQuery, [
+            'distinct_devices' => 'device_hash',
+            'distinct_emails' => 'email',
+            'distinct_ips' => 'ip',
+        ]);
 
         if (!$this->meetsDeviceClusterThresholds(
-            $stats,
+            $runScopedStats,
             $minDistinctDevices,
             $minDistinctEmails,
             $minDistinctIps,
             $minEvents
         )) {
-            $runScopedQuery = SecurityEvent::query()
-                ->where('run_id', $runId)
-                ->where('created_at', '>=', $windowStart);
-
-            $runScopedStats = $this->aggregateStats($runScopedQuery, [
-                'distinct_devices' => 'device_hash',
-                'distinct_emails' => 'email',
-                'distinct_ips' => 'ip',
-            ]);
-
-            if (!$this->meetsDeviceClusterThresholds(
-                $runScopedStats,
-                $minDistinctDevices,
-                $minDistinctEmails,
-                $minDistinctIps,
-                $minEvents
-            )) {
-                return;
-            }
-
-            $query = $runScopedQuery;
-            $stats = $runScopedStats;
-            $useRunScope = true;
+            return false;
         }
+
+        $query = $runScopedQuery;
+        $stats = $runScopedStats;
+        $useRunScope = true;
 
         $eventsPerDevice = $stats['distinct_devices'] > 0
             ? ((float) $stats['total_events'] / (float) $stats['distinct_devices'])
@@ -412,7 +411,6 @@ class DetectSecurityIncident
                 'min_distinct_devices' => $minDistinctDevices,
                 'min_distinct_emails' => $minDistinctEmails,
                 'min_distinct_ips' => $minDistinctIps,
-                'min_events_per_device' => 1.8,
             ],
             'matched_on' => [
                 'device_hash' => $useRunScope ? null : $deviceHash,
@@ -438,7 +436,7 @@ class DetectSecurityIncident
             'type' => 'device_cluster'
         ]);
 
-        $this->storeIncident(
+        return $this->storeIncident(
             SecurityIncidentType::DeviceCluster,
             $useRunScope ? null : $deviceHash,
             $useRunScope ? null : $contactEmail,
@@ -451,9 +449,6 @@ class DetectSecurityIncident
         );
     }
 
-    /**
-     * @param array<string, int> $stats
-     */
     private function meetsDeviceClusterThresholds(
         array $stats,
         int $minDistinctDevices,
@@ -461,39 +456,24 @@ class DetectSecurityIncident
         int $minDistinctIps,
         int $minEvents,
     ): bool {
-        $eventsPerDevice = $stats['distinct_devices'] > 0
-            ? ((float) $stats['total_events'] / (float) $stats['distinct_devices'])
-            : 0.0;
-
         return !(
             $stats['distinct_devices'] < $minDistinctDevices
             || $stats['distinct_emails'] < $minDistinctEmails
             || $stats['distinct_ips'] < $minDistinctIps
             || $stats['total_events'] < $minEvents
-            || $eventsPerDevice < 1.8
         );
     }
 
-    /**
-     * @param array<string, mixed> $config
-     */
     private function isDetectionEnabled(array $config): bool
     {
         return (bool) ($config['enabled'] ?? true);
     }
 
-    /**
-     * @param array<string, mixed> $config
-     */
     private function intConfig(array $config, string $key): int
     {
         return max(0, (int) ($config[$key] ?? 0));
     }
 
-    /**
-     * @param array<string, string> $distinctColumns
-     * @return array<string, int>
-     */
     private function aggregateStats($query, array $distinctColumns): array
     {
         $stats = [
@@ -511,10 +491,6 @@ class DetectSecurityIncident
         return $stats;
     }
 
-    /**
-     * @param array<string, int> $stats
-     * @param array<string, int> $thresholds
-     */
     private function scoreFromStats(array $config, array $stats, array $thresholds): int
     {
         $score = $this->intConfig($config, 'score_base');
@@ -532,9 +508,6 @@ class DetectSecurityIncident
         return $score;
     }
 
-    /**
-     * @return list<int>
-     */
     private function eventIds($query, int $limit): array
     {
         return (clone $query)
@@ -548,9 +521,6 @@ class DetectSecurityIncident
             ->all();
     }
 
-    /**
-     * @return list<string>
-     */
     private function sampleDistinctValues($query, string $column, int $limit): array
     {
         return (clone $query)
@@ -576,10 +546,6 @@ class DetectSecurityIncident
             ->all();
     }
 
-    /**
-     * @param array<string, mixed> $meta
-     * @param list<int> $eventIds
-     */
     private function storeIncident(
         SecurityIncidentType $type,
         ?string $deviceHash,
@@ -590,9 +556,11 @@ class DetectSecurityIncident
         array $meta,
         array $eventIds,
         int $cooldownMinutes,
-    ): void {
+    ): bool {
+        $eventIds = $this->filterUnlinkedEventIds($eventIds);
+
         if ($eventIds === []) {
-            return;
+            return false;
         }
 
         $existingIncidentId = $this->recentIncidentId(
@@ -632,7 +600,7 @@ class DetectSecurityIncident
 
             $this->attachIncidentEvents($existingIncidentId, $eventIds);
 
-            return;
+            return true;
         }
 
         try {
@@ -673,10 +641,12 @@ class DetectSecurityIncident
                 'error' => $e->getMessage(),
             ]);
 
-            return;
+            return false;
         }
 
         $this->attachIncidentEvents((int) $incidentId, $eventIds);
+
+        return true;
     }
 
     private function recentIncidentId(
@@ -687,6 +657,27 @@ class DetectSecurityIncident
         string $runId,
         int $cooldownMinutes,
     ): ?int {
+        if (
+            $type === SecurityIncidentType::DeviceCluster
+            && $deviceHash === null
+            && $contactEmail === null
+            && $ip === null
+        ) {
+            $query = DB::table('security_incidents')
+                ->where('type', $type->value)
+                ->where('created_at', '>=', now()->subMinutes(max(1, $cooldownMinutes)));
+
+            if ($this->securityIncidentsSupportsRunId()) {
+                $query->where('run_id', $runId);
+            } else {
+                $query->where('meta->run_id', $runId);
+            }
+
+            $incidentId = $query->orderByDesc('id')->value('id');
+
+            return $incidentId !== null ? (int) $incidentId : null;
+        }
+
         $query = DB::table('security_incidents')
             ->where('type', $type->value)
             ->where('created_at', '>=', now()->subMinutes(max(1, $cooldownMinutes)));
@@ -729,9 +720,6 @@ class DetectSecurityIncident
         return $this->securityIncidentsHasRunId;
     }
 
-    /**
-     * @param list<int> $eventIds
-     */
     private function attachIncidentEvents(int $incidentId, array $eventIds): void
     {
         $rows = [];
@@ -748,9 +736,32 @@ class DetectSecurityIncident
         }
     }
 
-    /**
-     * @param array<string, mixed> $meta
-     */
+    private function filterUnlinkedEventIds(array $eventIds): array
+    {
+        $normalizedEventIds = collect($eventIds)
+            ->map(static fn ($value): int => (int) $value)
+            ->filter(static fn (int $value): bool => $value > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($normalizedEventIds === []) {
+            return [];
+        }
+
+        $linkedEventIds = DB::table('security_incident_events')
+            ->whereIn('security_event_id', $normalizedEventIds)
+            ->pluck('security_event_id')
+            ->map(static fn ($value): int => (int) $value)
+            ->all();
+
+        if ($linkedEventIds === []) {
+            return $normalizedEventIds;
+        }
+
+        return array_values(array_diff($normalizedEventIds, $linkedEventIds));
+    }
+
     private function encodeMeta(array $meta): string
     {
         $encoded = json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

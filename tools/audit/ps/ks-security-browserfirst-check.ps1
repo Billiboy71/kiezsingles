@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 21-03-2026 15:16 (Europe/Berlin)
-# Version: 8.3
+# Changed: 22-03-2026 13:18 (Europe/Berlin)
+# Version: 8.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -3381,6 +3381,234 @@ WHERE se.run_id = '$scenarioRunId'
 if ($runIdIncidentValidationFailed -and $finalExitCode -eq 0) {
     $finalExitCode = 1
 }
+
+$abuseDbValidationStatus = ""
+$abuseDbValidationOrphanIncidents = ""
+$abuseDbValidationOrphanEvents = ""
+$abuseDbValidationDuplicateEventLinks = ""
+$abuseDbValidationEvents = ""
+$abuseDbValidationIncidents = ""
+$abuseDbValidationIncidentEvents = ""
+
+Write-Section "ABUSE DB VALIDATION"
+
+try {
+    $abuseDbValidationEventsQuery = "SELECT COUNT(*) FROM security_events WHERE run_id = '$runId';"
+    $abuseDbValidationEvents = (& $mysql -u root $db -N -e $abuseDbValidationEventsQuery | Select-Object -First 1)
+    if ($null -eq $abuseDbValidationEvents) { $abuseDbValidationEvents = "" } else { $abuseDbValidationEvents = ("" + $abuseDbValidationEvents).Trim() }
+
+    $abuseDbValidationIncidentsQuery = @"
+SELECT COUNT(*)
+FROM security_incidents si
+WHERE JSON_UNQUOTE(JSON_EXTRACT(si.meta, '$.run_id')) = '$runId';
+"@
+    $abuseDbValidationIncidents = (& $mysql -u root $db -N -e $abuseDbValidationIncidentsQuery | Select-Object -First 1)
+    if ($null -eq $abuseDbValidationIncidents) { $abuseDbValidationIncidents = "" } else { $abuseDbValidationIncidents = ("" + $abuseDbValidationIncidents).Trim() }
+
+    $abuseDbValidationIncidentEventsQuery = @"
+SELECT COUNT(*)
+FROM security_incident_events sie
+JOIN security_events se ON se.id = sie.security_event_id
+WHERE se.run_id = '$runId';
+"@
+    $abuseDbValidationIncidentEvents = (& $mysql -u root $db -N -e $abuseDbValidationIncidentEventsQuery | Select-Object -First 1)
+    if ($null -eq $abuseDbValidationIncidentEvents) { $abuseDbValidationIncidentEvents = "" } else { $abuseDbValidationIncidentEvents = ("" + $abuseDbValidationIncidentEvents).Trim() }
+
+    $abuseDbValidationOrphanIncidentsQuery = @"
+SELECT COUNT(*)
+FROM security_incidents si
+LEFT JOIN security_incident_events sie ON sie.incident_id = si.id
+    WHERE JSON_UNQUOTE(JSON_EXTRACT(si.meta, '$.run_id')) = '$runId'
+  AND sie.incident_id IS NULL;
+"@
+    $abuseDbValidationOrphanIncidents = (& $mysql -u root $db -N -e $abuseDbValidationOrphanIncidentsQuery | Select-Object -First 1)
+    if ($null -eq $abuseDbValidationOrphanIncidents) { $abuseDbValidationOrphanIncidents = "" } else { $abuseDbValidationOrphanIncidents = ("" + $abuseDbValidationOrphanIncidents).Trim() }
+
+    $abuseDbValidationOrphanEventsQuery = @"
+SELECT COUNT(*)
+FROM security_events se
+LEFT JOIN security_incident_events sie ON sie.security_event_id = se.id
+WHERE se.run_id = '$runId'
+  AND sie.security_event_id IS NULL;
+"@
+    $abuseDbValidationOrphanEvents = (& $mysql -u root $db -N -e $abuseDbValidationOrphanEventsQuery | Select-Object -First 1)
+    if ($null -eq $abuseDbValidationOrphanEvents) { $abuseDbValidationOrphanEvents = "" } else { $abuseDbValidationOrphanEvents = ("" + $abuseDbValidationOrphanEvents).Trim() }
+
+    $abuseDbValidationDuplicateEventLinksQuery = @"
+SELECT COUNT(*)
+FROM (
+    SELECT sie.incident_id, sie.security_event_id
+    FROM security_incident_events sie
+    JOIN security_events se ON se.id = sie.security_event_id
+    WHERE se.run_id = '$runId'
+    GROUP BY sie.incident_id, sie.security_event_id
+    HAVING COUNT(*) > 1
+) duplicate_event_links;
+"@
+    $abuseDbValidationDuplicateEventLinks = (& $mysql -u root $db -N -e $abuseDbValidationDuplicateEventLinksQuery | Select-Object -First 1)
+    if ($null -eq $abuseDbValidationDuplicateEventLinks) { $abuseDbValidationDuplicateEventLinks = "" } else { $abuseDbValidationDuplicateEventLinks = ("" + $abuseDbValidationDuplicateEventLinks).Trim() }
+
+    $abuseDbValidationOrphanIncidentsStatus = if ([int]$abuseDbValidationOrphanIncidents -gt 0) { "FAIL" } else { "PASS" }
+    $abuseDbValidationOrphanEventsStatus = if ([int]$abuseDbValidationOrphanEvents -gt 0) { "WARN" } else { "PASS" }
+    $abuseDbValidationDuplicateEventLinksStatus = if ([int]$abuseDbValidationDuplicateEventLinks -gt 0) { "FAIL" } else { "PASS" }
+
+    if ($abuseDbValidationOrphanIncidentsStatus -eq "FAIL" -or $abuseDbValidationDuplicateEventLinksStatus -eq "FAIL") {
+        $abuseDbValidationStatus = "FAIL"
+    } elseif ($abuseDbValidationOrphanEventsStatus -eq "WARN") {
+        $abuseDbValidationStatus = "WARN"
+    } else {
+        $abuseDbValidationStatus = "PASS"
+    }
+
+    Write-Host ("OrphanIncidents -> {0} ({1})" -f $abuseDbValidationOrphanIncidentsStatus, $abuseDbValidationOrphanIncidents)
+    Write-Host ("OrphanEvents -> {0} ({1})" -f $abuseDbValidationOrphanEventsStatus, $abuseDbValidationOrphanEvents)
+    Write-Host ("DuplicateEventLinks -> {0} ({1})" -f $abuseDbValidationDuplicateEventLinksStatus, $abuseDbValidationDuplicateEventLinks)
+    Write-Host ""
+    Write-Host "Counts:"
+    Write-Host ("Events: {0}" -f $abuseDbValidationEvents)
+    Write-Host ("Incidents: {0}" -f $abuseDbValidationIncidents)
+    Write-Host ("IncidentEvents: {0}" -f $abuseDbValidationIncidentEvents)
+} catch {
+    $abuseDbValidationStatus = "FAIL"
+    $abuseDbValidationOrphanIncidents = "ERROR"
+    $abuseDbValidationOrphanEvents = "ERROR"
+    $abuseDbValidationDuplicateEventLinks = "ERROR"
+    $abuseDbValidationEvents = "ERROR"
+    $abuseDbValidationIncidents = "ERROR"
+    $abuseDbValidationIncidentEvents = "ERROR"
+
+    Write-Host ("OrphanIncidents -> FAIL ({0})" -f $abuseDbValidationOrphanIncidents)
+    Write-Host ("OrphanEvents -> WARN ({0})" -f $abuseDbValidationOrphanEvents)
+    Write-Host ("DuplicateEventLinks -> FAIL ({0})" -f $abuseDbValidationDuplicateEventLinks)
+    Write-Host ""
+    Write-Host "Counts:"
+    Write-Host ("Events: {0}" -f $abuseDbValidationEvents)
+    Write-Host ("Incidents: {0}" -f $abuseDbValidationIncidents)
+    Write-Host ("IncidentEvents: {0}" -f $abuseDbValidationIncidentEvents)
+}
+
+Write-Host ""
+Write-Host ("ABUSE DB VALIDATION -> {0}" -f $abuseDbValidationStatus)
+
+if ($abuseDbValidationStatus -eq "PASS") {
+    $finalAuditSummary.Pass++
+} elseif ($abuseDbValidationStatus -eq "WARN") {
+    $finalAuditSummary.Warn++
+} elseif ($abuseDbValidationStatus -eq "FAIL") {
+    $finalAuditSummary.Fail++
+}
+
+$abuseDbValidationSummary = [PSCustomObject]@{
+    status                = $abuseDbValidationStatus
+    orphan_incidents      = $(if ($abuseDbValidationOrphanIncidents -match '^\d+$') { [int]$abuseDbValidationOrphanIncidents } else { $abuseDbValidationOrphanIncidents })
+    orphan_events         = $(if ($abuseDbValidationOrphanEvents -match '^\d+$') { [int]$abuseDbValidationOrphanEvents } else { $abuseDbValidationOrphanEvents })
+    duplicate_event_links = $(if ($abuseDbValidationDuplicateEventLinks -match '^\d+$') { [int]$abuseDbValidationDuplicateEventLinks } else { $abuseDbValidationDuplicateEventLinks })
+}
+
+try {
+    $finalAuditSummary | Add-Member -NotePropertyName 'AbuseDbValidation' -NotePropertyValue $abuseDbValidationSummary -Force
+} catch {
+}
+
+if ($CheckAbuseSimulation -and $null -ne $abuseSimulationResult -and $null -ne $abuseSimulationResult.Exports) {
+    $jsonReportPath = ""
+    try { $jsonReportPath = ("" + $abuseSimulationResult.Exports.JsonReport).Trim() } catch { $jsonReportPath = "" }
+
+    if (-not [string]::IsNullOrWhiteSpace($jsonReportPath) -and (Test-Path -LiteralPath $jsonReportPath)) {
+        try {
+            $jsonReportContent = Get-Content -LiteralPath $jsonReportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $jsonReportContent | Add-Member -NotePropertyName 'abuse_db_validation' -NotePropertyValue $abuseDbValidationSummary -Force
+            ($jsonReportContent | ConvertTo-Json -Depth 10) | Set-Content -LiteralPath $jsonReportPath -Encoding UTF8
+        } catch {
+        }
+    }
+}
+
+Write-Host ""
+Write-Host "======================================================================"
+Write-Host "DEBUG MULTI INCIDENT LINKS"
+Write-Host "======================================================================"
+
+try {
+    $multiLinkedEventsQuery = @"
+SELECT COUNT(*) AS multi_events
+FROM (
+    SELECT sie.security_event_id
+    FROM security_incident_events sie
+    JOIN security_events se ON se.id = sie.security_event_id
+    WHERE se.run_id = '$runId'
+    GROUP BY sie.security_event_id
+    HAVING COUNT(*) > 1
+) t;
+"@
+    $multiLinkedEvents = (& $mysql -u root $db -N -e $multiLinkedEventsQuery | Select-Object -First 1)
+    if ($null -eq $multiLinkedEvents) { $multiLinkedEvents = "" } else { $multiLinkedEvents = ("" + $multiLinkedEvents).Trim() }
+    Write-Host ("MultiLinkedEvents: {0}" -f $multiLinkedEvents)
+
+    $topMultiLinksQuery = @"
+SELECT CONCAT(sie.security_event_id, ' | ', COUNT(*))
+FROM security_incident_events sie
+JOIN security_events se ON se.id = sie.security_event_id
+WHERE se.run_id = '$runId'
+GROUP BY sie.security_event_id
+ORDER BY COUNT(*) DESC, sie.security_event_id ASC
+LIMIT 10;
+"@
+    $topMultiLinks = @(& $mysql -u root $db -N -e $topMultiLinksQuery)
+    Write-Host ""
+    Write-Host "TopMultiLinks:"
+    Write-Host "event_id | cnt"
+    foreach ($topMultiLink in $topMultiLinks) {
+        Write-Host ("" + $topMultiLink).Trim()
+    }
+
+    $eventIncidentTypesQuery = @"
+SELECT CONCAT(sie.security_event_id, ' | ', si.type, ' | ', COUNT(*))
+FROM security_incident_events sie
+JOIN security_incidents si ON si.id = sie.incident_id
+JOIN security_events se ON se.id = sie.security_event_id
+WHERE se.run_id = '$runId'
+GROUP BY sie.security_event_id, si.type
+HAVING COUNT(*) >= 1
+ORDER BY sie.security_event_id, si.type
+LIMIT 20;
+"@
+    $eventIncidentTypes = @(& $mysql -u root $db -N -e $eventIncidentTypesQuery)
+    Write-Host ""
+    Write-Host "EventIncidentTypes:"
+    Write-Host "event_id | type | cnt"
+    foreach ($eventIncidentType in $eventIncidentTypes) {
+        Write-Host ("" + $eventIncidentType).Trim()
+    }
+
+    $runDistributionQuery = @"
+SELECT CONCAT(se.run_id, ' | ', COUNT(*))
+FROM security_incident_events sie
+JOIN security_events se ON se.id = sie.security_event_id
+GROUP BY se.run_id
+ORDER BY COUNT(*) DESC, se.run_id ASC;
+"@
+    $runDistributionRows = @(& $mysql -u root $db -N -e $runDistributionQuery)
+    Write-Host ""
+    Write-Host "RunDistribution:"
+    Write-Host "run_id | cnt"
+    foreach ($runDistributionRow in $runDistributionRows) {
+        Write-Host ("" + $runDistributionRow).Trim()
+    }
+} catch {
+    Write-Host "MultiLinkedEvents: ERROR"
+    Write-Host ""
+    Write-Host "TopMultiLinks:"
+    Write-Host "ERROR:" $_.Exception.Message
+    Write-Host ""
+    Write-Host "EventIncidentTypes:"
+    Write-Host "ERROR:" $_.Exception.Message
+    Write-Host ""
+    Write-Host "RunDistribution:"
+    Write-Host "ERROR:" $_.Exception.Message
+}
+
+$finalExitCode = Get-FinalAuditExitCode -Summary $finalAuditSummary
 
 Write-Section "FINAL SUMMARY"
 Write-Host ("PASS: {0}" -f $finalAuditSummary.Pass)
