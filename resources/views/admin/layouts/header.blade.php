@@ -1,8 +1,8 @@
 {{-- ============================================================================
 File: C:\laragon\www\kiezsingles\resources\views\admin\layouts\header.blade.php
 Purpose: Admin header (top area: title/status/actions + admin navigation include)
-Changed: 02-03-2026 14:44 (Europe/Berlin)
-Version: 2.6
+Changed: 24-03-2026 21:51 (Europe/Berlin)
+Version: 2.7
 ============================================================================ --}}
 
 @php
@@ -226,7 +226,9 @@ Version: 2.6
                                     href="{{ $itemUrl }}"
                                     data-ks-admin-nav-key="{{ $itemKey }}"
                                     class="inline-flex items-center px-4 py-2 border rounded-md font-semibold text-xs uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
-                                        {{ $adminTab === $itemKey ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' }}
+                                        {{ ($itemKey === 'security' && ($hasSecurityAlert ?? false))
+                                            ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                                            : ($adminTab === $itemKey ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50') }}
                                         {{ ($itemKey === 'debug' && !$debugActiveFlag) ? 'hidden' : '' }}"
                                 >
                                     {{ $itemLabel }}

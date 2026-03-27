@@ -3,8 +3,8 @@
 // File: C:\laragon\www\kiezsingles\app\Listeners\Security\DetectSecurityIncident.php
 // Purpose: Passive pattern detection from security_events into security_incidents.
 // Created: 18-03-2026 12:18 (Europe/Berlin)
-// Changed: 22-03-2026 14:12 (Europe/Berlin)
-// Version: 2.1
+// Changed: 27-03-2026 00:25 (Europe/Berlin)
+// Version: 2.3
 // ============================================================================
 
 namespace App\Listeners\Security;
@@ -12,6 +12,8 @@ namespace App\Listeners\Security;
 use App\Enums\SecurityIncidentType;
 use App\Events\Security\SecurityEventStored;
 use App\Models\SecurityEvent;
+use App\Services\Security\IncidentAutoActionService;
+use App\Services\Security\SecuritySettingsService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -23,7 +25,7 @@ class DetectSecurityIncident
     {
         \Log::info('DETECT SECURITY INCIDENT HANDLER START');
 
-        if (!config('security_incidents.enabled', true)) {
+        if (!$this->securitySettings()->getIncidentDetectionSettings()['enabled']) {
             \Log::info('SECURITY DETECTION BLOCKED: config_disabled');
             return;
         }
@@ -35,6 +37,7 @@ class DetectSecurityIncident
 
         $securityEvent = $event->securityEvent;
         $runId = $event->securityEvent->run_id ?? null;
+        $incidentTypes = ['login_failed', 'login_lockout'];
 
         if (!$runId) {
             \Log::info('SECURITY DETECTION BLOCKED: run_id_missing');
@@ -43,6 +46,13 @@ class DetectSecurityIncident
 
         if (!($securityEvent->exists) || $securityEvent->getKey() === null) {
             \Log::info('SECURITY DETECTION BLOCKED: event_missing');
+            return;
+        }
+
+        if (!in_array((string) $securityEvent->type, $incidentTypes, true)) {
+            \Log::info('SECURITY DETECTION BLOCKED: event_type_ignored', [
+                'type' => $securityEvent->type,
+            ]);
             return;
         }
 
@@ -63,7 +73,7 @@ class DetectSecurityIncident
 
     private function detectCredentialStuffing(SecurityEvent $securityEvent, string $runId): bool
     {
-        $config = config('security_incidents.types.credential_stuffing', []);
+        $config = $this->securitySettings()->getIncidentDetectionSettings()['credential_stuffing'];
         $deviceHash = $this->normalizeNullableString($securityEvent->device_hash);
 
         if (!$this->isDetectionEnabled($config) || $deviceHash === null) {
@@ -73,6 +83,7 @@ class DetectSecurityIncident
         $query = SecurityEvent::query()
             ->where('run_id', $runId)
             ->where('device_hash', $deviceHash)
+            ->whereIn('type', ['login_failed', 'login_lockout'])
             ->where('created_at', '>=', now()->subMinutes($this->intConfig($config, 'window_minutes')));
 
         $stats = $this->aggregateStats($query, [
@@ -139,7 +150,7 @@ class DetectSecurityIncident
 
     private function detectAccountSharing(SecurityEvent $securityEvent, string $runId): bool
     {
-        $config = config('security_incidents.types.account_sharing', []);
+        $config = $this->securitySettings()->getIncidentDetectionSettings()['account_sharing'];
         $contactEmail = $this->normalizeEmail($securityEvent->email);
 
         if (!$this->isDetectionEnabled($config) || $contactEmail === null) {
@@ -149,6 +160,7 @@ class DetectSecurityIncident
         $query = SecurityEvent::query()
             ->where('run_id', $runId)
             ->where('email', $contactEmail)
+            ->whereIn('type', ['login_failed', 'login_lockout'])
             ->where('created_at', '>=', now()->subMinutes($this->intConfig($config, 'window_minutes')));
 
         $stats = $this->aggregateStats($query, [
@@ -215,7 +227,7 @@ class DetectSecurityIncident
 
     private function detectBotPattern(SecurityEvent $securityEvent, string $runId): bool
     {
-        $config = config('security_incidents.types.bot_pattern', []);
+        $config = $this->securitySettings()->getIncidentDetectionSettings()['bot_pattern'];
         $deviceHash = $this->normalizeNullableString($securityEvent->device_hash);
         $ip = $this->normalizeNullableString($securityEvent->ip);
 
@@ -234,6 +246,7 @@ class DetectSecurityIncident
             $deviceQuery = SecurityEvent::query()
                 ->where('run_id', $runId)
                 ->where('created_at', '>=', $windowStart)
+                ->whereIn('type', ['login_failed', 'login_lockout'])
                 ->where('device_hash', $deviceHash);
 
             $deviceStats = $this->aggregateStats($deviceQuery, [
@@ -245,9 +258,9 @@ class DetectSecurityIncident
             if (
                 $deviceStats['total_events'] >= $minEvents
                 || (
-                    $deviceStats['total_events'] >= 10
-                    && $deviceStats['distinct_emails'] >= 5
-                    && $deviceStats['distinct_ips'] >= 5
+                    $deviceStats['total_events'] >= $this->intConfig($config, 'burst_min_events')
+                    && $deviceStats['distinct_emails'] >= $this->intConfig($config, 'burst_min_distinct_emails')
+                    && $deviceStats['distinct_ips'] >= $this->intConfig($config, 'burst_min_distinct_ips')
                 )
             ) {
                 $query = $deviceQuery;
@@ -259,6 +272,7 @@ class DetectSecurityIncident
             $ipQuery = SecurityEvent::query()
                 ->where('run_id', $runId)
                 ->where('created_at', '>=', $windowStart)
+                ->whereIn('type', ['login_failed', 'login_lockout'])
                 ->where('ip', $ip);
 
             $ipStats = $this->aggregateStats($ipQuery, [
@@ -290,6 +304,9 @@ class DetectSecurityIncident
             'window_minutes' => $this->intConfig($config, 'window_minutes'),
             'thresholds' => [
                 'min_events' => $minEvents,
+                'burst_min_events' => $this->intConfig($config, 'burst_min_events'),
+                'burst_min_distinct_emails' => $this->intConfig($config, 'burst_min_distinct_emails'),
+                'burst_min_distinct_ips' => $this->intConfig($config, 'burst_min_distinct_ips'),
             ],
             'matched_on' => [
                 'device_hash' => $matchedDeviceHash,
@@ -323,7 +340,7 @@ class DetectSecurityIncident
 
     private function detectDeviceCluster(SecurityEvent $securityEvent, string $runId): bool
     {
-        $config = config('security_incidents.types.device_cluster', []);
+        $config = $this->securitySettings()->getIncidentDetectionSettings()['device_cluster'];
         $deviceHash = $this->normalizeNullableString($securityEvent->device_hash);
         $contactEmail = $this->normalizeEmail($securityEvent->email);
         $ip = $this->normalizeNullableString($securityEvent->ip);
@@ -339,6 +356,7 @@ class DetectSecurityIncident
         $query = SecurityEvent::query()
             ->where('run_id', $runId)
             ->where('created_at', '>=', $windowStart)
+            ->whereIn('type', ['login_failed', 'login_lockout'])
             ->where(function ($builder) use ($deviceHash, $contactEmail, $ip): void {
                 if ($deviceHash !== null) {
                     $builder->orWhere('device_hash', $deviceHash);
@@ -365,6 +383,7 @@ class DetectSecurityIncident
         $minEvents = $this->intConfig($config, 'min_events');
         $runScopedQuery = SecurityEvent::query()
             ->where('run_id', $runId)
+            ->whereIn('type', ['login_failed', 'login_lockout'])
             ->where('created_at', '>=', $windowStart);
 
         $runScopedStats = $this->aggregateStats($runScopedQuery, [
@@ -645,8 +664,14 @@ class DetectSecurityIncident
         }
 
         $this->attachIncidentEvents((int) $incidentId, $eventIds);
+        app(IncidentAutoActionService::class)->handle((int) $incidentId);
 
         return true;
+    }
+
+    private function securitySettings(): SecuritySettingsService
+    {
+        return app(SecuritySettingsService::class);
     }
 
     private function recentIncidentId(

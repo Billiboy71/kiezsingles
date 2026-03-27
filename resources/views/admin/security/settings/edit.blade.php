@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\settings\edit.blade.php
 // Purpose: Admin Security - Security settings (SSOT configuration)
-// Changed: 02-03-2026 14:57 (Europe/Berlin)
-// Version: 0.3
+// Changed: 25-03-2026 01:32 (Europe/Berlin)
+// Version: 0.4
 // ============================================================================
 
 ?>
@@ -92,6 +92,222 @@
             <input type="checkbox" name="stepup_required_enabled" value="1"
                 {{ old('stepup_required_enabled', $settings->stepup_required_enabled) ? 'checked' : '' }}>
             Zusätzliche Bestätigung erforderlich (Step-Up)
+        </label>
+
+        <div class="md:col-span-2 mt-4">
+            <h4>Incident Detection</h4>
+        </div>
+
+        <label class="md:col-span-2">
+            <input type="checkbox" name="incidents_enabled" value="1"
+                {{ old('incidents_enabled', $incidentDetectionSettings['enabled']) ? 'checked' : '' }}>
+            Incident Detection aktiv
+        </label>
+
+        <div class="md:col-span-2 font-semibold">Credential Stuffing</div>
+        <label>
+            <input type="checkbox" name="incident_credential_stuffing_enabled" value="1"
+                {{ old('incident_credential_stuffing_enabled', $incidentDetectionSettings['credential_stuffing']['enabled']) ? 'checked' : '' }}>
+            Aktiv
+        </label>
+        <div>
+            <label>Fenster (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_credential_stuffing_window_minutes" value="{{ old('incident_credential_stuffing_window_minutes', $incidentDetectionSettings['credential_stuffing']['window_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Cooldown (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_credential_stuffing_cooldown_minutes" value="{{ old('incident_credential_stuffing_cooldown_minutes', $incidentDetectionSettings['credential_stuffing']['cooldown_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Min. unterschiedliche E-Mails</label>
+            <input class="w-full" type="number" min="1" name="incident_credential_stuffing_min_distinct_emails" value="{{ old('incident_credential_stuffing_min_distinct_emails', $incidentDetectionSettings['credential_stuffing']['min_distinct_emails']) }}" required>
+        </div>
+        <div>
+            <label>Min. unterschiedliche IPs</label>
+            <input class="w-full" type="number" min="1" name="incident_credential_stuffing_min_distinct_ips" value="{{ old('incident_credential_stuffing_min_distinct_ips', $incidentDetectionSettings['credential_stuffing']['min_distinct_ips']) }}" required>
+        </div>
+        <div>
+            <label>Linked Events Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_credential_stuffing_linked_events_limit" value="{{ old('incident_credential_stuffing_linked_events_limit', $incidentDetectionSettings['credential_stuffing']['linked_events_limit']) }}" required>
+        </div>
+        <div>
+            <label>Meta Sample Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_credential_stuffing_meta_sample_limit" value="{{ old('incident_credential_stuffing_meta_sample_limit', $incidentDetectionSettings['credential_stuffing']['meta_sample_limit']) }}" required>
+        </div>
+        <div>
+            <label>Score Base</label>
+            <input class="w-full" type="number" min="0" name="incident_credential_stuffing_score_base" value="{{ old('incident_credential_stuffing_score_base', $incidentDetectionSettings['credential_stuffing']['score_base']) }}" required>
+        </div>
+        <div>
+            <label>Score Max</label>
+            <input class="w-full" type="number" min="0" name="incident_credential_stuffing_score_max" value="{{ old('incident_credential_stuffing_score_max', $incidentDetectionSettings['credential_stuffing']['score_max']) }}" required>
+        </div>
+
+        <div class="md:col-span-2 font-semibold">Account Sharing</div>
+        <label>
+            <input type="checkbox" name="incident_account_sharing_enabled" value="1"
+                {{ old('incident_account_sharing_enabled', $incidentDetectionSettings['account_sharing']['enabled']) ? 'checked' : '' }}>
+            Aktiv
+        </label>
+        <div>
+            <label>Fenster (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_account_sharing_window_minutes" value="{{ old('incident_account_sharing_window_minutes', $incidentDetectionSettings['account_sharing']['window_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Cooldown (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_account_sharing_cooldown_minutes" value="{{ old('incident_account_sharing_cooldown_minutes', $incidentDetectionSettings['account_sharing']['cooldown_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Min. unterschiedliche Geräte</label>
+            <input class="w-full" type="number" min="1" name="incident_account_sharing_min_distinct_devices" value="{{ old('incident_account_sharing_min_distinct_devices', $incidentDetectionSettings['account_sharing']['min_distinct_devices']) }}" required>
+        </div>
+        <div>
+            <label>Min. unterschiedliche IPs</label>
+            <input class="w-full" type="number" min="1" name="incident_account_sharing_min_distinct_ips" value="{{ old('incident_account_sharing_min_distinct_ips', $incidentDetectionSettings['account_sharing']['min_distinct_ips']) }}" required>
+        </div>
+        <div>
+            <label>Linked Events Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_account_sharing_linked_events_limit" value="{{ old('incident_account_sharing_linked_events_limit', $incidentDetectionSettings['account_sharing']['linked_events_limit']) }}" required>
+        </div>
+        <div>
+            <label>Meta Sample Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_account_sharing_meta_sample_limit" value="{{ old('incident_account_sharing_meta_sample_limit', $incidentDetectionSettings['account_sharing']['meta_sample_limit']) }}" required>
+        </div>
+        <div>
+            <label>Score Base</label>
+            <input class="w-full" type="number" min="0" name="incident_account_sharing_score_base" value="{{ old('incident_account_sharing_score_base', $incidentDetectionSettings['account_sharing']['score_base']) }}" required>
+        </div>
+        <div>
+            <label>Score Max</label>
+            <input class="w-full" type="number" min="0" name="incident_account_sharing_score_max" value="{{ old('incident_account_sharing_score_max', $incidentDetectionSettings['account_sharing']['score_max']) }}" required>
+        </div>
+
+        <div class="md:col-span-2 font-semibold">Bot Pattern</div>
+        <label>
+            <input type="checkbox" name="incident_bot_pattern_enabled" value="1"
+                {{ old('incident_bot_pattern_enabled', $incidentDetectionSettings['bot_pattern']['enabled']) ? 'checked' : '' }}>
+            Aktiv
+        </label>
+        <div>
+            <label>Fenster (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_window_minutes" value="{{ old('incident_bot_pattern_window_minutes', $incidentDetectionSettings['bot_pattern']['window_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Cooldown (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_cooldown_minutes" value="{{ old('incident_bot_pattern_cooldown_minutes', $incidentDetectionSettings['bot_pattern']['cooldown_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Min. Events</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_min_events" value="{{ old('incident_bot_pattern_min_events', $incidentDetectionSettings['bot_pattern']['min_events']) }}" required>
+        </div>
+        <div>
+            <label>Burst Min. Events</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_burst_min_events" value="{{ old('incident_bot_pattern_burst_min_events', $incidentDetectionSettings['bot_pattern']['burst_min_events']) }}" required>
+        </div>
+        <div>
+            <label>Burst Min. unterschiedliche E-Mails</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_burst_min_distinct_emails" value="{{ old('incident_bot_pattern_burst_min_distinct_emails', $incidentDetectionSettings['bot_pattern']['burst_min_distinct_emails']) }}" required>
+        </div>
+        <div>
+            <label>Burst Min. unterschiedliche IPs</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_burst_min_distinct_ips" value="{{ old('incident_bot_pattern_burst_min_distinct_ips', $incidentDetectionSettings['bot_pattern']['burst_min_distinct_ips']) }}" required>
+        </div>
+        <div>
+            <label>Linked Events Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_linked_events_limit" value="{{ old('incident_bot_pattern_linked_events_limit', $incidentDetectionSettings['bot_pattern']['linked_events_limit']) }}" required>
+        </div>
+        <div>
+            <label>Meta Sample Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_bot_pattern_meta_sample_limit" value="{{ old('incident_bot_pattern_meta_sample_limit', $incidentDetectionSettings['bot_pattern']['meta_sample_limit']) }}" required>
+        </div>
+        <div>
+            <label>Score Base</label>
+            <input class="w-full" type="number" min="0" name="incident_bot_pattern_score_base" value="{{ old('incident_bot_pattern_score_base', $incidentDetectionSettings['bot_pattern']['score_base']) }}" required>
+        </div>
+        <div>
+            <label>Score Max</label>
+            <input class="w-full" type="number" min="0" name="incident_bot_pattern_score_max" value="{{ old('incident_bot_pattern_score_max', $incidentDetectionSettings['bot_pattern']['score_max']) }}" required>
+        </div>
+
+        <div class="md:col-span-2 font-semibold">Device Cluster</div>
+        <label>
+            <input type="checkbox" name="incident_device_cluster_enabled" value="1"
+                {{ old('incident_device_cluster_enabled', $incidentDetectionSettings['device_cluster']['enabled']) ? 'checked' : '' }}>
+            Aktiv
+        </label>
+        <div>
+            <label>Fenster (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_window_minutes" value="{{ old('incident_device_cluster_window_minutes', $incidentDetectionSettings['device_cluster']['window_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Cooldown (Minuten)</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_cooldown_minutes" value="{{ old('incident_device_cluster_cooldown_minutes', $incidentDetectionSettings['device_cluster']['cooldown_minutes']) }}" required>
+        </div>
+        <div>
+            <label>Min. Events</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_min_events" value="{{ old('incident_device_cluster_min_events', $incidentDetectionSettings['device_cluster']['min_events']) }}" required>
+        </div>
+        <div>
+            <label>Min. unterschiedliche Geräte</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_min_distinct_devices" value="{{ old('incident_device_cluster_min_distinct_devices', $incidentDetectionSettings['device_cluster']['min_distinct_devices']) }}" required>
+        </div>
+        <div>
+            <label>Min. unterschiedliche E-Mails</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_min_distinct_emails" value="{{ old('incident_device_cluster_min_distinct_emails', $incidentDetectionSettings['device_cluster']['min_distinct_emails']) }}" required>
+        </div>
+        <div>
+            <label>Min. unterschiedliche IPs</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_min_distinct_ips" value="{{ old('incident_device_cluster_min_distinct_ips', $incidentDetectionSettings['device_cluster']['min_distinct_ips']) }}" required>
+        </div>
+        <div>
+            <label>Linked Events Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_linked_events_limit" value="{{ old('incident_device_cluster_linked_events_limit', $incidentDetectionSettings['device_cluster']['linked_events_limit']) }}" required>
+        </div>
+        <div>
+            <label>Meta Sample Limit</label>
+            <input class="w-full" type="number" min="1" name="incident_device_cluster_meta_sample_limit" value="{{ old('incident_device_cluster_meta_sample_limit', $incidentDetectionSettings['device_cluster']['meta_sample_limit']) }}" required>
+        </div>
+        <div>
+            <label>Score Base</label>
+            <input class="w-full" type="number" min="0" name="incident_device_cluster_score_base" value="{{ old('incident_device_cluster_score_base', $incidentDetectionSettings['device_cluster']['score_base']) }}" required>
+        </div>
+        <div>
+            <label>Score Max</label>
+            <input class="w-full" type="number" min="0" name="incident_device_cluster_score_max" value="{{ old('incident_device_cluster_score_max', $incidentDetectionSettings['device_cluster']['score_max']) }}" required>
+        </div>
+
+        <div class="md:col-span-2 mt-4">
+            <h4>Automatische Maßnahmen</h4>
+        </div>
+
+        <label>
+            <input type="checkbox" name="incident_auto_actions_enabled" value="1"
+                {{ old('incident_auto_actions_enabled', $incidentAutoActionSettings['enabled']) ? 'checked' : '' }}>
+            Auto Actions aktiv
+        </label>
+
+        <label>
+            <input type="checkbox" name="incident_auto_actions_update_incident_status" value="1"
+                {{ old('incident_auto_actions_update_incident_status', $incidentAutoActionSettings['update_incident_status']) ? 'checked' : '' }}>
+            Incident-Status automatisch auf "Maßnahme ergriffen" setzen
+        </label>
+
+        <label>
+            <input type="checkbox" name="incident_auto_action_credential_stuffing_identity_ban_enabled" value="1"
+                {{ old('incident_auto_action_credential_stuffing_identity_ban_enabled', $incidentAutoActionSettings['credential_stuffing']['identity_ban_enabled']) ? 'checked' : '' }}>
+            Credential Stuffing: automatische Identity-Sperre
+        </label>
+
+        <label>
+            <input type="checkbox" name="incident_auto_action_bot_pattern_ip_ban_enabled" value="1"
+                {{ old('incident_auto_action_bot_pattern_ip_ban_enabled', $incidentAutoActionSettings['bot_pattern']['ip_ban_enabled']) ? 'checked' : '' }}>
+            Bot Pattern: automatische IP-Sperre
+        </label>
+
+        <label class="md:col-span-2">
+            <input type="checkbox" name="incident_auto_action_device_cluster_device_ban_enabled" value="1"
+                {{ old('incident_auto_action_device_cluster_device_ban_enabled', $incidentAutoActionSettings['device_cluster']['device_ban_enabled']) ? 'checked' : '' }}>
+            Device Cluster: automatische Geräte-Sperre
         </label>
 
         <div>

@@ -2,11 +2,12 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin\security.php
 // Purpose: Admin Security routes (overview, events, bans, settings)
-// Changed: 09-03-2026 04:14 (Europe/Berlin)
-// Version: 1.1
+// Changed: 25-03-2026 02:01 (Europe/Berlin)
+// Version: 1.5
 // ============================================================================
 
 use App\Http\Controllers\Admin\AdminSecurityController;
+use App\Http\Controllers\Admin\Security\IncidentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('security', [AdminSecurityController::class, 'overview'])
@@ -14,10 +15,6 @@ Route::get('security', [AdminSecurityController::class, 'overview'])
 
 Route::get('security/events', [AdminSecurityController::class, 'events'])
     ->name('security.events.index');
-
-Route::post('security/events/purge', [AdminSecurityController::class, 'purgeEvents'])
-    ->middleware(['ensure.admin.stepup', 'password.confirm'])
-    ->name('security.events.purge');
 
 Route::get('security/ip-bans', [AdminSecurityController::class, 'ipBans'])
     ->name('security.ip_bans.index');
@@ -47,6 +44,16 @@ Route::get('security/device-bans', [AdminSecurityController::class, 'deviceBans'
 Route::post('security/device-bans', [AdminSecurityController::class, 'storeDeviceBan'])
     ->middleware(['ensure.admin.stepup', 'password.confirm'])
     ->name('security.device_bans.store');
+
+Route::post('security/incidents/{id}/apply-actions', [IncidentController::class, 'applyActions'])
+    ->middleware(['ensure.admin.stepup', 'password.confirm'])
+    ->name('security.incidents.applyActions');
+
+Route::delete('security/incidents/{id}', [IncidentController::class, 'destroy'])
+    ->name('security.incidents.destroy');
+
+Route::post('security/incidents/bulk-delete', [IncidentController::class, 'bulkDelete'])
+    ->name('security.incidents.bulkDelete');
 
 Route::delete('security/device-bans/{id}', [AdminSecurityController::class, 'destroyDeviceBan'])
     ->middleware(['ensure.admin.stepup', 'password.confirm'])

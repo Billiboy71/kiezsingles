@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\events\index.blade.php
 // Purpose: Admin Security - Security events log with filters
-// Changed: 12-03-2026 16:31 (Europe/Berlin)
-// Version: 1.7
+// Changed: 27-03-2026 00:25 (Europe/Berlin)
+// Version: 1.9
 // ============================================================================
 
 ?>
@@ -112,28 +112,6 @@
             <button form="events-filter-form" class="ks-btn" type="submit">
                 Filtern
             </button>
-
-            <form method="POST" action="{{ route('admin.security.events.purge') }}" class="flex items-end gap-2">
-                @csrf
-
-                <input type="hidden" name="type" value="{{ $filters['type'] }}">
-                <input type="hidden" name="ip" value="{{ $filters['ip'] }}">
-                <input type="hidden" name="email" value="{{ $filters['email'] }}">
-                <input type="hidden" name="support_ref" value="{{ $filters['support_ref'] }}">
-                <input type="hidden" name="device_hash" value="{{ $filters['device_hash'] }}">
-                <input type="hidden" name="date_from" value="{{ $filters['date_from'] }}">
-                <input type="hidden" name="date_to" value="{{ $filters['date_to'] }}">
-                <input type="hidden" name="per_page" value="{{ (int) $perPage }}">
-
-                <div>
-                    <label class="block text-sm">Bestätigung</label>
-                    <input class="w-28" type="text" name="confirm" placeholder="DELETE" required>
-                </div>
-
-                <button class="ks-btn" type="submit">
-                    Ereignisse löschen
-                </button>
-            </form>
         </div>
     </div>
 
@@ -261,6 +239,7 @@
                             </thead>
                             <tbody>
                                 @forelse($correlationSummary['top_devices'] as $row)
+                                    @continue($row->aggregate_count < 3)
                                     <tr>
                                         <td class="px-2 py-1 align-top break-all">
                                             <a class="underline" href="{{ route('admin.security.events.index', array_merge(request()->query(), ['device_hash' => $row->device_hash])) }}">
@@ -296,6 +275,7 @@
                             </thead>
                             <tbody>
                                 @forelse($correlationSummary['top_emails'] as $row)
+                                    @continue($row->aggregate_count < 3)
                                     <tr>
                                         <td class="px-2 py-1 align-top break-all">
                                             <a class="underline" href="{{ route('admin.security.events.index', array_merge(request()->query(), ['email' => $row->email])) }}">
@@ -331,6 +311,7 @@
                             </thead>
                             <tbody>
                                 @forelse($correlationSummary['top_ips'] as $row)
+                                    @continue($row->aggregate_count < 3)
                                     <tr>
                                         <td class="px-2 py-1 align-top break-all">
                                             <a class="underline" href="{{ route('admin.security.events.index', array_merge(request()->query(), ['ip' => $row->ip])) }}">
@@ -384,6 +365,7 @@
                                 </thead>
                                 <tbody>
                                     @forelse($deviceCorrelation['emails_for_device'] as $row)
+                                        @continue($row->aggregate_count < 3)
                                         <tr>
                                             <td class="px-2 py-1 align-top break-all">
                                                 <a class="underline" href="{{ route('admin.security.events.index', array_merge(request()->query(), ['email' => $row->email])) }}">
@@ -421,6 +403,7 @@
                                 </thead>
                                 <tbody>
                                     @forelse($deviceCorrelation['ips_for_device'] as $row)
+                                        @continue($row->aggregate_count < 3)
                                         <tr>
                                             <td class="px-2 py-1 align-top break-all">
                                                 <a class="underline" href="{{ route('admin.security.events.index', array_merge(request()->query(), ['ip' => $row->ip])) }}">
@@ -460,6 +443,7 @@
                                 </thead>
                                 <tbody>
                                     @forelse($deviceCorrelation['devices_for_email'] as $row)
+                                        @continue($row->aggregate_count < 3)
                                         <tr>
                                             <td class="px-2 py-1 align-top break-all">
                                                 <a class="underline" href="{{ route('admin.security.events.index', array_merge(request()->query(), ['device_hash' => $row->device_hash])) }}">
@@ -499,6 +483,7 @@
                                 </thead>
                                 <tbody>
                                     @forelse($deviceCorrelation['devices_for_ip'] as $row)
+                                        @continue($row->aggregate_count < 3)
                                         <tr>
                                             <td class="px-2 py-1 align-top break-all">
                                                 <a class="underline" href="{{ route('admin.security.events.index', array_merge(request()->query(), ['device_hash' => $row->device_hash])) }}">

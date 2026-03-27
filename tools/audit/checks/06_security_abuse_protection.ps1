@@ -5,8 +5,8 @@ $ErrorActionPreference = "Stop"
 # File: C:\laragon\www\kiezsingles\tools\audit\checks\06_security_abuse_protection.ps1
 # Purpose: Audit check - security / abuse protection block (active probes + evidence)
 # Created: 01-03-2026 13:20 (Europe/Berlin)
-# Changed: 21-03-2026 15:16 (Europe/Berlin)
-# Version: 1.1
+# Changed: 22-03-2026 20:37 (Europe/Berlin)
+# Version: 1.2
 # =============================================================================
 
 function Invoke-KsAuditCheck_SecurityAbuseProtection {
@@ -404,125 +404,10 @@ function Invoke-KsAuditCheck_SecurityAbuseProtection {
     $data["matched_patterns"] = @($keywords)
 
     # A
-    $sa = [System.Diagnostics.Stopwatch]::StartNew()
-    if (-not $probe) {
-        AddSub $sub "Security Login Rate Limit" "SKIP" "SecurityProbe=false (active probe disabled)." 0 @("Active probe disabled by SecurityProbe=false.")
-    }
-    else {
-        $jar = New-CurlJar "login_probe"
-        $cookieJar = $jar.jar
-
-        $g = Curl-Req "$baseUrl/login" "GET" $cookieJar $null 3 12
-        if (-not $g.ok) {
-            $sa.Stop()
-            AddSub $sub "Security Login Rate Limit" "FAIL" ("GET /login failed: " + $g.error) ([int]$sa.ElapsedMilliseconds) @("GET /login request error: " + $g.error)
-        }
-        else {
-            $tok = ""
-            try { $m = [regex]::Match(("" + $g.content), 'name\s*=\s*"[_]?token"\s+value\s*=\s*"([^"]+)"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase); if ($m.Success) { $tok = ("" + $m.Groups[1].Value) } } catch { $tok = "" }
-
-            if ($tok -eq "") {
-                $sa.Stop()
-                AddSub $sub "Security Login Rate Limit" "FAIL" "GET /login did not expose _token." ([int]$sa.ElapsedMilliseconds) @("CSRF token missing in GET /login response.")
-            }
-            else {
-                $sig = ""
-                $found = $false
-                $hit419 = $false
-                $trace = New-Object System.Collections.Generic.List[string]
-
-                for ($i = 1; $i -le $probeTries; $i++) {
-                    $p = @{
-                        _token   = $tok
-                        email    = $probeEmail
-                        password = "definitely-wrong-password"
-                    }
-
-                    $r = Curl-Req "$baseUrl/login" "POST" $cookieJar $p 0 12
-                    $postStatus = "n/a"
-                    try { if ($null -ne $r.status) { $postStatus = [int]$r.status } } catch { $postStatus = "n/a" }
-
-                    if (-not $r.ok) {
-                        $trace.Add(("try#${i}: post_status=0 request_error")) | Out-Null
-                        $sig = "request_error: $($r.error)"
-                        break
-                    }
-
-                    if ([int]$r.status -eq 419) {
-                        $hit419 = $true
-                        $sig = "csrf_419"
-                        $trace.Add(("try#${i}: post_status=419")) | Out-Null
-                        break
-                    }
-
-                    $h = Curl-Req "$baseUrl/login" "GET" $cookieJar $null 3 12
-                    $getStatus = "n/a"
-                    try { if ($null -ne $h.status) { $getStatus = [int]$h.status } } catch { $getStatus = "n/a" }
-
-                    $trace.Add(("try#${i}: post_status=$postStatus get_status=$getStatus")) | Out-Null
-
-                    if (-not $h.ok) {
-                        $sig = "request_error: $($h.error)"
-                        break
-                    }
-
-                    if (HasKw ("" + $h.content + " " + $r.location + " " + $r.content) $keywords) { $found = $true; $sig = "keyword at attempt $i"; break }
-                    if ([int]$r.status -in @(429, 423, 403)) { $found = $true; $sig = "$($r.status) at attempt $i"; break }
-                }
-
-                $sa.Stop()
-                $data["login_probe_trace"] = @($trace.ToArray())
-
-                $ev = @(
-                    "ProbeEmail: $probeEmail",
-                    "HTTP Status history: " + (($trace.ToArray()) -join " | "),
-                    "MatchedPatterns: " + (($keywords | ForEach-Object { "" + $_ }) -join ", "),
-                    "ConfiguredAttempts: $attempts; ProbeTries: $probeTries; ExpectedAttemptLimit: " + $(if ($null -eq $expectedAttemptLimit) { "n/a" } else { [int]$expectedAttemptLimit })
-                )
-
-                if ($hit419) {
-                    AddSub $sub "Security Login Rate Limit" "FAIL" "Probe invalid: POST /login returned 419 (csrf_419)." ([int]$sa.ElapsedMilliseconds) ($ev + @("419 reason: CSRF/session mismatch during active probe."))
-                }
-                elseif ($found -and $expect429 -and ($sig -notmatch '^429')) {
-                    AddSub $sub "Security Login Rate Limit" "WARN" ("Lockout signal detected, but no 429 while SecurityExpect429=true ($sig).") ([int]$sa.ElapsedMilliseconds) ($ev + @("Expected explicit 429 but observed: " + $sig))
-                }
-                elseif ($found) {
-                    AddSub $sub "Security Login Rate Limit" "OK" ("Lockout after <= $probeTries attempts ($sig).") ([int]$sa.ElapsedMilliseconds) ($ev + @("Lockout signal: " + $sig))
-                }
-                elseif ($sig -like "request_error:*") {
-                    AddSub $sub "Security Login Rate Limit" "FAIL" ("Probe failed: $sig") ([int]$sa.ElapsedMilliseconds) ($ev + @("Request error encountered."))
-                }
-                else {
-                    AddSub $sub "Security Login Rate Limit" "FAIL" ("No throttle/lockout signal after $probeTries failed logins.") ([int]$sa.ElapsedMilliseconds) ($ev + @("No lockout/keyword signal found."))
-                }
-            }
-        }
-    }
+    AddSub $sub "Security Login Rate Limit" "SKIP" "Read-only audit: active /login POST probe removed." 0 @("Read-only mode: no /login POST loops, no rate-limit or lockout simulation.")
 
     # B
-    $sb = [System.Diagnostics.Stopwatch]::StartNew()
-    if (-not $probe) { AddSub $sub "Security IP Ban" "SKIP" "SecurityProbe=false (active probe disabled)." 0 @("Active probe disabled by SecurityProbe=false.") }
-    elseif (-not $checkIpBan) { AddSub $sub "Security IP Ban" "SKIP" "SecurityCheckIpBan=false." 0 @("IP ban check disabled by SecurityCheckIpBan=false.") }
-    else {
-        $e = TblExists "security_ip_bans"; $ipBanExists = ($e.ok -and $e.exists); $ipBanCount = 0
-        if ($ipBanExists) { $c = TblCount "security_ip_bans"; if ($c.ok) { $ipBanCount = [int]$c.count } }
-        $ok = $false; $sig = ""; $err = ""
-        $ipTrace = New-Object System.Collections.Generic.List[string]
-        foreach ($u in @("$baseUrl/login", "$baseUrl/")) {
-            $r = Req $u "GET" $null $null 0
-            if ($r.ok) { $ipTrace.Add(("GET $u => " + [int]$r.status)) | Out-Null } else { $ipTrace.Add(("GET $u => request_error")) | Out-Null }
-            if (-not $r.ok) { $err = $r.error; continue }
-            if ([int]$r.status -eq 403) { $ok = $true; $sig = "403 on $u"; break }
-            if ((("" + $r.content + " " + $r.location).ToLowerInvariant()) -match '\b(ip[\s_-]?ban|banned|blocked|forbidden)\b') { $ok = $true; $sig = "ban keyword on $u"; break }
-        }
-        $sb.Stop()
-        $evIp = @("HTTP Status history: " + (($ipTrace.ToArray()) -join " | "), "security_ip_bans records: " + $ipBanCount)
-        if ($ok) { AddSub $sub "Security IP Ban" "OK" ("Enforcement visible ($sig).") ([int]$sb.ElapsedMilliseconds) ($evIp + @("Signal: " + $sig)) }
-        elseif ($ipBanExists -and $ipBanCount -gt 0) { AddSub $sub "Security IP Ban" "WARN" ("Ban records exist ($ipBanCount), but enforcement not visible.") ([int]$sb.ElapsedMilliseconds) ($evIp + @("Ban records exist without visible enforcement signal.")) }
-        elseif ($e.ok -and -not $e.exists) { AddSub $sub "Security IP Ban" "SKIP" "security_ip_bans table not present; mechanism appears disabled." ([int]$sb.ElapsedMilliseconds) ($evIp + @("security_ip_bans table not present.")) }
-        elseif ($err -ne "") { AddSub $sub "Security IP Ban" "WARN" ("Probe request issue: $err") ([int]$sb.ElapsedMilliseconds) ($evIp + @("Request error: " + $err)) }
-        else { AddSub $sub "Security IP Ban" "WARN" "Not enforced or not configured." ([int]$sb.ElapsedMilliseconds) $evIp }
-    }
+    AddSub $sub "Security IP Ban" "SKIP" "Read-only audit: active HTTP ban probe removed." 0 @("Read-only mode: no active HTTP checks that could trigger ban enforcement.")
 
     # C
     $sc = [System.Diagnostics.Stopwatch]::StartNew()
@@ -630,48 +515,7 @@ function Invoke-KsAuditCheck_SecurityAbuseProtection {
     $sd.Stop(); if ($failed) { AddSub $sub "Security Tables" "FAIL" (($tDet.ToArray()) -join "; ") ([int]$sd.ElapsedMilliseconds) @($tDet.ToArray()) } else { AddSub $sub "Security Tables" "OK" (($tDet.ToArray()) -join "; ") ([int]$sd.ElapsedMilliseconds) @($tDet.ToArray()) }
 
     # E
-    $se = [System.Diagnostics.Stopwatch]::StartNew()
-    if (-not $probe) { AddSub $sub "Security Registration Abuse" "SKIP" "SecurityProbe=false (active probe disabled)." 0 @("Active probe disabled by SecurityProbe=false.") }
-    elseif (-not $checkReg) { AddSub $sub "Security Registration Abuse" "SKIP" "SecurityCheckRegister=false." 0 @("Registration check disabled by SecurityCheckRegister=false.") }
-    else {
-        $hasReg = $false; try { $rl = & $run $root @("route:list", "--path=register", "--no-ansi", "--no-interaction") 60; if (("" + $rl.StdOut) -match '\bregister\b') { $hasReg = $true } } catch { $hasReg = $false }
-        if (-not $hasReg) { $se.Stop(); AddSub $sub "Security Registration Abuse" "SKIP" "/register route not present." ([int]$se.ElapsedMilliseconds) @("/register route not found in route:list output.") }
-        else {
-            $jar = New-CurlJar "register_probe"
-            $cookieJar = $jar.jar
-
-            $g = Curl-Req "$baseUrl/register" "GET" $cookieJar $null 3 12
-            if (-not $g.ok) {
-                $se.Stop()
-                AddSub $sub "Security Registration Abuse" "WARN" ("GET /register failed: " + $g.error) ([int]$se.ElapsedMilliseconds) @("GET /register request error: " + $g.error)
-            }
-            else {
-                $tok = ""; try { $m = [regex]::Match(("" + $g.content), 'name\s*=\s*"[_]?token"\s+value\s*=\s*"([^"]+)"', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase); if ($m.Success) { $tok = ("" + $m.Groups[1].Value) } } catch { $tok = "" }
-                if ($tok -eq "") {
-                    $se.Stop()
-                    AddSub $sub "Security Registration Abuse" "WARN" "GET /register did not expose _token." ([int]$se.ElapsedMilliseconds) @("CSRF token missing in GET /register response.")
-                }
-                else {
-                    $hit429 = $false; $hit419 = $false; $kwHit = $false
-                    $regTrace = New-Object System.Collections.Generic.List[string]
-                    for ($i = 1; $i -le 6; $i++) {
-                        $r = Curl-Req "$baseUrl/register" "POST" $cookieJar @{ _token = $tok; name = "Audit Probe"; email = ("invalid-email-" + $i); password = "short"; password_confirmation = "different" } 0 12
-                        if ($r.ok) { $regTrace.Add(("try#${i}: status=" + $(if ($null -eq $r.status) { "n/a" } else { [int]$r.status }))) | Out-Null } else { $regTrace.Add(("try#${i}: request_error")) | Out-Null }
-                        if (-not $r.ok) { continue }
-                        if ([int]$r.status -eq 419) { $hit419 = $true; break }
-                        if ([int]$r.status -eq 429) { $hit429 = $true; break }
-                        if (HasKw ("" + $r.content + " " + $r.location) $keywords) { $kwHit = $true; break }
-                    }
-                    $data["register_probe_trace"] = @($regTrace.ToArray())
-                    $se.Stop()
-                    $evReg = @("HTTP Status history: " + (($regTrace.ToArray()) -join " | "), "MatchedPatterns: " + (($keywords | ForEach-Object { "" + $_ }) -join ", "))
-                    if ($hit419) { AddSub $sub "Security Registration Abuse" "WARN" "Probe invalid: POST /register returned 419 (csrf_419)." ([int]$se.ElapsedMilliseconds) ($evReg + @("419 reason: CSRF/session mismatch during active probe.")) }
-                    elseif ($hit429 -or $kwHit) { AddSub $sub "Security Registration Abuse" "OK" "Protection signal detected (429/lockout keyword)." ([int]$se.ElapsedMilliseconds) ($evReg + @("Signal: " + $(if ($hit429) { "429" } else { "keyword" }))) }
-                    else { AddSub $sub "Security Registration Abuse" "WARN" "No abuse-protection signal within 6 attempts." ([int]$se.ElapsedMilliseconds) ($evReg + @("No lockout/keyword signal found.")) }
-                }
-            }
-        }
-    }
+    AddSub $sub "Security Registration Abuse" "SKIP" "Read-only audit: active /register POST probe removed." 0 @("Read-only mode: no /register POST simulations, no abuse-protection triggering attempts.")
 
     $ok = 0; $warn = 0; $fail = 0; $skip = 0
     foreach ($s in @($sub.ToArray())) {

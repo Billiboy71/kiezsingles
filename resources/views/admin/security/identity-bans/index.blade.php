@@ -2,11 +2,26 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\identity-bans\index.blade.php
 // Purpose: Admin Security - Manage identity bans (email-based bans with optional TTL)
-// Changed: 06-03-2026 22:27 (Europe/Berlin)
-// Version: 0.5
+// Changed: 24-03-2026 11:04 (Europe/Berlin)
+// Version: 0.8
 // ============================================================================
 
 ?>
+@php
+    if (!function_exists('extractIncidentId')) {
+        function extractIncidentId($reason) {
+            if (!$reason) {
+                return null;
+            }
+
+            if (preg_match('/Incident\s+#?\s*(\d+)/i', $reason, $matches)) {
+                return $matches[1];
+            }
+
+            return null;
+        }
+    }
+@endphp
 @extends('admin.layouts.admin')
 
 @section('content')
@@ -91,7 +106,31 @@
             @forelse($identityBans as $ban)
                 <tr>
                     <td class="px-3 py-2 align-top">{{ $ban->email }}</td>
-                    <td class="px-3 py-2 align-top max-w-[420px] break-words">{{ $ban->reason }}</td>
+                    <td class="px-3 py-2 align-top max-w-[420px] break-words">
+                        @php $incidentId = extractIncidentId($ban->reason); @endphp
+
+                        @if($incidentId)
+                            <a href="{{ route('admin.security.incidents.show', $incidentId) }}">
+                                {{ $ban->reason }}
+                            </a>
+                        @else
+                            {{ $ban->reason }}
+                        @endif
+
+                        <div class="mt-1 text-xs text-gray-600">
+                            {{ $ban->created_at ?? '-' }}
+                            |
+                            @if($ban->created_by_user_name)
+                                {{ $ban->created_by_user_name }}
+                            @elseif($ban->created_by_user_email)
+                                {{ $ban->created_by_user_email }}
+                            @elseif($ban->created_by)
+                                User #{{ $ban->created_by }}
+                            @else
+                                System
+                            @endif
+                        </div>
+                    </td>
                     <td class="px-3 py-2 align-top whitespace-nowrap">{{ $ban->banned_until }}</td>
                     <td class="px-3 py-2 align-top whitespace-nowrap">
                         <form method="POST" action="{{ route('admin.security.identity_bans.destroy', $ban->id) }}">

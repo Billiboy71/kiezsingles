@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\ks-security-browserfirst-check.ps1
 # Purpose: Browser-first Security Login/Ban evidence check via PowerShell (no audit-tool)
 # Created: 05-03-2026 01:19 (Europe/Berlin)
-# Changed: 22-03-2026 13:18 (Europe/Berlin)
-# Version: 8.6
+# Changed: 27-03-2026 00:51 (Europe/Berlin)
+# Version: 8.7
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -37,6 +37,7 @@ Import-Module "$PSScriptRoot\modules\auth\ks-login-attempt.psm1" -Force -Disable
 . "$PSScriptRoot\modules\checks\check-session-reuse.ps1"
 . "$PSScriptRoot\modules\checks\check-account-enumeration.ps1"
 . "$PSScriptRoot\modules\checks\check-security-event-logging.ps1"
+. "$PSScriptRoot\modules\checks\ks-incident-validation.ps1"
 
 # DEBUG: anzeigen welche Version geladen wurde
 try {
@@ -1538,6 +1539,7 @@ function Invoke-SessionSecurityChecks {
     [void]$checks.Add((Invoke-SessionReuseProtectionCheck))
     [void]$checks.Add((Invoke-AccountEnumerationProtectionCheck))
     [void]$checks.Add((Invoke-SecurityEventLoggingCheck))
+    [void]$checks.Add((Invoke-KsAuditCheck_IncidentValidation -BaseUrl $script:BaseUrl))
 
     return @($checks.ToArray())
 }
@@ -3231,6 +3233,20 @@ if ($CheckAbuseSimulation -and $null -ne $abuseSimulationResult) {
 
 if (@($sessionSecurityChecks).Count -gt 0) {
     Write-SessionSecurityChecksSummary -Checks $sessionSecurityChecks
+}
+
+$incidentValidation = @($sessionSecurityChecks | Where-Object { $_.CheckName -eq "IncidentRiskActionValidation" } | Select-Object -First 1)
+if ($incidentValidation.Count -gt 0) {
+    Write-Host ""
+    Write-Host "======================================================================"
+    Write-Host "INCIDENT VALIDATION SUMMARY"
+    Write-Host "======================================================================"
+
+    $incidentValidationData = $incidentValidation[0].Data
+
+    Write-Host ("Incident detected: {0}" -f $incidentValidationData.IncidentDetected)
+    Write-Host ("Risk score valid: {0}" -f $incidentValidationData.RiskScoreValid)
+    Write-Host ("Action present:   {0}" -f $incidentValidationData.ActionPresent)
 }
 
 if ($AdminValidationEnabled -and $null -ne $abuseAdminValidationResult) {

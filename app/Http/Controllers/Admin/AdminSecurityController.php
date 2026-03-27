@@ -2,8 +2,8 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\app\Http\Controllers\Admin\AdminSecurityController.php
 // Purpose: Admin Security controller (overview, events, bans, settings, event purge)
-// Changed: 12-03-2026 16:31 (Europe/Berlin)
-// Version: 1.6
+// Changed: 27-03-2026 00:51 (Europe/Berlin)
+// Version: 2.5
 // ============================================================================
 
 namespace App\Http\Controllers\Admin;
@@ -17,11 +17,14 @@ use App\Models\SecurityIpBan;
 use App\Models\User;
 use App\Services\Security\SecurityAllowlistService;
 use App\Services\Security\SecuritySettingsService;
+use App\Support\SystemSettingHelper;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class AdminSecurityController extends Controller
@@ -35,13 +38,25 @@ class AdminSecurityController extends Controller
     {
         $failedLogins24h = SecurityEvent::query()
             ->where('type', 'login_failed')
-            ->where('created_at', '>=', now()->subDay())
+            ->where('created_at', '>=', now()->subHours(24))
             ->count();
 
-        $activeIpBans = SecurityIpBan::query()->active()->count();
+        $activeIpBans = SecurityIpBan::query()
+            ->active()
+            ->where('created_at', '>=', now()->subHours(24))
+            ->where('reason', 'like', 'Incident%')
+            ->count();
 
-        $activeIdentityBans = SecurityIdentityBan::query()->active()->count();
-        $activeDeviceBans = SecurityDeviceBan::query()->active()->count();
+        $activeIdentityBans = SecurityIdentityBan::query()
+            ->active()
+            ->where('created_at', '>=', now()->subHours(24))
+            ->where('reason', 'like', 'Incident%')
+            ->count();
+        $activeDeviceBans = SecurityDeviceBan::query()
+            ->active()
+            ->where('created_at', '>=', now()->subHours(24))
+            ->where('reason', 'like', 'Incident%')
+            ->count();
 
         $frozenAccounts = User::query()->where('is_frozen', true)->count();
 
@@ -59,6 +74,7 @@ class AdminSecurityController extends Controller
             ->selectRaw('device_hash, COUNT(*) as aggregate_count')
             ->whereNotNull('device_hash')
             ->where('device_hash', '!=', '')
+            ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked'])
             ->where('created_at', '>=', now()->subDay())
             ->groupBy('device_hash')
             ->orderByDesc('aggregate_count')
@@ -80,8 +96,10 @@ class AdminSecurityController extends Controller
             ->selectRaw('device_hash, COUNT(*) as aggregate_count, COUNT(DISTINCT email) as email_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
             ->whereNotNull('device_hash')
             ->where('device_hash', '!=', '')
-            ->where('created_at', '>=', now()->subDay())
+            ->whereIn('type', ['login_failed', 'login_lockout'])
+            ->where('created_at', '>=', now()->subHours(24))
             ->groupBy('device_hash')
+            ->havingRaw('COUNT(*) >= 5 AND (COUNT(DISTINCT email) >= 2 OR COUNT(DISTINCT ip) >= 2)')
             ->orderByDesc('email_count')
             ->orderByDesc('ip_count')
             ->orderByDesc('aggregate_count')
@@ -93,14 +111,49 @@ class AdminSecurityController extends Controller
             ->selectRaw('email, COUNT(*) as aggregate_count, COUNT(DISTINCT device_hash) as device_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
             ->whereNotNull('email')
             ->where('email', '!=', '')
-            ->where('created_at', '>=', now()->subDay())
+            ->whereIn('type', ['login_failed', 'login_lockout'])
+            ->where('created_at', '>=', now()->subHours(24))
             ->groupBy('email')
+            ->havingRaw('COUNT(*) >= 5 AND (COUNT(DISTINCT device_hash) >= 2 OR COUNT(DISTINCT ip) >= 2)')
             ->orderByDesc('device_count')
             ->orderByDesc('ip_count')
             ->orderByDesc('aggregate_count')
             ->orderByDesc('last_seen_at')
             ->limit(5)
             ->get();
+
+        $incidentStats = (object) [
+            'total' => 0,
+            'open' => 0,
+            'in_progress' => 0,
+            'resolved' => 0,
+        ];
+
+        $highIncidents = 0;
+        $latestIncidents = collect();
+
+        if (Schema::hasTable('security_incidents')) {
+            $incidentStats = DB::table('security_incidents')
+                ->selectRaw("
+                    COUNT(*) as total,
+                    SUM(CASE WHEN action_status IS NULL THEN 1 ELSE 0 END) as open,
+                    SUM(CASE WHEN action_status = 'escalated' THEN 1 ELSE 0 END) as in_progress,
+                    SUM(CASE WHEN action_status = 'reviewed' THEN 1 ELSE 0 END) as resolved
+                ")
+                ->first();
+
+            $highIncidents = DB::table('security_incidents')
+                ->whereNull('action_status')
+                ->where('event_count', '>=', 100)
+                ->count();
+
+            $latestIncidents = DB::table('security_incidents')
+                ->select('id', 'type', 'event_count')
+                ->whereNull('action_status')
+                ->orderByDesc('event_count')
+                ->limit(5)
+                ->get();
+        }
 
         return view('admin.security.overview', [
             'adminTab' => 'security',
@@ -114,6 +167,9 @@ class AdminSecurityController extends Controller
             'topSuspiciousEmails' => $topSuspiciousEmails,
             'topCorrelatedDevices' => $topCorrelatedDevices,
             'topCorrelatedEmails' => $topCorrelatedEmails,
+            'incidentStats' => $incidentStats,
+            'highIncidents' => $highIncidents,
+            'latestIncidents' => $latestIncidents,
         ]);
     }
 
@@ -157,6 +213,7 @@ class AdminSecurityController extends Controller
                 SecurityEvent::query()
                     ->selectRaw('email, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
                     ->where('device_hash', $deviceHash)
+                    ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked'])
                     ->whereNotNull('email')
                     ->where('email', '!=', ''),
                 $request,
@@ -172,6 +229,7 @@ class AdminSecurityController extends Controller
                 SecurityEvent::query()
                     ->selectRaw('ip, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
                     ->where('device_hash', $deviceHash)
+                    ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked'])
                     ->whereNotNull('ip')
                     ->where('ip', '!=', ''),
                 $request,
@@ -189,6 +247,7 @@ class AdminSecurityController extends Controller
                 SecurityEvent::query()
                     ->selectRaw('device_hash, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
                     ->where('email', $email)
+                    ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked'])
                     ->whereNotNull('device_hash')
                     ->where('device_hash', '!=', ''),
                 $request,
@@ -206,6 +265,7 @@ class AdminSecurityController extends Controller
                 SecurityEvent::query()
                     ->selectRaw('device_hash, COUNT(*) as aggregate_count, MAX(created_at) as last_seen_at')
                     ->where('ip', $ip)
+                    ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked'])
                     ->whereNotNull('device_hash')
                     ->where('device_hash', '!=', ''),
                 $request,
@@ -223,11 +283,13 @@ class AdminSecurityController extends Controller
                 SecurityEvent::query()
                     ->selectRaw('device_hash, COUNT(*) as aggregate_count, COUNT(DISTINCT email) as email_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
                     ->whereNotNull('device_hash')
-                    ->where('device_hash', '!=', ''),
+                    ->where('device_hash', '!=', '')
+                    ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked']),
                 $request,
                 ['device_hash']
             )
                 ->groupBy('device_hash')
+                ->havingRaw('COUNT(*) >= 5 AND (COUNT(DISTINCT email) >= 2 OR COUNT(DISTINCT ip) >= 2)')
                 ->orderByDesc('email_count')
                 ->orderByDesc('ip_count')
                 ->orderByDesc('aggregate_count')
@@ -239,11 +301,13 @@ class AdminSecurityController extends Controller
                 SecurityEvent::query()
                     ->selectRaw('email, COUNT(*) as aggregate_count, COUNT(DISTINCT device_hash) as device_count, COUNT(DISTINCT ip) as ip_count, MAX(created_at) as last_seen_at')
                     ->whereNotNull('email')
-                    ->where('email', '!=', ''),
+                    ->where('email', '!=', '')
+                    ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked']),
                 $request,
                 ['email']
             )
                 ->groupBy('email')
+                ->havingRaw('COUNT(*) >= 5 AND (COUNT(DISTINCT device_hash) >= 2 OR COUNT(DISTINCT ip) >= 2)')
                 ->orderByDesc('device_count')
                 ->orderByDesc('ip_count')
                 ->orderByDesc('aggregate_count')
@@ -255,11 +319,13 @@ class AdminSecurityController extends Controller
                 SecurityEvent::query()
                     ->selectRaw('ip, COUNT(*) as aggregate_count, COUNT(DISTINCT device_hash) as device_count, COUNT(DISTINCT email) as email_count, MAX(created_at) as last_seen_at')
                     ->whereNotNull('ip')
-                    ->where('ip', '!=', ''),
+                    ->where('ip', '!=', '')
+                    ->whereIn('type', ['login_failed', 'login_lockout', 'ip_blocked', 'identity_blocked', 'device_blocked']),
                 $request,
                 ['ip']
             )
                 ->groupBy('ip')
+                ->havingRaw('COUNT(*) >= 5 AND (COUNT(DISTINCT email) >= 2 OR COUNT(DISTINCT device_hash) >= 2)')
                 ->orderByDesc('device_count')
                 ->orderByDesc('email_count')
                 ->orderByDesc('aggregate_count')
@@ -333,31 +399,6 @@ class AdminSecurityController extends Controller
         ]);
     }
 
-    public function purgeEvents(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'confirm' => ['required', 'string'],
-            'type' => ['nullable', 'string', 'max:100'],
-            'ip' => ['nullable', 'string', 'max:100'],
-            'email' => ['nullable', 'string', 'max:255'],
-            'device_hash' => ['nullable', 'string', 'max:128'],
-            'support_ref' => ['nullable', 'string', 'regex:/^SEC-[A-Z0-9]{6,8}$/'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
-        ]);
-
-        if (trim((string) $validated['confirm']) !== 'DELETE') {
-            return redirect()->route('admin.security.events.index')->with('admin_notice', 'Löschen abgebrochen (Confirm muss "DELETE" sein).');
-        }
-
-        $query = SecurityEvent::query();
-        $this->applySecurityEventFilters($query, new Request($validated));
-
-        $deleted = (int) $query->delete();
-
-        return redirect()->route('admin.security.events.index')->with('admin_notice', 'Security-Events gelöscht: '.$deleted);
-    }
-
     public function ipBans(): View
     {
         $perPage = (int) request()->query('per_page', 20);
@@ -366,6 +407,12 @@ class AdminSecurityController extends Controller
         }
 
         $ipBans = SecurityIpBan::query()
+            ->leftJoin('users', 'users.id', '=', 'security_ip_bans.created_by')
+            ->select(
+                'security_ip_bans.*',
+                'users.username as created_by_user_name',
+                'users.email as created_by_user_email'
+            )
             ->latest('id')
             ->paginate($perPage)
             ->appends(request()->query())
@@ -411,6 +458,14 @@ class AdminSecurityController extends Controller
             'created_by' => auth()->id(),
         ]);
 
+        if ($request->filled('incident_id') && Schema::hasTable('security_incidents') && Schema::hasColumn('security_incidents', 'action_status')) {
+            DB::table('security_incidents')
+                ->where('id', $request->incident_id)
+                ->update([
+                    'action_status' => 'reviewed',
+                ]);
+        }
+
         return redirect()->route('admin.security.ip_bans.index')->with('admin_notice', 'IP-Ban gespeichert.');
     }
 
@@ -429,6 +484,12 @@ class AdminSecurityController extends Controller
         }
 
         $identityBans = SecurityIdentityBan::query()
+            ->leftJoin('users', 'users.id', '=', 'security_identity_bans.created_by')
+            ->select(
+                'security_identity_bans.*',
+                'users.username as created_by_user_name',
+                'users.email as created_by_user_email'
+            )
             ->latest('id')
             ->paginate($perPage)
             ->appends(request()->query())
@@ -474,6 +535,14 @@ class AdminSecurityController extends Controller
             'created_by' => auth()->id(),
         ]);
 
+        if ($request->filled('incident_id') && Schema::hasTable('security_incidents') && Schema::hasColumn('security_incidents', 'action_status')) {
+            DB::table('security_incidents')
+                ->where('id', $request->incident_id)
+                ->update([
+                    'action_status' => 'reviewed',
+                ]);
+        }
+
         return redirect()->route('admin.security.identity_bans.index')->with('admin_notice', 'Identity-Ban gespeichert.');
     }
 
@@ -493,6 +562,12 @@ class AdminSecurityController extends Controller
 
         $deviceBans = SecurityDeviceBan::query()
             ->active()
+            ->leftJoin('users', 'users.id', '=', 'security_device_bans.created_by')
+            ->select(
+                'security_device_bans.*',
+                'users.username as created_by_user_name',
+                'users.email as created_by_user_email'
+            )
             ->latest('id')
             ->paginate($perPage)
             ->appends(request()->query())
@@ -538,6 +613,14 @@ class AdminSecurityController extends Controller
             'is_active' => true,
             'created_by' => auth()->id(),
         ]);
+
+        if ($request->filled('incident_id') && Schema::hasTable('security_incidents') && Schema::hasColumn('security_incidents', 'action_status')) {
+            DB::table('security_incidents')
+                ->where('id', $request->incident_id)
+                ->update([
+                    'action_status' => 'reviewed',
+                ]);
+        }
 
         return redirect()->route('admin.security.device_bans.index')->with('admin_notice', 'Geräte-Sperre gespeichert.');
     }
@@ -633,6 +716,8 @@ class AdminSecurityController extends Controller
         return view('admin.security.settings.edit', [
             'adminTab' => 'security',
             'settings' => $this->securitySettingsService->get(),
+            'incidentDetectionSettings' => $this->securitySettingsService->getIncidentDetectionSettings(),
+            'incidentAutoActionSettings' => $this->securitySettingsService->getIncidentAutoActionSettings(),
         ]);
     }
 
@@ -649,6 +734,52 @@ class AdminSecurityController extends Controller
             'device_autoban_seconds' => ['required', 'integer', 'min:60', 'max:31536000'],
             'admin_stricter_limits_enabled' => ['sometimes', 'boolean'],
             'stepup_required_enabled' => ['sometimes', 'boolean'],
+            'incidents_enabled' => ['sometimes', 'boolean'],
+            'incident_credential_stuffing_enabled' => ['sometimes', 'boolean'],
+            'incident_credential_stuffing_window_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_credential_stuffing_cooldown_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_credential_stuffing_min_distinct_emails' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_credential_stuffing_min_distinct_ips' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_credential_stuffing_linked_events_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_credential_stuffing_meta_sample_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_credential_stuffing_score_base' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_credential_stuffing_score_max' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_account_sharing_enabled' => ['sometimes', 'boolean'],
+            'incident_account_sharing_window_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_account_sharing_cooldown_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_account_sharing_min_distinct_devices' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_account_sharing_min_distinct_ips' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_account_sharing_linked_events_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_account_sharing_meta_sample_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_account_sharing_score_base' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_account_sharing_score_max' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_bot_pattern_enabled' => ['sometimes', 'boolean'],
+            'incident_bot_pattern_window_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_bot_pattern_cooldown_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_bot_pattern_min_events' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_bot_pattern_burst_min_events' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_bot_pattern_burst_min_distinct_emails' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_bot_pattern_burst_min_distinct_ips' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_bot_pattern_linked_events_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_bot_pattern_meta_sample_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_bot_pattern_score_base' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_bot_pattern_score_max' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_device_cluster_enabled' => ['sometimes', 'boolean'],
+            'incident_device_cluster_window_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_device_cluster_cooldown_minutes' => ['required', 'integer', 'min:1', 'max:10080'],
+            'incident_device_cluster_min_events' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_device_cluster_min_distinct_devices' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_device_cluster_min_distinct_emails' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_device_cluster_min_distinct_ips' => ['required', 'integer', 'min:1', 'max:100000'],
+            'incident_device_cluster_linked_events_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_device_cluster_meta_sample_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'incident_device_cluster_score_base' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_device_cluster_score_max' => ['required', 'integer', 'min:0', 'max:1000'],
+            'incident_auto_actions_enabled' => ['sometimes', 'boolean'],
+            'incident_auto_actions_update_incident_status' => ['sometimes', 'boolean'],
+            'incident_auto_action_credential_stuffing_identity_ban_enabled' => ['sometimes', 'boolean'],
+            'incident_auto_action_bot_pattern_ip_ban_enabled' => ['sometimes', 'boolean'],
+            'incident_auto_action_device_cluster_device_ban_enabled' => ['sometimes', 'boolean'],
         ]);
 
         $settings = $this->securitySettingsService->get();
@@ -667,6 +798,57 @@ class AdminSecurityController extends Controller
         ]);
 
         $settings->save();
+
+        SystemSettingHelper::set('incidents.enabled', $request->boolean('incidents_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.credential_stuffing.enabled', $request->boolean('incident_credential_stuffing_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.credential_stuffing.window_minutes', (int) $validated['incident_credential_stuffing_window_minutes'], 'int');
+        SystemSettingHelper::set('incidents.credential_stuffing.cooldown_minutes', (int) $validated['incident_credential_stuffing_cooldown_minutes'], 'int');
+        SystemSettingHelper::set('incidents.credential_stuffing.min_distinct_emails', (int) $validated['incident_credential_stuffing_min_distinct_emails'], 'int');
+        SystemSettingHelper::set('incidents.credential_stuffing.min_distinct_ips', (int) $validated['incident_credential_stuffing_min_distinct_ips'], 'int');
+        SystemSettingHelper::set('incidents.credential_stuffing.linked_events_limit', (int) $validated['incident_credential_stuffing_linked_events_limit'], 'int');
+        SystemSettingHelper::set('incidents.credential_stuffing.meta_sample_limit', (int) $validated['incident_credential_stuffing_meta_sample_limit'], 'int');
+        SystemSettingHelper::set('incidents.credential_stuffing.score_base', (int) $validated['incident_credential_stuffing_score_base'], 'int');
+        SystemSettingHelper::set('incidents.credential_stuffing.score_max', (int) $validated['incident_credential_stuffing_score_max'], 'int');
+
+        SystemSettingHelper::set('incidents.account_sharing.enabled', $request->boolean('incident_account_sharing_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.account_sharing.window_minutes', (int) $validated['incident_account_sharing_window_minutes'], 'int');
+        SystemSettingHelper::set('incidents.account_sharing.cooldown_minutes', (int) $validated['incident_account_sharing_cooldown_minutes'], 'int');
+        SystemSettingHelper::set('incidents.account_sharing.min_distinct_devices', (int) $validated['incident_account_sharing_min_distinct_devices'], 'int');
+        SystemSettingHelper::set('incidents.account_sharing.min_distinct_ips', (int) $validated['incident_account_sharing_min_distinct_ips'], 'int');
+        SystemSettingHelper::set('incidents.account_sharing.linked_events_limit', (int) $validated['incident_account_sharing_linked_events_limit'], 'int');
+        SystemSettingHelper::set('incidents.account_sharing.meta_sample_limit', (int) $validated['incident_account_sharing_meta_sample_limit'], 'int');
+        SystemSettingHelper::set('incidents.account_sharing.score_base', (int) $validated['incident_account_sharing_score_base'], 'int');
+        SystemSettingHelper::set('incidents.account_sharing.score_max', (int) $validated['incident_account_sharing_score_max'], 'int');
+
+        SystemSettingHelper::set('incidents.bot_pattern.enabled', $request->boolean('incident_bot_pattern_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.bot_pattern.window_minutes', (int) $validated['incident_bot_pattern_window_minutes'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.cooldown_minutes', (int) $validated['incident_bot_pattern_cooldown_minutes'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.min_events', (int) $validated['incident_bot_pattern_min_events'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.burst_min_events', (int) $validated['incident_bot_pattern_burst_min_events'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.burst_min_distinct_emails', (int) $validated['incident_bot_pattern_burst_min_distinct_emails'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.burst_min_distinct_ips', (int) $validated['incident_bot_pattern_burst_min_distinct_ips'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.linked_events_limit', (int) $validated['incident_bot_pattern_linked_events_limit'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.meta_sample_limit', (int) $validated['incident_bot_pattern_meta_sample_limit'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.score_base', (int) $validated['incident_bot_pattern_score_base'], 'int');
+        SystemSettingHelper::set('incidents.bot_pattern.score_max', (int) $validated['incident_bot_pattern_score_max'], 'int');
+
+        SystemSettingHelper::set('incidents.device_cluster.enabled', $request->boolean('incident_device_cluster_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.device_cluster.window_minutes', (int) $validated['incident_device_cluster_window_minutes'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.cooldown_minutes', (int) $validated['incident_device_cluster_cooldown_minutes'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.min_events', (int) $validated['incident_device_cluster_min_events'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.min_distinct_devices', (int) $validated['incident_device_cluster_min_distinct_devices'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.min_distinct_emails', (int) $validated['incident_device_cluster_min_distinct_emails'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.min_distinct_ips', (int) $validated['incident_device_cluster_min_distinct_ips'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.linked_events_limit', (int) $validated['incident_device_cluster_linked_events_limit'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.meta_sample_limit', (int) $validated['incident_device_cluster_meta_sample_limit'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.score_base', (int) $validated['incident_device_cluster_score_base'], 'int');
+        SystemSettingHelper::set('incidents.device_cluster.score_max', (int) $validated['incident_device_cluster_score_max'], 'int');
+
+        SystemSettingHelper::set('incidents.auto_actions.enabled', $request->boolean('incident_auto_actions_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.auto_actions.update_incident_status', $request->boolean('incident_auto_actions_update_incident_status'), 'bool');
+        SystemSettingHelper::set('incidents.auto_actions.credential_stuffing.identity_ban_enabled', $request->boolean('incident_auto_action_credential_stuffing_identity_ban_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.auto_actions.bot_pattern.ip_ban_enabled', $request->boolean('incident_auto_action_bot_pattern_ip_ban_enabled'), 'bool');
+        SystemSettingHelper::set('incidents.auto_actions.device_cluster.device_ban_enabled', $request->boolean('incident_auto_action_device_cluster_device_ban_enabled'), 'bool');
 
         return redirect()->route('admin.security.settings.edit')->with('admin_notice', 'Security-Settings gespeichert.');
     }

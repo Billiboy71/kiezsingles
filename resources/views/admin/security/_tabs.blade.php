@@ -1,22 +1,48 @@
 <?php
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\resources\views\admin\security\_tabs.blade.php
-// Purpose: Admin Security - Tabs navigation (active tab styled like header)
-// Changed: 12-03-2026 16:31 (Europe/Berlin)
-// Version: 0.5
+// Purpose: Admin Security - Tabs navigation (clean alert separation)
+// Changed: 27-03-2026 00:35 (Europe/Berlin)
+// Version: 1.8
 // ============================================================================
 
 $route = request()->route()?->getName();
+
+// Default
+$securityAlertClass = '';
+$incidentAlertClass = '';
+$eventAnalysisAlertClass = '';
+
+// INCIDENTS Alert
+if ($hasCriticalSecurityAlert ?? false) {
+    $incidentAlertClass = 'bg-red-700 text-white hover:bg-red-700 hover:text-white';
+} elseif ($hasSecurityAlert ?? false) {
+    $incidentAlertClass = 'bg-orange-500 text-white hover:bg-orange-500 hover:text-white';
+}
+
+// EVENT ANALYSIS Alert (nur Events/Korrelation)
+if (($hasEventAnalysisAlert ?? false) || ($hasEventAlert ?? false)) {
+    $eventAnalysisAlertClass = 'bg-red-700 text-white hover:bg-red-700 hover:text-white';
+}
+
+// ❌ WICHTIG: Security Overview bleibt neutral
+// (kein globales Rot mehr)
+
 ?>
 
 <div class="mb-4 flex flex-wrap gap-2">
 
-    <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.overview' ? 'ks-btn--active' : '' }}"
+    <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.overview' ? 'ks-btn--active bg-gray-900 text-white hover:bg-gray-800 hover:text-white' : $securityAlertClass }}"
        href="{{ route('admin.security.overview') }}">
         Security Overview
     </a>
 
-    <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.events.index' ? 'ks-btn--active' : '' }}"
+    <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.incidents.index' ? 'ks-btn--active bg-gray-900 text-white hover:bg-gray-800 hover:text-white' : $incidentAlertClass }}"
+       href="{{ route('admin.security.incidents.index') }}">
+        INCIDENTS
+    </a>
+
+    <a class="ks-btn ks-btn--tab {{ $route === 'admin.security.events.index' ? 'ks-btn--active bg-gray-900 text-white hover:bg-gray-800 hover:text-white' : $eventAnalysisAlertClass }}"
        href="{{ route('admin.security.events.index') }}">
         Event Analysis
     </a>

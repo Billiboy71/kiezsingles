@@ -2,8 +2,8 @@
 # File: C:\laragon\www\kiezsingles\tools\audit\ps\modules\checks\ks-abuse-admin-validation.psm1
 # Purpose: Abuse simulation correlation check against /admin/security/events
 # Created: 08-03-2026 03:06 (Europe/Berlin)
-# Changed: 20-03-2026 23:54 (Europe/Berlin)
-# Version: 3.5
+# Changed: 23-03-2026 20:46 (Europe/Berlin)
+# Version: 3.6
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -1533,6 +1533,150 @@ function Get-AbuseAdminValidationDbRecords {
     return @($records.ToArray())
 }
 
+function Get-AbuseAdminValidationExpectedIncidentType {
+    param(
+        [Parameter(Mandatory=$false)][string]$ScenarioName = ""
+    )
+
+    switch -Regex (($ScenarioName + "").Trim()) {
+        '^abuse_device_reuse$' { return 'credential_stuffing' }
+        '^abuse_account_sharing$' { return 'account_sharing' }
+        '^abuse_bot_pattern$' { return 'bot_pattern' }
+        '^abuse_device_cluster_\d+$' { return 'device_cluster' }
+        default { return '' }
+    }
+}
+
+function Get-AbuseAdminValidationDbIncidentStats {
+    param(
+        [Parameter(Mandatory=$true)][string]$FilterType,
+        [Parameter(Mandatory=$true)][string]$FilterValue,
+        [Parameter(Mandatory=$false)]$FilterValues = $null,
+        [Parameter(Mandatory=$false)][string]$RunId = "",
+        [Parameter(Mandatory=$false)][string]$ScenarioName = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($FilterType) -or [string]::IsNullOrWhiteSpace($FilterValue)) {
+        return [PSCustomObject]@{
+            MatchedIncidents     = 0
+            LinkedIncidentEvents = 0
+            IncidentTypes        = @()
+        }
+    }
+
+    $column = ""
+    switch ($FilterType.Trim().ToLowerInvariant()) {
+        'email'       { $column = 'se.email' }
+        'device_hash' { $column = 'HEX(se.device_hash)' }
+        default       { throw ("ADMIN_VALIDATION_UNSUPPORTED_FILTER: {0}" -f $FilterType) }
+    }
+
+    $queryCondition = ""
+
+    if ($FilterType -eq 'device_hash') {
+        $filterValues = @(ConvertTo-AbuseAdminValidationStringArray -InputObject $FilterValues)
+
+        if ($filterValues.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($FilterValue)) {
+            $filterValues = @($FilterValue)
+        }
+
+        $escapedValues = @(
+            $filterValues |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                ForEach-Object { "'" + $_.Replace("'", "''").ToUpper() + "'" } |
+                Select-Object -Unique
+        )
+
+        if ($escapedValues.Count -eq 0) {
+            return [PSCustomObject]@{
+                MatchedIncidents     = 0
+                LinkedIncidentEvents = 0
+                IncidentTypes        = @()
+            }
+        }
+
+        $queryCondition = ("HEX(se.device_hash) IN ({0})" -f ($escapedValues -join ', '))
+    }
+    else {
+        $escapedValue = $FilterValue.Replace("'", "''")
+        $queryCondition = ("{0} = '{1}'" -f $column, $escapedValue)
+    }
+
+    $queryConditions = New-Object System.Collections.ArrayList
+    [void]$queryConditions.Add($queryCondition)
+
+    $securityEventsColumns = @(Get-AbuseAdminValidationSecurityEventsColumns)
+    $normalizedRunId = ("" + $RunId).Trim()
+    $normalizedScenarioName = ("" + $ScenarioName).Trim()
+    $auditWindowStartSql = (Get-AbuseAdminValidationString -Name "AuditWindowStartSql" -Default "").Trim()
+
+    if (-not [string]::IsNullOrWhiteSpace($normalizedRunId) -and -not ($securityEventsColumns -contains 'run_id')) {
+        throw "ADMIN_VALIDATION_RUN_ID_COLUMN_MISSING"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($normalizedRunId) -and ($securityEventsColumns -contains 'run_id')) {
+        [void]$queryConditions.Add(("se.run_id = '{0}'" -f $normalizedRunId.Replace("'", "''")))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($normalizedScenarioName) -and ($securityEventsColumns -contains 'scenario_name')) {
+        [void]$queryConditions.Add(("se.scenario_name = '{0}'" -f $normalizedScenarioName.Replace("'", "''")))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($auditWindowStartSql) -and ($securityEventsColumns -contains 'created_at')) {
+        [void]$queryConditions.Add(("se.created_at >= '{0}'" -f $auditWindowStartSql.Replace("'", "''")))
+    }
+
+    $query = @"
+SELECT
+    COALESCE(sie.incident_id, ''),
+    COALESCE(si.type, ''),
+    COALESCE(sie.security_event_id, '')
+FROM security_events se
+INNER JOIN security_incident_events sie ON sie.security_event_id = se.id
+INNER JOIN security_incidents si ON si.id = sie.incident_id
+WHERE $(@($queryConditions) -join ' AND ')
+ORDER BY sie.incident_id DESC, sie.security_event_id DESC;
+"@
+
+    $lines = @(Invoke-AbuseAdminValidationMySqlQuery -Query $query)
+    $incidentIds = New-Object System.Collections.ArrayList
+    $incidentTypes = New-Object System.Collections.ArrayList
+    $linkedEventIds = New-Object System.Collections.ArrayList
+
+    foreach ($line in $lines) {
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        $parts = @($line -split "`t", 3)
+        while ($parts.Count -lt 3) {
+            $parts += ""
+        }
+
+        $incidentId = ("" + $parts[0]).Trim()
+        $incidentType = ("" + $parts[1]).Trim()
+        $securityEventId = ("" + $parts[2]).Trim()
+
+        if (-not [string]::IsNullOrWhiteSpace($incidentId)) {
+            [void]$incidentIds.Add($incidentId)
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($incidentType)) {
+            [void]$incidentTypes.Add($incidentType)
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($securityEventId)) {
+            [void]$linkedEventIds.Add($securityEventId)
+        }
+    }
+
+    return [PSCustomObject]@{
+        MatchedIncidents     = @($incidentIds | Select-Object -Unique).Count
+        LinkedIncidentEvents = @($linkedEventIds | Select-Object -Unique).Count
+        IncidentTypes        = @(ConvertTo-AbuseAdminValidationStringArray -InputObject ($incidentTypes | Select-Object -Unique))
+    }
+}
+
 function New-AbuseAdminValidationDbCheck {
     param(
         [Parameter(Mandatory=$true)]$ScenarioDefinition
@@ -1577,74 +1721,49 @@ function New-AbuseAdminValidationDbCheck {
         }
     }
 
-    $expectedRequestCount = [int]$ScenarioDefinition.ExpectedRequestCount
-    $expectedDistinctEmailCount = [int]$ScenarioDefinition.ExpectedDistinctEmailCount
-    $expectedDistinctIpCount = [int]$ScenarioDefinition.ExpectedDistinctIpCount
-    $expectedDistinctDeviceCount = [int]$ScenarioDefinition.ExpectedDistinctDeviceCount
-    $observedRequestCount = [int]$ScenarioDefinition.ExpectedRequestCount
-    $observedDistinctEmailCount = @($ScenarioDefinition.Emails).Count
-    $observedDistinctIpCount = @($ScenarioDefinition.Ips).Count
-    $observedDistinctDeviceCount = @($ScenarioDefinition.DeviceIds).Count
-    $accountSharingPassIpThreshold = [int][Math]::Ceiling($expectedDistinctIpCount * 0.8)
-    $accountSharingPassDeviceThreshold = [int][Math]::Ceiling($expectedDistinctDeviceCount * 0.8)
-    $accountSharingWarnIpThreshold = [int][Math]::Ceiling($expectedDistinctIpCount * 0.6)
-    $accountSharingWarnDeviceThreshold = [int][Math]::Ceiling($expectedDistinctDeviceCount * 0.6)
+    $expectedIncidentType = Get-AbuseAdminValidationExpectedIncidentType -ScenarioName $ScenarioDefinition.ScenarioName
+    $incidentStats = Get-AbuseAdminValidationDbIncidentStats `
+        -FilterType $ScenarioDefinition.FilterType `
+        -FilterValue $ScenarioDefinition.FilterValue `
+        -FilterValues $ScenarioDefinition.DeviceHashes `
+        -RunId $runId `
+        -ScenarioName $ScenarioDefinition.ScenarioName
+
+    $matchedIncidents = [int]$incidentStats.MatchedIncidents
+    $linkedIncidentEvents = [int]$incidentStats.LinkedIncidentEvents
+    $incidentTypes = @(ConvertTo-AbuseAdminValidationStringArray -InputObject $incidentStats.IncidentTypes)
+    $scenarioPatternMatched = $false
+
+    if ([string]::IsNullOrWhiteSpace($expectedIncidentType)) {
+        $scenarioPatternMatched = ($incidentTypes.Count -gt 0)
+    } else {
+        $scenarioPatternMatched = ($incidentTypes -contains $expectedIncidentType)
+    }
+
+    $incidentFound = ($matchedIncidents -ge 1)
+    $eventsLinked = ($linkedIncidentEvents -ge 1)
 
     Write-Host ("[SCENARIO: {0}]" -f $ScenarioDefinition.ScenarioName)
-    Write-Host "DEBUG COUNTS"
-    Write-Host ("ExpectedEmails: {0}" -f $expectedDistinctEmailCount)
-    Write-Host ("ObservedEmails: {0}" -f $observedDistinctEmailCount)
-    Write-Host ("ExpectedIps: {0}" -f $expectedDistinctIpCount)
-    Write-Host ("ObservedIps: {0}" -f $observedDistinctIpCount)
-    Write-Host ("ExpectedDevices: {0}" -f $expectedDistinctDeviceCount)
-    Write-Host ("ObservedDevices: {0}" -f $observedDistinctDeviceCount)
+    Write-Host "DEBUG INCIDENT VALIDATION"
+    Write-Host ("ExpectedIncidentType: {0}" -f $expectedIncidentType)
+    Write-Host ("MatchedIncidents: {0}" -f $matchedIncidents)
+    Write-Host ("LinkedIncidentEvents: {0}" -f $linkedIncidentEvents)
+    Write-Host ("IncidentTypes: {0}" -f ($incidentTypes -join ", "))
+    Write-Host ("ScenarioPatternMatched: {0}" -f $scenarioPatternMatched)
     Write-Host ""
 
     $result = "FAIL"
+    $errorMessage = "INCIDENT_NOT_FOUND"
 
-    switch -Regex ($ScenarioDefinition.ScenarioName) {
-        '^abuse_account_sharing$' {
-            if ($observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
-                $observedDistinctIpCount -eq $expectedDistinctIpCount -and
-                $observedDistinctDeviceCount -ge $accountSharingPassDeviceThreshold) {
-                $result = "PASS"
-            } elseif ($observedDistinctIpCount -ge $accountSharingWarnIpThreshold -or
-                $observedDistinctDeviceCount -ge $accountSharingWarnDeviceThreshold) {
-                $result = "WARN"
-            }
-        }
-
-        '^abuse_bot_pattern$' {
-            if ($observedRequestCount -eq $expectedRequestCount -and
-                $observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
-                $observedDistinctDeviceCount -eq $expectedDistinctDeviceCount -and
-                $observedDistinctIpCount -eq $expectedDistinctIpCount) {
-                $result = "PASS"
-            } elseif ($observedRequestCount -gt 0) {
-                $result = "WARN"
-            }
-        }
-
-        '^(abuse_device_reuse|abuse_device_cluster_\d+)$' {
-            if ($observedRequestCount -eq $expectedRequestCount -and
-                $observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
-                $observedDistinctDeviceCount -eq $expectedDistinctDeviceCount -and
-                $observedDistinctIpCount -eq $expectedDistinctIpCount) {
-                $result = "PASS"
-            } elseif ($observedRequestCount -gt 0) {
-                $result = "WARN"
-            }
-        }
-
-        default {
-            if ($observedRequestCount -eq $expectedRequestCount -and
-                $observedDistinctEmailCount -eq $expectedDistinctEmailCount -and
-                $observedDistinctIpCount -eq $expectedDistinctIpCount) {
-                $result = "PASS"
-            } elseif ($observedRequestCount -gt 0) {
-                $result = "WARN"
-            }
-        }
+    if ($incidentFound -and $eventsLinked -and $scenarioPatternMatched) {
+        $result = "PASS"
+        $errorMessage = "Incident detection matched scenario events."
+    } elseif ($incidentFound -and $eventsLinked) {
+        $errorMessage = "INCIDENT_TYPE_MISMATCH"
+    } elseif ($incidentFound) {
+        $errorMessage = "INCIDENT_EVENTS_NOT_LINKED"
+    } else {
+        $errorMessage = "NO_INCIDENT_FOUND"
     }
 
     return [PSCustomObject]@{
@@ -1656,25 +1775,31 @@ function New-AbuseAdminValidationDbCheck {
         HttpStatus                = "DB"
         FinalUrl                  = "security_events"
         ExpectedEmailCount        = @($ScenarioDefinition.Emails).Count
-        FoundEmailCount           = $observedDistinctEmailCount
+        FoundEmailCount           = @($emailsFound.ToArray()).Count
         ExpectedIpCount           = @($ScenarioDefinition.Ips).Count
-        FoundIpCount              = $observedDistinctIpCount
+        FoundIpCount              = @($ipsFound.ToArray()).Count
         ExpectedDeviceHashes      = @($ScenarioDefinition.DeviceHashes)
-        FoundDeviceHashes         = @($ScenarioDefinition.DeviceHashes)
+        FoundDeviceHashes         = @($hashesFound.ToArray())
         EmailsExpected            = @($ScenarioDefinition.Emails)
-        EmailsFound               = @($ScenarioDefinition.Emails)
+        EmailsFound               = @($emailsFound.ToArray())
         IpsExpected               = @($ScenarioDefinition.Ips)
-        IpsFound                  = @($ScenarioDefinition.Ips)
-        ObservedRequestCount      = $observedRequestCount
-        ObservedDistinctEmailCount = $observedDistinctEmailCount
-        ObservedDistinctIpCount   = $observedDistinctIpCount
-        ObservedDistinctDeviceCount = $observedDistinctDeviceCount
-        ExpectedRequestCount      = $expectedRequestCount
+        IpsFound                  = @($ipsFound.ToArray())
+        ObservedRequestCount      = @($records).Count
+        ObservedDistinctEmailCount = @($dbEmails).Count
+        ObservedDistinctIpCount   = @($dbIps).Count
+        ObservedDistinctDeviceCount = @($dbDeviceHashes).Count
+        ExpectedRequestCount      = [int]$ScenarioDefinition.ExpectedRequestCount
         DbRecordCount             = @($records).Count
         DbEmailCount              = @($dbEmails).Count
         DbIpCount                 = @($dbIps).Count
         DbDeviceHashCount         = @($dbDeviceHashes).Count
+        MatchedIncidents          = $matchedIncidents
+        LinkedIncidentEvents      = $linkedIncidentEvents
+        ExpectedIncidentType      = $expectedIncidentType
+        IncidentTypes             = @($incidentTypes)
+        ScenarioPatternMatched    = $scenarioPatternMatched
         Result                    = $result
+        ErrorMessage              = $errorMessage
     }
 }
 

@@ -2,10 +2,11 @@
 // ============================================================================
 // File: C:\laragon\www\kiezsingles\routes\web\admin.php
 // Purpose: Admin routes (single backend; admin-only access; single source of truth)
-// Changed: 04-03-2026 21:22 (Europe/Berlin)
-// Version: 5.8
+// Changed: 23-03-2026 21:59 (Europe/Berlin)
+// Version: 6.2
 // ============================================================================
 
+use App\Http\Controllers\Admin\Security\IncidentController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Support\KsMaintenance;
 use Illuminate\Support\Facades\DB;
@@ -125,6 +126,18 @@ Route::prefix('admin')->name('admin.')->middleware(['ensure.not.banned.ip', 'aut
 
     Route::middleware(['section:security', 'password.confirm'])->group(function () {
         require __DIR__ . '/admin/security.php';
+
+        Route::get('/security/incidents', [IncidentController::class, 'index'])
+            ->name('security.incidents.index');
+
+        Route::get('/security/incidents/{id}', [IncidentController::class, 'show'])
+            ->name('security.incidents.show');
+
+        Route::post('/security/incidents/{incident}/status', [IncidentController::class, 'updateStatus'])
+            ->name('security.incidents.updateStatus');
+
+        Route::post('/security/incidents/{id}/status/{status}', [IncidentController::class, 'updateStatus'])
+            ->name('security.incidents.status.update');
     });
 
     Route::post('settings/layout-outlines', function (\Illuminate\Http\Request $request) {
